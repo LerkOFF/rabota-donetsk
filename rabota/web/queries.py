@@ -25,7 +25,7 @@ MAX_QUERY_LEN = 80
 # последняя проверка срока жизни прямо в запросе: вакансия без публикаций дольше TTL не показывается,
 # даже если фоновая команда expire давно не запускалась
 VISIBLE_SQL = (
-    "kind = 'vacancy' AND status = 'active' AND duplicate_of IS NULL AND suspicious = 0 "
+    "kind = 'vacancy' AND status = 'active' AND duplicate_of IS NULL AND suspicious = 0 AND moderation_status = 'approved' "
     f"AND (COALESCE(last_seen_at, published_at) IS NULL "
     f"OR COALESCE(last_seen_at, published_at) >= strftime('%Y-%m-%dT%H:%M:%S', 'now', '-{int(config.VACANCY_TTL_DAYS)} days'))"
 )
