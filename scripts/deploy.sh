@@ -53,6 +53,7 @@ sync_deps() {
 
 restart_services() {
   sc restart rabota-web rabota-worker
+  sc enable --now rabota-backup.timer rabota-alert.timer  # таймеры не должны остаться выключенными после первой установки
 }
 
 prev="$(as_app git rev-parse HEAD)"

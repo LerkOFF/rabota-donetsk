@@ -243,3 +243,10 @@ def test_no_internal_kitchen_no_long_dash_no_secrets(path):
     assert "—" not in text, f"{path.name}: длинное тире"
     assert not re.search(r"\b\d{8,10}:[A-Za-z0-9_-]{30,}\b", text), "похоже на токен бота"
     assert not re.search(r"-----BEGIN [A-Z ]*PRIVATE KEY-----", text)
+
+
+def test_deploy_script_keeps_backup_and_alert_timers_running():
+    """Таймеры резервной копии и уведомлений должны запускаться при каждом развёртывании, а не только при первой установке."""
+    text = (ROOT / "scripts" / "deploy.sh").read_text(encoding="utf-8")
+    body = text.split("restart_services() {", 1)[1].split("}", 1)[0]
+    assert "rabota-backup.timer" in body and "rabota-alert.timer" in body
