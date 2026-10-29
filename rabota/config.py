@@ -11,7 +11,8 @@ load_dotenv(ROOT / ".env")
 
 
 def get(name: str, default: str = "") -> str:
-    return os.environ.get(name, default)
+    """Значение из окружения. Пустая строка (как в .env.example) считается незаданной и даёт значение по умолчанию."""
+    return os.environ.get(name) or default
 
 
 DB_PATH = Path(get("DB_PATH", str(ROOT / "data" / "rabota.db")))
