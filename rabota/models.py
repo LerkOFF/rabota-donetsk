@@ -62,6 +62,7 @@ class Vacancy:
     source_url: str = ""
     external_id: str = ""
     published_at: str | None = None
+    last_seen_at: str | None = None       # когда вакансию видели в последний раз (UTC), от него идёт срок жизни
     kind: str = "vacancy"                 # из POST_KINDS
     dedupe_key: str = ""                  # ключ склейки дублей
     duplicate_of: int | None = None

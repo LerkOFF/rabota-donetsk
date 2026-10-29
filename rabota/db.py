@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from rabota.config import DB_PATH
+from rabota.lifecycle import is_stale, to_utc_iso
 from rabota.models import RawPost, Vacancy
 
 SCHEMA = """
@@ -26,7 +28,7 @@ CREATE TABLE IF NOT EXISTS vacancies (
   pay_monthly_estimate INTEGER, city TEXT, district TEXT, experience TEXT, age_min INTEGER,
   requirements TEXT, employer TEXT, contacts TEXT NOT NULL DEFAULT '{}', summary TEXT NOT NULL DEFAULT '',
   source_type TEXT NOT NULL DEFAULT '', source TEXT NOT NULL DEFAULT '', source_url TEXT NOT NULL DEFAULT '',
-  external_id TEXT NOT NULL DEFAULT '', published_at TEXT, kind TEXT NOT NULL DEFAULT 'vacancy',
+  external_id TEXT NOT NULL DEFAULT '', published_at TEXT, last_seen_at TEXT, kind TEXT NOT NULL DEFAULT 'vacancy',
   dedupe_key TEXT NOT NULL DEFAULT '', duplicate_of INTEGER, status TEXT NOT NULL DEFAULT 'active',
   suspicious INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -44,7 +46,7 @@ _VAC_COLS = [
     "profession", "title_raw", "category", "work_format", "employment", "schedule", "pay_min", "pay_max",
     "pay_period", "pay_daily", "pay_monthly_estimate", "city", "district", "experience", "age_min",
     "requirements", "employer", "contacts", "summary", "source_type", "source", "source_url", "external_id",
-    "published_at", "kind", "dedupe_key", "duplicate_of", "status", "suspicious",
+    "published_at", "last_seen_at", "kind", "dedupe_key", "duplicate_of", "status", "suspicious",
 ]
 
 
@@ -55,7 +57,17 @@ def connect(path: Path | str | None = None) -> sqlite3.Connection:
     conn = sqlite3.connect(str(p))
     conn.row_factory = sqlite3.Row
     conn.executescript(SCHEMA)
+    _migrate(conn)
     return conn
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """Добавить колонки, появившиеся позже, в уже существующую базу."""
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(vacancies)")}
+    if "last_seen_at" not in cols:
+        conn.execute("ALTER TABLE vacancies ADD COLUMN last_seen_at TEXT")
+        conn.execute("UPDATE vacancies SET last_seen_at = COALESCE(published_at, created_at)")
+        conn.commit()
 
 
 def save_raw(conn: sqlite3.Connection, post: RawPost) -> bool:
@@ -88,6 +100,10 @@ def load_raw(conn: sqlite3.Connection, source_type: str | None = None, limit: in
 
 def save_vacancy(conn: sqlite3.Connection, v: Vacancy) -> int:
     d = v.to_dict()
+    # срок жизни идёт от последней публикации; старый пост сразу сохраняется скрытым
+    d["last_seen_at"] = to_utc_iso(d["last_seen_at"] or d["published_at"]) or datetime.now(UTC).replace(microsecond=0).isoformat()
+    if d["status"] == "active" and is_stale(d["last_seen_at"]):
+        d["status"] = "expired"
     d["contacts"] = json.dumps(d["contacts"], ensure_ascii=False)
     d["pay_daily"] = int(d["pay_daily"])
     d["suspicious"] = int(d["suspicious"])

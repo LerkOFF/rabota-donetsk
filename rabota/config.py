@@ -16,3 +16,8 @@ def get(name: str, default: str = "") -> str:
 
 DB_PATH = Path(get("DB_PATH", str(ROOT / "data" / "rabota.db")))
 USER_AGENT = get("HTTP_USER_AGENT", "Mozilla/5.0 (compatible; RabotaDonetskBot/0.1)")
+
+# Сколько дней вакансия живёт на сайте с последней публикации. Повторная публикация обнуляет отсчёт.
+VACANCY_TTL_DAYS = int(get("VACANCY_TTL_DAYS", "21"))
+# Сколько дней истёкшая вакансия лежит скрытой в базе до физического удаления.
+EXPIRED_KEEP_DAYS = int(get("EXPIRED_KEEP_DAYS", "30"))

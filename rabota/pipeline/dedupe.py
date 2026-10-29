@@ -18,6 +18,7 @@ import zlib
 from dataclasses import dataclass
 from typing import Any
 
+from rabota.lifecycle import is_stale, later_of, to_utc_iso
 from rabota.models import Vacancy
 from rabota.pipeline.clean import clean_text
 from rabota.pipeline.dictionaries import norm
@@ -180,6 +181,8 @@ def _same_vacancy(a: _Item, b: _Item, threshold: float) -> bool:
         if _same_source(a.vac, b.vac):
             threshold = max(threshold, SAME_SOURCE_SIMILARITY)
         return similarity(a.sh, b.sh) >= threshold
+    if a.phones and b.phones and not (a.phones & b.phones):
+        return False  # разные телефоны и нет текста для сравнения: это разные работодатели
     return a.text_norm == b.text_norm and bool(a.text_norm)
 
 
@@ -265,6 +268,11 @@ def merge_into(main: Vacancy, dup: Vacancy) -> bool:
     if dup.suspicious and not main.suspicious:
         main.suspicious = True
         changed = True
+    # повторная публикация обнуляет срок жизни главной вакансии
+    seen = later_of(main.last_seen_at or main.published_at, dup.last_seen_at or dup.published_at)
+    if seen and seen != to_utc_iso(main.last_seen_at):
+        main.last_seen_at = seen
+        changed = True
     main.contacts = merged
     return changed
 
@@ -349,6 +357,10 @@ def dedupe(conn: sqlite3.Connection, threshold: float = SIMILARITY_THRESHOLD) ->
             it.vac.duplicate_of = main.key
             if merge_into(main.vac, it.vac):
                 _save_merged(conn, main)
+        if main.vac.status == "expired" and not is_stale(main.vac.last_seen_at):
+            # вакансию опубликовали снова: возвращаем её на сайт
+            main.vac.status = "active"
+            _save_merged(conn, main)
         for it in group:
             if it is not main and before[it.key] != it.vac.duplicate_of:
                 conn.execute("UPDATE vacancies SET duplicate_of = ? WHERE id = ?", (it.vac.duplicate_of, it.key))
@@ -365,10 +377,11 @@ def _save_merged(conn: sqlite3.Connection, main: _Item) -> None:
     conn.execute(
         "UPDATE vacancies SET work_format=?, employment=?, schedule=?, pay_min=?, pay_max=?, pay_period=?, pay_daily=?,"
         " pay_monthly_estimate=?, city=?, district=?, experience=?, age_min=?, requirements=?, employer=?, contacts=?,"
-        " summary=?, suspicious=?, published_at=? WHERE id=?",
+        " summary=?, suspicious=?, published_at=?, last_seen_at=?, status=? WHERE id=?",
         (v.work_format, v.employment, v.schedule, v.pay_min, v.pay_max, v.pay_period, int(v.pay_daily),
          v.pay_monthly_estimate, v.city, v.district, v.experience, v.age_min, v.requirements, v.employer,
-         json.dumps(v.contacts, ensure_ascii=False), v.summary, int(v.suspicious), v.published_at, main.key),
+         json.dumps(v.contacts, ensure_ascii=False), v.summary, int(v.suspicious), v.published_at, v.last_seen_at,
+         v.status, main.key),
     )
 
 

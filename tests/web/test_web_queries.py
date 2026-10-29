@@ -184,3 +184,23 @@ def test_add_site_vacancy_premoderation(conn):
     vid2 = q.add_site_vacancy(conn, make_vacancy(profession="курьер"), premoderate=False)
     assert q.get_vacancy(conn, vid2)["status"] == "active"
     assert prof(conn) == ["курьер"]
+
+
+def test_stale_vacancy_is_not_shown_even_if_active(tmp_path):
+    """Вакансия без публикаций дольше срока жизни не показывается, даже если expire давно не запускали."""
+    from datetime import UTC, datetime, timedelta
+
+    from rabota.db import connect
+    from rabota.web import queries
+
+    conn = connect(tmp_path / "t.db")
+    old = (datetime.now(UTC) - timedelta(days=40)).replace(microsecond=0).isoformat()
+    fresh = (datetime.now(UTC) - timedelta(days=2)).replace(microsecond=0).isoformat()
+    for prof, seen in (("старая", old), ("свежая", fresh)):
+        conn.execute(
+            "INSERT INTO vacancies(profession, kind, status, last_seen_at, published_at) VALUES (?, 'vacancy', 'active', ?, ?)",
+            (prof, seen, seen),
+        )
+    conn.commit()
+    names = [r[0] for r in conn.execute(f"SELECT profession FROM vacancies WHERE {queries.VISIBLE_SQL}")]
+    assert names == ["свежая"]

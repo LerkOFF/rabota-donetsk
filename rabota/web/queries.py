@@ -15,13 +15,20 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
 
+from rabota import config
 from rabota.db import connect, save_vacancy, vacancy_row_to_dict
 from rabota.models import Vacancy
 
 PER_PAGE = 20
 MAX_QUERY_LEN = 80
 
-VISIBLE_SQL = "kind = 'vacancy' AND status = 'active' AND duplicate_of IS NULL AND suspicious = 0"
+# последняя проверка срока жизни прямо в запросе: вакансия без публикаций дольше TTL не показывается,
+# даже если фоновая команда expire давно не запускалась
+VISIBLE_SQL = (
+    "kind = 'vacancy' AND status = 'active' AND duplicate_of IS NULL AND suspicious = 0 "
+    f"AND (COALESCE(last_seen_at, published_at) IS NULL "
+    f"OR COALESCE(last_seen_at, published_at) >= strftime('%Y-%m-%dT%H:%M:%S', 'now', '-{int(config.VACANCY_TTL_DAYS)} days'))"
+)
 ORDER_SQL = "COALESCE(published_at, created_at) DESC, id DESC"
 
 # Окончания для грубой основы слова: "кассира", "кассиров", "кассиры" -> "кассир"

@@ -55,3 +55,15 @@ def test_process_makes_vacancy_and_merges_duplicates(conn, monkeypatch):
 def test_stats_prints(conn, capsys):
     cli.cmd_stats(conn)
     assert "на сайте: 0" in capsys.readouterr().out
+
+
+def test_expire_command_hides_and_purges(conn, capsys, monkeypatch):
+    from rabota.db import save_vacancy
+    from rabota.models import Vacancy
+
+    vid = save_vacancy(conn, Vacancy(profession="бариста", published_at="2020-01-01T00:00:00+00:00"))
+    monkeypatch.setattr(cli, "connect", lambda path=None: conn)
+    assert cli.main(["expire"]) == 0
+    out = capsys.readouterr().out
+    assert "удалено" in out
+    assert conn.execute("SELECT COUNT(*) FROM vacancies WHERE id=?", (vid,)).fetchone()[0] == 0

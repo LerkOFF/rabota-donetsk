@@ -2,6 +2,7 @@
 
     python -m rabota collect [--limit 10] [--source telegram --source vk]   сбор сырых постов
     python -m rabota process                                                  разбор текста и картинок, склейка дублей
+    python -m rabota expire                                                   скрыть вакансии старше 21 дня, удалить давно скрытые
     python -m rabota run [--limit 10]                                         всё сразу
     python -m rabota stats                                                    сводка по базе
     python -m rabota serve [--port 8000]                                      сайт
@@ -18,6 +19,7 @@ from pathlib import Path
 
 from rabota import config
 from rabota.db import connect, load_raw, save_raw, save_vacancy
+from rabota.lifecycle import expire, purge
 from rabota.models import RawPost
 
 log = logging.getLogger("rabota")
@@ -94,6 +96,7 @@ def cmd_process(conn: sqlite3.Connection) -> dict:
 
         stats["duplicates"] = dedupe(conn)
     stats["from_images"] = from_images
+    stats["expired"] = expire(conn)
     return stats
 
 
@@ -116,6 +119,7 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--limit", type=int, default=10, help="постов на канал или раздел")
         p.add_argument("--source", action="append", default=[], choices=COLLECTORS)
     sub.add_parser("process")
+    sub.add_parser("expire", help="скрыть вакансии старше срока жизни и удалить давно скрытые")
     sub.add_parser("stats")
     serve = sub.add_parser("serve")
     serve.add_argument("--port", type=int, default=8000)
@@ -133,6 +137,8 @@ def main(argv: list[str] | None = None) -> int:
         cmd_collect(conn, args.limit, args.source)
     if args.cmd in ("process", "run"):
         print("разбор:", cmd_process(conn))
+    if args.cmd == "expire":
+        print({"скрыто": expire(conn), "удалено": purge(conn)})
     if args.cmd in ("stats", "run"):
         cmd_stats(conn)
     return 0
