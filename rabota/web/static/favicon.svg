@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Работа Донецк">
-  <rect width="32" height="32" rx="8" fill="#0a7a61"/>
+  <rect width="32" height="32" rx="8" fill="#2563eb"/>
   <path d="M4 25 12.5 9.5c1-1.8 2.9-1.8 3.9 0L19 14l2.2-3.3c.9-1.4 2.7-1.4 3.6 0L29 25z" fill="#fff"/>
-  <circle cx="23.5" cy="7" r="2.6" fill="#ffd24d"/>
+  <circle cx="23.5" cy="7" r="2.6" fill="#ff9478"/>
 </svg>

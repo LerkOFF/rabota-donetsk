@@ -1,0 +1,17 @@
+{% extends 'auth/layout.html' %}
+{% block auth_body %}
+<div class="wrap">
+  <header class="page-head">
+    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>Кабинет работодателя</li></ol></nav>
+    <h1 class="h1 h1--page">Кабинет работодателя</h1>
+    <p class="lead">Здравствуйте, {{ me.name }}! Здесь появятся ваши вакансии, отклики и переписка с кандидатами.</p>
+  </header>
+  <div class="cabinet-stub">
+    <p class="muted">Раздел в разработке. Пока можно изменить имя, телефон, пароль и почту.</p>
+    <div class="state__actions">
+      <a class="btn btn--primary" href="/account">Настройки аккаунта</a>
+      <a class="btn btn--ghost" href="/vacancies">Смотреть вакансии</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

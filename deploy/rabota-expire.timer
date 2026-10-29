@@ -1,0 +1,12 @@
+# Образец таймера: раз в сутки запускает rabota-expire.service.
+[Unit]
+Description=Работа Донецк: ежедневное скрытие старых вакансий
+
+[Timer]
+OnCalendar=daily
+RandomizedDelaySec=15min
+Persistent=true
+Unit=rabota-expire.service
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,37 @@
+# Образец: SOCKS5-прокси для Telegram через SSH-туннель. Вариант для случая, когда прокси - обычный
+# SSH-сервер с доступом по ключу. После запуска в .env: TG_PROXY=socks5://127.0.0.1:1080
+# Подставьте <заглушки>:
+#   <USER>        системный пользователь проекта
+#   <SSH_KEY>     путь к закрытому ключу этого пользователя (права 600)
+#   <PROXY_USER>  имя пользователя на прокси-сервере
+#   <PROXY_HOST>  адрес прокси-сервера
+# Ключ хоста сервера должен быть уже в known_hosts пользователя: StrictHostKeyChecking включён.
+[Unit]
+Description=Работа Донецк: SOCKS5-туннель для Telegram через SSH
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=<USER>
+Group=<USER>
+ExecStart=/usr/bin/ssh -N -D 127.0.0.1:1080 \
+  -i <SSH_KEY> \
+  -o BatchMode=yes \
+  -o StrictHostKeyChecking=yes \
+  -o ExitOnForwardFailure=yes \
+  -o ServerAliveInterval=30 \
+  -o ServerAliveCountMax=3 \
+  -o ConnectTimeout=15 \
+  <PROXY_USER>@<PROXY_HOST>
+Restart=always
+RestartSec=5
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=multi-user.target

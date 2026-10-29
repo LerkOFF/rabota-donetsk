@@ -1,40 +1,39 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import icon, vcard %}
+{% from '_macros.html' import icon, vcard, search_bar %}
+{% block hsearch %}{% endblock %}
 {% block content %}
-<section class="hero">
-  <div class="wrap hero__grid">
-    <div class="hero__text">
-      <h1 class="h1">Работа в Донецке без лишних постов</h1>
-      <p class="lead">Оплата, район и телефон в одной карточке. Ссылка на оригинал всегда рядом.</p>
-      <form class="search" action="/vacancies" method="get" role="search">
-        <div class="search__field">
-          {{ icon('magnifying-glass') }}
-          <label class="visually-hidden" for="q">Профессия или должность</label>
-          <input class="input" id="q" name="q" type="search" maxlength="80" autocomplete="off" enterkeyhint="search"
-                 placeholder="Например, бариста">
+<section class="hero" aria-labelledby="hero-title">
+  <div class="wrap">
+    <div class="hero__band">
+      <div class="hero__text">
+        <h1 class="h1" id="hero-title">Найдите работу в Донецке</h1>
+        <p class="hero__lead">{{ count_label(stats.total, 'актуальная вакансия', 'актуальные вакансии', 'актуальных вакансий') }} от работодателей и из открытых источников. Оплата, район и телефон в каждой карточке.</p>
+        {{ search_bar('hero', big=True) }}
+        {% if professions %}
+        <div class="hero__popular">
+          <p id="hero-pop">Популярные профессии</p>
+          <ul class="chip-row" aria-labelledby="hero-pop">
+            {% for name, n in professions[:6] %}
+            <li><a class="chip chip--on-brand" href="/profession/{{ name | quote }}">{{ name | ucfirst }}</a></li>
+            {% endfor %}
+          </ul>
         </div>
-        <button class="btn btn--primary" type="submit">Найти</button>
-      </form>
-      {% if professions %}
-      <ul class="chip-row" aria-label="Частые запросы">
-        {% for name, n in professions[:6] %}
-        <li><a class="chip" href="/profession/{{ name | quote }}">{{ name | ucfirst }}</a></li>
-        {% endfor %}
-      </ul>
-      {% endif %}
-    </div>
+        {% endif %}
+      </div>
 
-    <aside class="today" aria-label="Что сейчас на сайте">
-      <a class="today__top" href="/vacancies">
-        <div class="today__big">{{ stats.total }}</div>
-        <div class="today__cap">{{ plural(stats.total, 'актуальная вакансия', 'актуальные вакансии', 'актуальных вакансий') }}, за сутки новых: {{ stats.fresh }}</div>
-      </a>
-      <ul class="today__list">
-        <li><a class="today__row" href="/vacancies?no_experience=1">{{ icon('seal-check') }}Без опыта<span class="today__n">{{ stats.no_experience }}</span></a></li>
-        <li><a class="today__row" href="/vacancies?daily=1">{{ icon('lightning') }}Выплата каждый день<span class="today__n">{{ stats.daily }}</span></a></li>
-        <li><a class="today__row" href="/vacancies?side_job=1">{{ icon('calendar-blank') }}Подработка<span class="today__n">{{ stats.side_job }}</span></a></li>
-      </ul>
-    </aside>
+      <aside class="today" aria-label="Что сейчас на сайте">
+        <a class="today__top" href="/vacancies">
+          <div class="today__big">{{ stats.total }}</div>
+          <div class="today__cap">{{ plural(stats.total, 'актуальная вакансия', 'актуальные вакансии', 'актуальных вакансий') }}, за сутки новых: {{ stats.fresh }}</div>
+        </a>
+        <ul class="today__list">
+          <li><a class="today__row" href="/vacancies?direct=1">{{ icon('seal-check') }}От работодателей<span class="today__n">{{ stats.direct }}</span></a></li>
+          <li><a class="today__row" href="/vacancies?no_experience=1">{{ icon('check-circle') }}Без опыта<span class="today__n">{{ stats.no_experience }}</span></a></li>
+          <li><a class="today__row" href="/vacancies?daily=1">{{ icon('lightning') }}Выплата каждый день<span class="today__n">{{ stats.daily }}</span></a></li>
+          <li><a class="today__row" href="/vacancies?side_job=1">{{ icon('calendar-blank') }}Подработка<span class="today__n">{{ stats.side_job }}</span></a></li>
+        </ul>
+      </aside>
+    </div>
   </div>
 </section>
 
@@ -42,9 +41,9 @@
 <section class="section section--tight" aria-labelledby="cats">
   <div class="wrap">
     <h2 class="h2 section__title" id="cats">Сферы работы</h2>
-    <ul class="chip-row">
+    <ul class="cat-grid">
       {% for name, n in categories %}
-      <li><a class="chip" href="/vacancies?category={{ name | quote }}">{{ icon(category_icon(name)) }}{{ category_label(name) }} <span class="chip__n">{{ n }}</span></a></li>
+      <li><a class="cat" href="/vacancies?category={{ name | quote }}"><span class="cat__ico">{{ icon(category_icon(name)) }}</span><span class="cat__name">{{ category_label(name) }}</span><span class="cat__n">{{ n }}</span></a></li>
       {% endfor %}
     </ul>
   </div>
@@ -61,6 +60,7 @@
     <div class="vlist vlist--cols">
       {% for v in fresh %}{{ vcard(v) }}{% endfor %}
     </div>
+    <p class="more"><a class="btn btn--ghost" href="/vacancies">Показать все вакансии{{ icon('arrow-right') }}</a></p>
     {% else %}
     <div class="state">
       <span class="state__ico">{{ icon('binoculars') }}</span>
@@ -90,14 +90,35 @@
 </section>
 {% endif %}
 
-<section class="section">
-  <div class="wrap">
-    <div class="cta-band">
-      <div>
-        <h2 class="h2">Нужен сотрудник?</h2>
-        <p class="muted">Опубликуйте вакансию бесплатно: профессия, оплата, график и телефон. Появится после короткой проверки.</p>
+<section class="section" aria-label="Для работодателей и соискателей">
+  <div class="wrap audience">
+    <div class="audience__card audience__card--employer">
+      <h2 class="h2">Ищете сотрудника?</h2>
+      <ul class="ticks">
+        <li>{{ icon('check-circle') }}Публикация бесплатная, вакансия появляется после короткой проверки</li>
+        <li>{{ icon('check-circle') }}Отклики и переписка с соискателями в личном кабинете</li>
+        <li>{{ icon('check-circle') }}Вакансию увидят и те, кто ищет работу в каналах и пабликах</li>
+      </ul>
+      <div class="state__actions">
+        <a class="btn btn--pay btn--lg" href="/razmestit">Разместить вакансию</a>
+        <a class="btn btn--outline-brand btn--lg" href="/employers">Как это работает</a>
       </div>
-      <a class="btn btn--primary btn--lg" href="/razmestit">Разместить вакансию</a>
+    </div>
+    <div class="audience__card">
+      <h2 class="h2">Ищете работу?</h2>
+      <ul class="ticks">
+        <li>{{ icon('check-circle') }}Резюме один раз, отклик в одно нажатие</li>
+        <li>{{ icon('check-circle') }}Переписка с работодателем прямо на сайте</li>
+        <li>{{ icon('check-circle') }}Избранные вакансии всегда под рукой</li>
+      </ul>
+      <div class="state__actions">
+        {% if user %}
+        <a class="btn btn--primary btn--lg" href="/cabinet">Перейти в кабинет</a>
+        {% else %}
+        <a class="btn btn--primary btn--lg" href="/register">Создать резюме</a>
+        <a class="btn btn--ghost btn--lg" href="/login">Войти</a>
+        {% endif %}
+      </div>
     </div>
   </div>
 </section>

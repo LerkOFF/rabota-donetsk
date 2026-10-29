@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import icon, vcard, pay, actions, field_error %}
+{% from '_macros.html' import icon, vcard, pay, actions, field_error, logo_tile %}
 {% block content %}
 <div class="wrap vpage">
   <div class="vpage__main">
@@ -18,24 +18,22 @@
     <p class="notice" role="status">{{ icon('check-circle') }}<span>Спасибо, жалоба принята. Мы проверим вакансию и скроем её, если это подтвердится.</span></p>
     {% endif %}
 
-    <header class="vhead">
+    <header class="panel vhead">
       <p class="vhead__kicker">
         <span class="badge badge--ok">{{ icon(category_icon(v.category)) }}{{ category_label(v.category) }}</span>
+        {% if v.is_direct %}<span class="tag tag--direct">{{ icon('seal-check') }}От работодателя</span>{% endif %}
         {% if v.ago %}<span>Опубликовано <time datetime="{{ v.published_at }}">{{ v.ago }}</time></span>{% endif %}
       </p>
       <h1 class="h1 h1--page">{{ v.profession_title }}</h1>
-      {% if v.employer %}<p class="muted">{{ v.employer }}</p>{% endif %}
       {{ pay(v, estimate=True) }}
       {% if v.badges %}
       <ul class="badges">
         {% for b in v.badges %}<li class="badge badge--{{ b.kind }}">{% if b.kind == 'pay' %}{{ icon('lightning') }}{% endif %}{{ b.label }}</li>{% endfor %}
       </ul>
       {% endif %}
-    </header>
-
-    <section class="panel" aria-labelledby="facts">
-      <h2 id="facts">Коротко</h2>
-      <dl class="facts">
+      <h2 class="visually-hidden" id="facts">Коротко</h2>
+      <dl class="facts" aria-labelledby="facts">
+        {% if v.employer %}<div><dt>Работодатель</dt><dd>{{ v.employer }}</dd></div>{% endif %}
         {% if v.location %}<div><dt>Где</dt><dd>{{ v.location }}</dd></div>{% endif %}
         {% if v.schedule %}<div><dt>График</dt><dd>{{ v.schedule }}</dd></div>{% endif %}
         {% if v.work_format_label %}<div><dt>Формат</dt><dd>{{ v.work_format_label }}</dd></div>{% endif %}
@@ -44,7 +42,7 @@
         {% if v.age_min %}<div><dt>Возраст</dt><dd>От {{ v.age_min }} лет</dd></div>{% endif %}
         {% if v.requirements %}<div><dt>Требования</dt><dd>{{ v.requirements }}</dd></div>{% endif %}
       </dl>
-    </section>
+    </header>
 
     {% if v.summary %}
     <section class="panel" aria-labelledby="desc">
@@ -56,7 +54,7 @@
     <section class="panel vpart--late" aria-labelledby="src">
       <h2 id="src">Источник</h2>
       <p class="source-line">
-        {% if v.is_site %}Вакансию разместил работодатель на нашем сайте.{% else %}Вакансия найдена в источнике: {{ v.source_label }}{% if v.source %}, {{ v.source }}{% endif %}.{% endif %}
+        {% if v.is_direct %}Вакансию разместил работодатель на нашем сайте.{% elif v.is_site %}Вакансию разместил работодатель на нашем сайте.{% else %}Вакансия найдена в источнике: {{ v.source_label }}{% if v.source %}, {{ v.source }}{% endif %}.{% endif %}
         {% if v.ago %}Опубликована {{ v.ago }}.{% endif %}
         Условия могут измениться, уточняйте их по телефону.
       </p>
@@ -111,10 +109,10 @@
     {% endif %}
   </div>
 
-  <aside class="vpage__side" aria-label="Связаться">
+  <aside class="vpage__side" aria-label="Отклик и работодатель">
     {% if not closed %}
-    <section class="panel contact-box">
-      <h2>Связаться</h2>
+    <section class="panel contact-box" aria-labelledby="contact-h">
+      <h2 id="contact-h">{% if v.is_direct %}Откликнуться{% else %}Связаться{% endif %}</h2>
       {% if v.has_contact %}
       <ul class="contact-list">
         {% for p in v.phones %}<li><a class="contact-box__phone" href="tel:{{ phone_href(p) }}">{{ phone_pretty(p) }}</a></li>{% endfor %}
@@ -122,18 +120,36 @@
         {% if v.max_contact %}<li>MAX: {{ v.max_contact }}</li>{% endif %}
         {% if v.email %}<li>{{ icon('envelope-simple') }} <a href="mailto:{{ v.email }}">{{ v.email }}</a></li>{% endif %}
       </ul>
-      <div class="contact-box__desktop contact-box__buttons">{{ actions(v) }}</div>
+      <div class="contact-box__desktop contact-box__buttons">{{ actions(v, long=True) }}</div>
+      {% else %}
+      {% if v.is_direct %}
+      <p class="muted">Работодатель принимает отклики на сайте.</p>
+      <div class="contact-box__buttons">{{ actions(v, long=True) }}</div>
       {% else %}
       <p class="muted">Контактов в вакансии нет. Они указаны в оригинале.</p>
-      {% if v.original_url and not v.is_site %}<div class="contact-box__buttons">{{ actions(v) }}</div>{% endif %}
+      {% if v.original_url and not v.is_site %}<div class="contact-box__buttons">{{ actions(v, long=True) }}</div>{% endif %}
+      {% endif %}
       {% endif %}
       <p class="safety">{{ icon('shield-warning') }} Не платите за трудоустройство и не присылайте копии документов до встречи.</p>
     </section>
     {% endif %}
+
+    <section class="panel employer-card" aria-labelledby="emp-h">
+      <h2 class="visually-hidden" id="emp-h">Работодатель</h2>
+      <div class="employer-card__head">
+        {{ logo_tile(v.employer or v.source_label) }}
+        <div>
+          <p class="employer-card__name">{{ v.employer or v.source_label }}</p>
+          {% if v.is_direct %}<p class="tag tag--direct">{{ icon('seal-check') }}Работодатель на сайте</p>
+          {% else %}<p class="muted employer-card__src">Источник: {{ v.source_label }}</p>{% endif %}
+        </div>
+      </div>
+      {% if v.company_id %}<a class="link-arrow" href="/company/{{ v.company_id }}">О компании и её вакансии{{ icon('arrow-right') }}</a>{% endif %}
+    </section>
   </aside>
 </div>
 
-{% if not closed and (v.phone or v.telegram or (v.original_url and not v.is_site)) %}
+{% if not closed and (v.phone or v.telegram or v.apply_url or (v.original_url and not v.is_site)) %}
 <div class="action-bar">{{ actions(v) }}</div>
 {% endif %}
 {% endblock %}

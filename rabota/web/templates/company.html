@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, vcard, logo_tile %}
+{% block content %}
+<div class="wrap">
+  <header class="company-head">
+    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li><a href="/vacancies">Вакансии</a></li><li>Работодатель</li></ol></nav>
+    <div class="company-head__row">
+      {{ logo_tile(company.name, 'lg') }}
+      <div class="company-head__titles">
+        <h1 class="h1 h1--page">{{ company.name }}</h1>
+        <p class="meta-line">
+          <span>{{ icon('map-pin') }}{{ company.city }}</span>
+          {% if company.verified %}<span class="tag tag--direct">{{ icon('seal-check') }}Проверенный работодатель</span>{% endif %}
+        </p>
+      </div>
+      <a class="btn btn--primary company-head__cta" href="#vacancies">{{ count_label(items | length, 'вакансия', 'вакансии', 'вакансий') }}</a>
+    </div>
+  </header>
+
+  {% if company.is_stub %}
+  <p class="notice" role="status">{{ icon('info') }}<span>Профиль компании ещё оформляется. Здесь появятся описание, сайт и открытые вакансии работодателя.</span></p>
+  {% endif %}
+
+  <div class="company">
+    <div class="company__main">
+      <section class="panel" aria-labelledby="about-c">
+        <h2 id="about-c">О компании</h2>
+        {% if company.description %}
+        <div class="prose"><p>{{ company.description }}</p></div>
+        {% else %}
+        <div class="prose"><p class="muted">Работодатель пока не добавил описание. Расскажите о себе в личном кабинете: чем занимается компания, какие условия и что важно для вас в сотрудниках.</p></div>
+        {% endif %}
+      </section>
+
+      <section aria-labelledby="vacancies">
+        <h2 class="h2 section__title" id="vacancies">Вакансии работодателя</h2>
+        {% if items %}
+        <div class="vlist">{% for v in items %}{{ vcard(v) }}{% endfor %}</div>
+        {% else %}
+        <div class="state">
+          <span class="state__ico">{{ icon('briefcase') }}</span>
+          <h3 class="h3">Открытых вакансий нет</h3>
+          <p>Когда работодатель опубликует вакансию, она появится здесь. А пока посмотрите другие предложения.</p>
+          <div class="state__actions"><a class="btn btn--primary" href="/vacancies">Смотреть вакансии</a></div>
+        </div>
+        {% endif %}
+      </section>
+    </div>
+
+    <aside class="company__side" aria-label="О работодателе">
+      <section class="panel">
+        <h2 class="visually-hidden">Сведения</h2>
+        <dl class="facts facts--stack">
+          <div><dt>Город</dt><dd>{{ company.city }}</dd></div>
+          <div><dt>Сайт</dt><dd>{% if company.site %}<a href="{{ company.site if company.site.startswith(('http://', 'https://')) else '' }}" rel="noopener nofollow ugc" target="_blank">{{ company.site }}</a>{% else %}Не указан{% endif %}</dd></div>
+          <div><dt>Статус</dt><dd>{% if company.verified %}Проверен сайтом{% else %}Проверка не пройдена{% endif %}</dd></div>
+        </dl>
+      </section>
+    </aside>
+  </div>
+</div>
+{% endblock %}

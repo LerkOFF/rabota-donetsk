@@ -31,6 +31,11 @@ VISIBLE_SQL = (
 )
 ORDER_SQL = "COALESCE(published_at, created_at) DESC, id DESC"
 
+# Оплата в месяц для сравнения и сортировки: у месячных вакансий верхняя граница, у остальных расчёт сайта
+PAY_SQL = "COALESCE(CASE WHEN pay_period = 'месяц' THEN COALESCE(pay_max, pay_min) END, pay_monthly_estimate)"
+SORTS = ("date", "pay")
+MAX_PAY_FROM = 5_000_000
+
 # Окончания для грубой основы слова: "кассира", "кассиров", "кассиры" -> "кассир"
 _ENDINGS = (
     "ами", "ями", "ого", "его", "ому", "ему", "ыми", "ими",
@@ -93,6 +98,9 @@ class Filters:
     side_job: bool = False
     daily: bool = False
     adult: bool = False
+    direct: bool = False  # только вакансии, которые разместили работодатели на сайте
+    pay_from: int = 0  # оплата в месяц от, рублей; 0 - не задано
+    sort: str = ""  # "" - по дате (при поиске сначала точные совпадения), "pay" - по оплате
     profession: str = ""  # точное совпадение, для страниц профессий
 
     @classmethod
@@ -114,6 +122,9 @@ class Filters:
             side_job=flag("side_job"),
             daily=flag("daily"),
             adult=flag("adult"),
+            direct=flag("direct"),
+            pay_from=_parse_pay_from(params.get("pay_from")),
+            sort=params.get("sort") if params.get("sort") in SORTS and params.get("sort") != "date" else "",
         )
 
     @property
@@ -122,13 +133,13 @@ class Filters:
         return sum(
             1
             for v in (self.city, self.district, self.category, self.work_format, self.pay_period,
-                      self.no_experience, self.side_job, self.daily, self.adult)
+                      self.no_experience, self.side_job, self.daily, self.adult, self.direct, self.pay_from)
             if v
         )
 
     @property
     def is_empty(self) -> bool:
-        return self.active_count == 0 and not self.q
+        return self.active_count == 0 and not self.q and not self.sort
 
     def query_string(self, **overrides: Any) -> str:
         data: dict[str, str] = {}
@@ -136,7 +147,8 @@ class Filters:
             "q": self.q, "city": self.city, "district": self.district, "category": self.category,
             "work_format": self.work_format, "pay_period": self.pay_period,
             "no_experience": self.no_experience, "side_job": self.side_job,
-            "daily": self.daily, "adult": self.adult,
+            "daily": self.daily, "adult": self.adult, "direct": self.direct,
+            "pay_from": self.pay_from, "sort": self.sort,
         }
         merged.update(overrides)
         for key, value in merged.items():
@@ -148,6 +160,11 @@ class Filters:
 
     def without(self, **names: Any) -> Filters:
         return replace(self, **names)
+
+
+def _parse_pay_from(value: str | None) -> int:
+    digits = "".join(ch for ch in (value or "") if ch.isdigit())[:9]
+    return min(int(digits), MAX_PAY_FROM) if digits else 0
 
 
 def _where(f: Filters) -> tuple[str, list[Any], list[Any], str]:
@@ -182,6 +199,11 @@ def _where(f: Filters) -> tuple[str, list[Any], list[Any], str]:
         clauses.append("pay_daily = 1")
     if f.adult:
         clauses.append("(age_min IS NULL OR age_min <= 18)")
+    if f.direct:
+        clauses.append("origin = 'direct'")
+    if f.pay_from:
+        clauses.append(f"{PAY_SQL} >= ?")
+        args.append(f.pay_from)
     if f.q:
         fields = ("profession", "title_raw", "summary", "employer", "city", "district", "category")
         if not search_terms(f.q):  # одни знаки препинания: ничего осмысленного не найти
@@ -236,9 +258,13 @@ def search(conn: sqlite3.Connection, f: Filters, page: int = 1, per_page: int = 
     total = conn.execute(f"SELECT COUNT(*) FROM vacancies WHERE {where}", args).fetchone()[0]
     pages = max(1, -(-total // per_page))
     page = min(max(page, 1), pages)
+    if f.sort == "pay":
+        order, order_args = f"({PAY_SQL} IS NULL), {PAY_SQL} DESC, {ORDER_SQL}", []
+    else:
+        order, order_args = f"{rank_sql}, {ORDER_SQL}", rank_args
     rows = conn.execute(
-        f"SELECT *, {DUP_COUNT_SQL} FROM vacancies WHERE {where} ORDER BY {rank_sql}, {ORDER_SQL} LIMIT ? OFFSET ?",
-        [*args, *rank_args, per_page, (page - 1) * per_page],
+        f"SELECT *, {DUP_COUNT_SQL} FROM vacancies WHERE {where} ORDER BY {order} LIMIT ? OFFSET ?",
+        [*args, *order_args, per_page, (page - 1) * per_page],
     ).fetchall()
     return Page([vacancy_row_to_dict(r) for r in rows], total, page, per_page)
 
@@ -341,6 +367,7 @@ def stats(conn: sqlite3.Connection, now: datetime | None = None) -> dict[str, in
         "fresh": one("AND published_at >= ?", (since,)),
         "no_experience": one("AND (rfold(experience) LIKE 'не нужен%' OR rfold(experience) LIKE 'без опыт%')"),
         "daily": one("AND pay_daily = 1"),
+        "direct": one("AND origin = 'direct'"),
         "side_job": one("AND employment IN ('подработка', 'на сегодня')"),
     }
 
@@ -356,6 +383,28 @@ def sitemap_entries(conn: sqlite3.Connection) -> dict[str, list[Any]]:
         "districts": [name for name, _ in _counts(conn, "district")],
         "cities": [name for name, _ in _counts(conn, "city")],
     }
+
+
+def get_company(conn: sqlite3.Connection, company_id: int) -> dict[str, Any] | None:
+    """Профиль работодателя из таблицы companies (её заполняют кабинеты). Нет записи: None."""
+    row = conn.execute("SELECT * FROM companies WHERE id = ?", (company_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def company_vacancies(conn: sqlite3.Connection, company_id: int, limit: int = 20) -> list[dict[str, Any]]:
+    rows = conn.execute(
+        f"SELECT *, {DUP_COUNT_SQL} FROM vacancies WHERE {VISIBLE_SQL} AND company_id = ? ORDER BY {ORDER_SQL} LIMIT ?",
+        (company_id, limit),
+    ).fetchall()
+    return [vacancy_row_to_dict(r) for r in rows]
+
+
+def search_hints(conn: sqlite3.Connection, limit: int = 40) -> dict[str, list[str]]:
+    """Подсказки для строки поиска: частые профессии, города, районы."""
+    professions = [name for name, _ in _counts(conn, "profession", limit)]
+    cities = [name for name, _ in _counts(conn, "city", 12)]
+    districts = [name for name, _ in _counts(conn, "district", 30)]
+    return {"professions": professions, "cities": cities, "districts": districts}
 
 
 def add_complaint(conn: sqlite3.Connection, vacancy_id: int, reason: str) -> int:

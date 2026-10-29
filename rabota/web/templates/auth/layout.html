@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{# Общая обёртка страниц аккаунта: свои стили и скрипт подключаются здесь, общие файлы не затрагиваются #}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('auth.css') }}">
+{% block auth_body %}{% endblock %}
+<script src="{{ asset('auth.js') }}" defer></script>
+{% endblock %}

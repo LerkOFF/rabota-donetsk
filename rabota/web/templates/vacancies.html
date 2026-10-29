@@ -1,56 +1,91 @@
 {% extends 'base.html' %}
 {% from '_macros.html' import icon, vcard, pager %}
+
+{# Группа фильтров с одним выбором: радиокнопки внутри раскрывающегося блока #}
+{% macro radio_group(key, title, opts, current, label_fn=none) -%}
+{% if opts %}
+<details class="fgroup"{% if current %} open{% endif %}>
+  <summary><span>{{ title }}</span>{% if current %}<span class="fgroup__val">{{ label_fn(current) if label_fn else current }}</span>{% endif %}{{ icon('caret-down') }}</summary>
+  <fieldset class="fgroup__body">
+    <legend class="visually-hidden">{{ title }}</legend>
+    <label class="check"><input type="radio" name="{{ key }}" value=""{% if not current %} checked{% endif %}>Любой</label>
+    {% for value, text in opts %}
+    <label class="check"><input type="radio" name="{{ key }}" value="{{ value }}"{% if value == current %} checked{% endif %}>{{ text }}</label>
+    {% endfor %}
+  </fieldset>
+</details>
+{% endif %}
+{%- endmacro %}
+
 {% block content %}
 <div class="wrap">
   <header class="page-head">
+    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>Вакансии</li></ol></nav>
     <h1 class="h1 h1--page">{% if flt.q %}Вакансии: {{ flt.q }}{% else %}Вакансии Донецка и ДНР{% endif %}</h1>
   </header>
 
-  <form class="feed" action="/vacancies" method="get" data-autosubmit>
-    <div class="feed__toolbar">
-      <div class="search__field search__field--grow">
-        {{ icon('magnifying-glass') }}
-        <label class="visually-hidden" for="q">Профессия или должность</label>
-        <input class="input input--search" id="q" name="q" type="search" value="{{ flt.q }}" maxlength="80" autocomplete="off" enterkeyhint="search" placeholder="Профессия">
-      </div>
-      <button class="btn btn--primary" type="submit">Найти</button>
+  <form class="feed" id="feed" action="/vacancies" method="get" data-autosubmit>
+    <input type="hidden" name="q" value="{{ flt.q }}">
+
+    <div class="feed__bar">
       <button class="btn btn--ghost filters-toggle" type="button" data-filters-toggle aria-expanded="false" aria-controls="filters">
         {{ icon('sliders-horizontal') }}Фильтры{% if flt.active_count %} ({{ flt.active_count }}){% endif %}
       </button>
     </div>
 
-    <section class="filters" id="filters" aria-label="Фильтры">
-      <h2 class="filters__title">Фильтры</h2>
-      {% for key, label in [('city', 'Город'), ('district', 'Район'), ('category', 'Сфера'), ('work_format', 'Где работать'), ('pay_period', 'Как платят')] %}
-      {% set opts = options[key] %}
-      {% if opts %}
-      <div class="field">
-        <label for="f-{{ key }}">{{ label }}</label>
-        <select class="input" id="f-{{ key }}" name="{{ key }}">
-          <option value="">Любой</option>
-          {% for value, text in opts %}<option value="{{ value }}"{% if value == flt[key] %} selected{% endif %}>{{ text }}</option>{% endfor %}
-        </select>
+    <section class="filters" id="filters" aria-label="Фильтры" data-filters>
+      <div class="filters__head">
+        <h2 class="filters__title">Фильтры</h2>
+        <button class="icon-btn filters__close" type="button" data-filters-close aria-label="Закрыть фильтры">{{ icon('x') }}</button>
       </div>
-      {% endif %}
-      {% endfor %}
-      <fieldset class="fieldset">
-        <legend>Условия</legend>
-        <label class="check"><input type="checkbox" name="no_experience" value="1"{% if flt.no_experience %} checked{% endif %}>Без опыта</label>
-        <label class="check"><input type="checkbox" name="side_job" value="1"{% if flt.side_job %} checked{% endif %}>Подработка</label>
-        <label class="check"><input type="checkbox" name="daily" value="1"{% if flt.daily %} checked{% endif %}>Выплата каждый день</label>
-        <label class="check"><input type="checkbox" name="adult" value="1"{% if flt.adult %} checked{% endif %}>Подходит с 18 лет</label>
-      </fieldset>
+      <div class="filters__scroll">
+        {{ radio_group('city', 'Город', options.city, flt.city) }}
+        {{ radio_group('district', 'Район', options.district, flt.district, district_label) }}
+        {{ radio_group('category', 'Сфера', options.category, flt.category, category_label) }}
+        {{ radio_group('work_format', 'Формат работы', options.work_format, flt.work_format, work_format_label) }}
+        {{ radio_group('pay_period', 'Тип оплаты', options.pay_period, flt.pay_period, none) }}
+
+        <details class="fgroup" open>
+          <summary><span>Оплата</span>{% if flt.pay_from %}<span class="fgroup__val">от {{ money(flt.pay_from) }} ₽</span>{% endif %}{{ icon('caret-down') }}</summary>
+          <div class="fgroup__body">
+            <label class="field-label" for="f-pay_from">Оплата от, ₽ в месяц</label>
+            <input class="input input--sm" id="f-pay_from" name="pay_from" type="text" inputmode="numeric" autocomplete="off"
+                   value="{% if flt.pay_from %}{{ flt.pay_from }}{% endif %}" placeholder="Например, 30000" aria-describedby="f-pay_from-hint">
+            <p class="hint" id="f-pay_from-hint">Оплату за смену, день и час пересчитываем в месяц, это расчёт сайта.</p>
+          </div>
+        </details>
+
+        <details class="fgroup" open>
+          <summary><span>Условия</span>{{ icon('caret-down') }}</summary>
+          <fieldset class="fgroup__body">
+            <legend class="visually-hidden">Условия</legend>
+            <label class="check"><input type="checkbox" name="direct" value="1"{% if flt.direct %} checked{% endif %}>Только от работодателей</label>
+            <label class="check"><input type="checkbox" name="no_experience" value="1"{% if flt.no_experience %} checked{% endif %}>Без опыта</label>
+            <label class="check"><input type="checkbox" name="side_job" value="1"{% if flt.side_job %} checked{% endif %}>Подработка</label>
+            <label class="check"><input type="checkbox" name="daily" value="1"{% if flt.daily %} checked{% endif %}>Выплата каждый день</label>
+            <label class="check"><input type="checkbox" name="adult" value="1"{% if flt.adult %} checked{% endif %}>Подходит с 18 лет</label>
+          </fieldset>
+        </details>
+      </div>
       <div class="filters__actions">
         <button class="btn btn--primary" type="submit">Показать</button>
-        <a class="btn btn--ghost" href="/vacancies">Сбросить</a>
+        <a class="btn btn--ghost" href="{{ '/vacancies?q=' ~ (flt.q | quote) if flt.q else '/vacancies' }}">Сбросить</a>
       </div>
     </section>
 
     <div class="feed__main">
       <div class="results-head">
-        <p class="results-count" role="status">{{ count_label(page.total, 'вакансия', 'вакансии', 'вакансий') }}</p>
+        <div class="results-head__row">
+          <p class="results-count" role="status">{{ count_label(page.total, 'вакансия', 'вакансии', 'вакансий') }}</p>
+          <div class="sort">
+            <label for="f-sort">Сортировка</label>
+            <select class="input input--sm" id="f-sort" name="sort" data-submit-on-change>
+              {% for value, text in sorts %}<option value="{{ value }}"{% if value == flt.sort %} selected{% endif %}>{{ text }}</option>{% endfor %}
+            </select>
+          </div>
+        </div>
         {% if chips %}
-        <ul class="chip-row" aria-label="Включённые фильтры">
+        <ul class="chip-row chip-row--scroll" aria-label="Включённые фильтры">
           {% for c in chips %}<li><a class="chip chip--active chip--remove" href="{{ c.url }}" aria-label="Убрать: {{ c.label }}">{{ c.label }}{{ icon('x') }}</a></li>{% endfor %}
         </ul>
         {% endif %}

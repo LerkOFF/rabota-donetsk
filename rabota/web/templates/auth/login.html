@@ -1,0 +1,30 @@
+{% extends 'auth/layout.html' %}
+{% from 'auth/_forms.html' import csrf, field, alert %}
+{% block auth_body %}
+<div class="wrap auth">
+  <div class="auth__card">
+    <header class="auth__head">
+      <h1>Вход</h1>
+      <p>Войдите по почте и паролю.</p>
+    </header>
+    {% if info %}<div class="notice" role="status">{{ info }}</div>{% endif %}
+    {{ alert(error) }}
+    <form class="auth__form" method="post" action="/login" novalidate>
+      {{ csrf(csrf_token) }}
+      <input type="hidden" name="next" value="{{ next or '' }}">
+      {{ field('email', 'Электронная почта', type='email', value=form.get('email', ''), autocomplete='email', inputmode='email', pid='l') }}
+      {{ field('password', 'Пароль', type='password', autocomplete='current-password', maxlength=128, pid='l', toggle=True) }}
+      <button class="btn btn--primary btn--lg btn--block" type="submit">Войти</button>
+    </form>
+    {% if unverified %}
+    <form class="auth__inline" method="post" action="/verify/resend">
+      {{ csrf(csrf_token) }}
+      <input type="hidden" name="email" value="{{ form.get('email', '') }}">
+      <p>Письмо со ссылкой подтверждения ушло на вашу почту при регистрации. Не нашли? Проверьте папку со спамом или отправьте письмо ещё раз.</p>
+      <button class="btn btn--ghost" type="submit">Отправить письмо ещё раз</button>
+    </form>
+    {% endif %}
+    <p class="auth__alt"><a href="/forgot">Забыли пароль?</a> <a href="/register">Создать аккаунт</a></p>
+  </div>
+</div>
+{% endblock %}

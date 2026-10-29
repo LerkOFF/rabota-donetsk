@@ -1,0 +1,44 @@
+{% from '_macros.html' import icon %}
+
+{% macro csrf(token) -%}
+<input type="hidden" name="csrf_token" value="{{ token }}">
+{%- endmacro %}
+
+{% macro honeypot() -%}
+<div class="hp" aria-hidden="true"><label>Не заполняйте это поле<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+{%- endmacro %}
+
+{% macro field(name, label, type='text', value='', error='', hint='', autocomplete='off', maxlength=254, inputmode='', pid='f', toggle=False, required=True) -%}
+{% set fid = pid ~ '-' ~ name %}
+<div class="field{% if error %} field--invalid{% endif %}">
+  <label for="{{ fid }}">{{ label }}</label>
+  {% if hint %}<p class="hint" id="{{ fid }}-hint">{{ hint }}</p>{% endif %}
+  <div class="auth__input">
+    <input class="input" id="{{ fid }}" name="{{ name }}" type="{{ type }}" value="{{ value }}" maxlength="{{ maxlength }}"
+           autocomplete="{{ autocomplete }}"{% if inputmode %} inputmode="{{ inputmode }}"{% endif %}{% if type in ('email', 'password') %} spellcheck="false" autocapitalize="none"{% endif %}
+           {% if required %}required{% endif %}{% if error %} aria-invalid="true"{% endif %}
+           {% if hint or error %}aria-describedby="{% if hint %}{{ fid }}-hint{% endif %}{% if hint and error %} {% endif %}{% if error %}{{ fid }}-err{% endif %}"{% endif %}>
+    {% if toggle %}<button class="auth__toggle" type="button" data-toggle-password aria-pressed="false" aria-label="Показать пароль" hidden>Показать</button>{% endif %}
+  </div>
+  {% if error %}<p class="error" id="{{ fid }}-err">{{ icon('warning') }}<span>{{ error }}</span></p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro summary(errors, pid='f') -%}
+{% if errors %}
+<div class="error-summary" role="alert">
+  <h2>Нужно поправить</h2>
+  <ul>
+    {% for name, text in errors.items() %}<li><a href="#{{ pid }}-{{ name }}">{{ text }}</a></li>{% endfor %}
+  </ul>
+</div>
+{% endif %}
+{%- endmacro %}
+
+{% macro alert(text) -%}
+{% if text %}<div class="notice notice--warn" role="alert">{{ icon('warning') }}<span>{{ text }}</span></div>{% endif %}
+{%- endmacro %}
+
+{% macro info(text) -%}
+{% if text %}<div class="notice" role="status">{{ icon('check-circle') }}<span>{{ text }}</span></div>{% endif %}
+{%- endmacro %}

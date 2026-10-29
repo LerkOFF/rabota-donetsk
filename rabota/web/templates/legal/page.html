@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="wrap about legal">
+  <header class="page-head">
+    <nav aria-label="Вы здесь">
+      <ol class="crumbs">
+        <li><a href="/">Главная</a></li>
+        {% if doc %}<li><a href="/legal">Документы</a></li>{% endif %}
+        <li>{{ title if doc else 'Документы' }}</li>
+      </ol>
+    </nav>
+    <h1 class="h1 h1--page">{{ title }}</h1>
+    {% if doc %}
+    <p class="lead">{{ doc.summary }}</p>
+    {% else %}
+    <p class="lead">Как мы работаем с вашими данными и по каким правилам работает сайт.</p>
+    {% endif %}
+  </header>
+
+  <div class="prose about__body">
+    {% if doc %}
+    {% if toc %}
+    <nav class="panel" aria-label="Содержание">
+      <h2 class="h3">Содержание</h2>
+      <ul class="about__list">
+        {% for anchor, label in toc %}<li><a href="#{{ anchor }}">{{ label | safe }}</a></li>{% endfor %}
+      </ul>
+    </nav>
+    {% endif %}
+    {{ body | safe }}
+    {% else %}
+    <ul class="about__list">
+      {% for d in documents %}
+      <li><a href="/legal/{{ d.slug }}"><strong>{{ d.title }}</strong></a>. {{ d.summary }}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+
+    {% if doc %}
+    <nav aria-label="Другие документы">
+      <h2 class="h3">Другие документы</h2>
+      <p class="chip-row">
+        {% for d in documents %}
+        <a class="chip{% if d.slug == doc.slug %} chip--active{% endif %}" href="/legal/{{ d.slug }}"{% if d.slug == doc.slug %} aria-current="page"{% endif %}>{{ d.title }}</a>
+        {% endfor %}
+      </p>
+    </nav>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

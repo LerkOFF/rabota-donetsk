@@ -1,4 +1,4 @@
-{% from '_macros.html' import icon %}
+{% from '_macros.html' import icon, search_bar %}
 <!doctype html>
 <html lang="ru">
 <head>
@@ -10,8 +10,8 @@
   <link rel="canonical" href="{{ seo.canonical }}">
   {% if seo.prev_url %}<link rel="prev" href="{{ site_url }}{{ seo.prev_url }}">{% endif %}
   {% if seo.next_url %}<link rel="next" href="{{ site_url }}{{ seo.next_url }}">{% endif %}
-  <meta name="theme-color" content="#f1f5f3" media="(prefers-color-scheme: light)">
-  <meta name="theme-color" content="#0d1411" media="(prefers-color-scheme: dark)">
+  <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
   <meta property="og:site_name" content="Работа Донецк">
   <meta property="og:locale" content="ru_RU">
   <meta property="og:type" content="{{ seo.og_type or 'website' }}">
@@ -33,23 +33,92 @@
 <body>
   <a class="skip-link" href="#main">К содержимому</a>
   <header class="site-header">
-    <div class="wrap">
-      <a class="logo" href="/" aria-label="Работа Донецк, на главную">
-        <svg class="logo__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
-          <rect width="32" height="32" rx="8" fill="var(--c-accent)"></rect>
-          <path d="M4 25 12.5 9.5c1-1.8 2.9-1.8 3.9 0L19 14l2.2-3.3c.9-1.4 2.7-1.4 3.6 0L29 25z" fill="var(--c-on-accent)"></path>
-          <circle cx="23.5" cy="7" r="2.6" fill="var(--c-pay)"></circle>
-        </svg>
-        <span translate="no">Работа <span class="logo__city">Донецк</span></span>
-      </a>
-      <nav class="nav" aria-label="Основное меню">
-        <a href="/vacancies"{% if path == '/vacancies' %} aria-current="page"{% endif %}>Вакансии</a>
-        <a class="nav__extra" href="/razmestit"{% if path == '/razmestit' %} aria-current="page"{% endif %}>Разместить вакансию</a>
-        <a class="nav__extra" href="/about"{% if path == '/about' %} aria-current="page"{% endif %}>О сайте</a>
-        <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false" aria-label="Включить тёмную тему">
-          {{ icon('moon', 'i-moon') }}{{ icon('sun', 'i-sun') }}
-        </button>
-      </nav>
+    <div class="hbar">
+      <div class="wrap hbar__in">
+        <a class="logo" href="/" aria-label="Работа Донецк, на главную">
+          <svg class="logo__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+            <rect width="32" height="32" rx="8" fill="var(--c-accent)"></rect>
+            <path d="M4 25 12.5 9.5c1-1.8 2.9-1.8 3.9 0L19 14l2.2-3.3c.9-1.4 2.7-1.4 3.6 0L29 25z" fill="var(--c-on-accent)"></path>
+            <circle cx="23.5" cy="7" r="2.6" fill="var(--c-pay)"></circle>
+          </svg>
+          <span translate="no">Работа <span class="logo__city">Донецк</span></span>
+        </a>
+        <nav class="hnav" aria-label="Основное меню">
+          <a href="/vacancies"{% if path.startswith('/vacanc') %} aria-current="page"{% endif %}>Вакансии</a>
+          <a href="/employers"{% if path == '/employers' %} aria-current="page"{% endif %}>Работодателям</a>
+        </nav>
+        <div class="hactions">
+          {% if user %}
+          <nav class="hquick" aria-label="Личные разделы">
+            {% for item in user.menu if item.quick %}
+            <a class="hlink" href="{{ item.href }}"{% if path == item.href %} aria-current="page"{% endif %}>{{ icon(item.icon) }}<span>{{ item.label }}</span></a>
+            {% endfor %}
+          </nav>
+          {% if user.is_employer %}<a class="btn btn--primary btn--sm hpost" href="/razmestit">Разместить вакансию</a>{% endif %}
+          <details class="umenu" data-menu>
+            <summary class="umenu__btn" aria-label="Меню пользователя: {{ user.label }}">
+              <span class="avatar" aria-hidden="true">{{ user.initial }}</span>
+              <span class="umenu__name">{{ user.label }}</span>
+              {{ icon('caret-down') }}
+            </summary>
+            <div class="umenu__panel">
+              {% if user.email %}<p class="umenu__who">{{ user.email }}</p>{% endif %}
+              <ul>
+                {% for item in user.menu %}<li><a href="{{ item.href }}">{{ icon(item.icon) }}{{ item.label }}</a></li>{% endfor %}
+              </ul>
+              <form class="umenu__out" method="post" action="/logout">
+                {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endif %}
+                <button type="submit">{{ icon('sign-out') }}Выйти</button>
+              </form>
+            </div>
+          </details>
+          {% else %}
+          <a class="btn btn--soft btn--sm hlogin" href="/login">Войти</a>
+          <a class="btn btn--primary btn--sm hreg" href="/register">Регистрация</a>
+          {% endif %}
+          <button class="icon-btn theme-toggle" type="button" data-theme-toggle aria-pressed="false" aria-label="Включить тёмную тему">
+            {{ icon('moon', 'i-moon') }}{{ icon('sun', 'i-sun') }}
+          </button>
+          <button class="icon-btn burger" type="button" data-menu-toggle aria-expanded="false" aria-controls="mmenu" aria-label="Открыть меню">
+            {{ icon('list', 'i-open') }}{{ icon('x', 'i-close') }}
+          </button>
+        </div>
+      </div>
+    </div>
+
+    {% block hsearch %}
+    <div class="hsearch">
+      <div class="wrap">{{ search_bar('hs', flt.q if flt else '', where if where else '') }}</div>
+    </div>
+    {% endblock %}
+
+    <div class="mmenu" id="mmenu" data-menu-panel>
+      <div class="wrap">
+        <nav aria-label="Меню для телефона">
+          <ul class="mmenu__list">
+            <li><a href="/vacancies">{{ icon('briefcase') }}Вакансии</a></li>
+            <li><a href="/employers">{{ icon('buildings') }}Работодателям</a></li>
+            {% if user %}
+            {% for item in user.menu %}<li><a href="{{ item.href }}">{{ icon(item.icon) }}{{ item.label }}</a></li>{% endfor %}
+            {% endif %}
+          </ul>
+          {% if user %}
+          <div class="mmenu__actions">
+            {% if user.is_employer %}<a class="btn btn--primary btn--block" href="/razmestit">Разместить вакансию</a>{% endif %}
+            <form method="post" action="/logout">
+              {% if csrf_token %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% endif %}
+              <button class="btn btn--ghost btn--block" type="submit">{{ icon('sign-out') }}Выйти</button>
+            </form>
+          </div>
+          {% else %}
+          <div class="mmenu__actions">
+            <a class="btn btn--primary btn--block" href="/register">Регистрация</a>
+            <a class="btn btn--ghost btn--block" href="/login">Войти</a>
+            <a class="btn btn--ghost btn--block" href="/razmestit">Разместить вакансию</a>
+          </div>
+          {% endif %}
+        </nav>
+      </div>
     </div>
   </header>
 
@@ -58,23 +127,54 @@
   </main>
 
   <footer class="site-footer">
-    <div class="wrap footer__grid">
-      <div>
-        <p class="logo__text"><strong>Работа Донецк</strong></p>
-        <p class="footer__note">Вакансии из открытых источников Донецка и ДНР, собранные в одну ленту. Мы не работодатель: у каждой вакансии есть ссылка на оригинал. Не переводите деньги за трудоустройство.</p>
+    <div class="wrap">
+      <div class="footer__grid">
+        <div class="footer__about">
+          <p class="footer__brand" translate="no">Работа Донецк</p>
+          <p class="footer__note">Вакансии Донецка и ДНР: от работодателей на сайте и из открытых источников, собранные в одну ленту. Не переводите деньги за трудоустройство.</p>
+        </div>
+        <nav class="footer__col" aria-labelledby="f-seek">
+          <h2 id="f-seek">Соискателям</h2>
+          <ul>
+            <li><a href="/vacancies">Все вакансии</a></li>
+            <li><a href="/vacancies?side_job=1">Подработка</a></li>
+            <li><a href="/vacancies?no_experience=1">Без опыта</a></li>
+            <li><a href="/vacancies?daily=1">Выплата каждый день</a></li>
+            <li><a href="/register">Создать резюме</a></li>
+          </ul>
+        </nav>
+        <nav class="footer__col" aria-labelledby="f-emp">
+          <h2 id="f-emp">Работодателям</h2>
+          <ul>
+            <li><a href="/razmestit">Разместить вакансию</a></li>
+            <li><a href="/employers">Как это работает</a></li>
+            <li><a href="/login">Войти в кабинет</a></li>
+          </ul>
+        </nav>
+        <nav class="footer__col" aria-labelledby="f-site">
+          <h2 id="f-site">О сайте</h2>
+          <ul>
+            <li><a href="/about">О сайте</a></li>
+            <li><a href="/about#safety">Как не попасть на обман</a></li>
+            <li><a href="/about#contacts">Контакты</a></li>
+            {% if contact_email %}<li><a href="mailto:{{ contact_email }}">{{ contact_email }}</a></li>{% endif %}
+          </ul>
+        </nav>
       </div>
-      <nav class="footer__links" aria-label="Разделы">
-        <a href="/vacancies">Все вакансии</a>
-        <a href="/razmestit">Разместить вакансию</a>
-        <a href="/about">О сайте</a>
-      </nav>
-      <nav class="footer__links" aria-label="Популярное">
-        <a href="/vacancies?daily=1">Выплата каждый день</a>
-        <a href="/vacancies?no_experience=1">Без опыта</a>
-        <a href="/vacancies?side_job=1">Подработка</a>
-      </nav>
+      <div class="footer__legal">
+        <nav aria-label="Документы">
+          <ul>
+            <li><a href="/legal/privacy">Политика конфиденциальности</a></li>
+            <li><a href="/legal/terms">Пользовательское соглашение</a></li>
+            <li><a href="/legal/consent">Согласие на обработку данных</a></li>
+            <li><a href="/legal/cookies">Файлы cookie</a></li>
+          </ul>
+        </nav>
+        <p>Мы не работодатель и не берём плату с соискателей. Условия работы уточняйте у работодателя.</p>
+      </div>
     </div>
   </footer>
+  <div class="scrim" data-scrim hidden></div>
   <script src="{{ asset('app.js') }}" defer></script>
 </body>
 </html>

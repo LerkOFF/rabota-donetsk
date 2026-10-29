@@ -106,6 +106,10 @@ CREATE TABLE IF NOT EXISTS complaints (
   id INTEGER PRIMARY KEY AUTOINCREMENT, vacancy_id INTEGER NOT NULL, reason TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'new', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+-- Состояние приёма данных в реальном времени: на источник последний id, время успеха и ошибка.
+CREATE TABLE IF NOT EXISTS ingest_state (
+  source TEXT PRIMARY KEY, last_id INTEGER, updated_at TEXT, last_ok_at TEXT, last_error TEXT
+);
 """
 
 _VAC_COLS = [

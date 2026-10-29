@@ -1,0 +1,27 @@
+{% extends 'auth/layout.html' %}
+{% from 'auth/_forms.html' import csrf %}
+{% from '_macros.html' import icon %}
+{# Общая страница-сообщение: письмо отправлено, почта подтверждена, пароль изменён, ссылка не подошла #}
+{% block auth_body %}
+<div class="wrap auth">
+  <div class="auth__card">
+    <div class="auth__done">
+      <span class="state__ico">{{ icon(icon_name or 'check-circle') }}</span>
+      <h1 class="h2">{{ heading }}</h1>
+      {% for line in lines %}<p>{{ line }}</p>{% endfor %}
+      {% if warning %}<div class="notice notice--warn" role="alert">{{ icon('warning') }}<span>{{ warning }}</span></div>{% endif %}
+      {% if resend_email is defined and resend_email %}
+      <form class="auth__inline" method="post" action="/verify/resend">
+        {{ csrf(csrf_token) }}
+        <input type="hidden" name="email" value="{{ resend_email }}">
+        <p>Письма нет? Проверьте папку со спамом или отправьте его ещё раз.</p>
+        <button class="btn btn--ghost" type="submit">Отправить письмо ещё раз</button>
+      </form>
+      {% endif %}
+      <div class="state__actions">
+        {% for label, href, kind in actions %}<a class="btn btn--{{ kind }}" href="{{ href }}">{{ label }}</a>{% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

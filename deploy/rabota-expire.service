@@ -1,0 +1,20 @@
+# Образец: разовый запуск скрытия старых вакансий и удаления давно скрытых.
+# Нужен, если воркер запущен с WORKER_EXPIRE=0 или работает только сайт без воркера.
+# Подставьте <USER> и <PROJECT_DIR>, как в rabota-worker.service.
+[Unit]
+Description=Работа Донецк: скрыть вакансии старше срока жизни, удалить давно скрытые
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=<USER>
+Group=<USER>
+WorkingDirectory=<PROJECT_DIR>
+EnvironmentFile=<PROJECT_DIR>/.env
+ExecStart=<PROJECT_DIR>/.venv/bin/python -m rabota expire
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+UMask=0077
+ReadWritePaths=<PROJECT_DIR>/data

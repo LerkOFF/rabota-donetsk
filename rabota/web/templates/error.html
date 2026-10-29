@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import icon %}
+{% from '_macros.html' import icon, search_bar %}
+{% block hsearch %}{% endblock %}
 {% block content %}
 <div class="wrap">
   <div class="error-page">
@@ -17,14 +18,7 @@
     <h1 class="h1 h1--page">Не получилось</h1>
     <p class="lead">{{ detail or 'Запрос не выполнен.' }}</p>
     {% endif %}
-    <form class="search" action="/vacancies" method="get" role="search">
-      <div class="search__field">
-        {{ icon('magnifying-glass') }}
-        <label class="visually-hidden" for="q">Профессия или должность</label>
-        <input class="input" id="q" name="q" type="search" maxlength="80" placeholder="Например, бариста">
-      </div>
-      <button class="btn btn--primary" type="submit">Найти</button>
-    </form>
+    {{ search_bar('err') }}
     <div class="state__actions">
       <a class="btn btn--ghost" href="/">На главную</a>
       <a class="btn btn--ghost" href="/vacancies">Все вакансии</a>

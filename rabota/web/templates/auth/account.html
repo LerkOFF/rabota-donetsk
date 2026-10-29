@@ -1,0 +1,76 @@
+{% extends 'auth/layout.html' %}
+{% from 'auth/_forms.html' import csrf, field, summary, info, alert %}
+{% block auth_body %}
+<div class="wrap acct">
+  <header class="page-head">
+    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>Настройки аккаунта</li></ol></nav>
+    <h1 class="h1 h1--page">Настройки аккаунта</h1>
+    <div class="acct__who">
+      <p>{{ me.name }}, {{ me.email }}. {{ me.role_label }}.</p>
+      <form method="post" action="/logout">
+        {{ csrf(csrf_token) }}
+        <button class="btn btn--ghost" type="submit">Выйти</button>
+      </form>
+    </div>
+  </header>
+
+  {{ info(flash) }}
+  {{ alert(page_error) }}
+
+  <div class="acct__grid">
+    <section class="panel acct__panel" aria-labelledby="a-profile-h">
+      <h2 id="a-profile-h">Профиль</h2>
+      {{ summary(errors.get('profile', {}), 'p') }}
+      <form class="auth__form" method="post" action="/account/profile" novalidate>
+        {{ csrf(csrf_token) }}
+        {{ field('name', 'Имя', value=forms.get('profile', {}).get('name', me.name), error=errors.get('profile', {}).get('name', ''), autocomplete='name', maxlength=80, pid='p') }}
+        {{ field('phone', 'Телефон', type='tel', value=forms.get('profile', {}).get('phone', me.phone or ''), error=errors.get('profile', {}).get('phone', ''), hint='Необязательно. Например: +7 949 000-00-00.', autocomplete='tel', inputmode='tel', maxlength=30, pid='p', required=False) }}
+        <button class="btn btn--primary" type="submit">Сохранить</button>
+      </form>
+    </section>
+
+    <section class="panel acct__panel" aria-labelledby="a-password-h">
+      <h2 id="a-password-h">Пароль</h2>
+      {{ summary(errors.get('password', {}), 'w') }}
+      <form class="auth__form" method="post" action="/account/password" novalidate>
+        {{ csrf(csrf_token) }}
+        {{ field('current_password', 'Текущий пароль', type='password', error=errors.get('password', {}).get('current_password', ''), autocomplete='current-password', maxlength=128, pid='w') }}
+        {{ field('password', 'Новый пароль', type='password', error=errors.get('password', {}).get('password', ''), hint='Не короче 8 знаков.', autocomplete='new-password', maxlength=128, pid='w', toggle=True) }}
+        {{ field('password2', 'Повторите новый пароль', type='password', error=errors.get('password', {}).get('password2', ''), autocomplete='new-password', maxlength=128, pid='w') }}
+        <button class="btn btn--primary" type="submit">Сменить пароль</button>
+      </form>
+    </section>
+
+    <section class="panel acct__panel" aria-labelledby="a-email-h">
+      <h2 id="a-email-h">Почта</h2>
+      <p class="hint">Сейчас: {{ me.email }}. Мы отправим письмо со ссылкой на новый адрес, пока вы его не подтвердите, почта не изменится.</p>
+      {{ summary(errors.get('email', {}), 'm') }}
+      <form class="auth__form" method="post" action="/account/email" novalidate>
+        {{ csrf(csrf_token) }}
+        {{ field('new_email', 'Новая почта', type='email', value=forms.get('email', {}).get('new_email', ''), error=errors.get('email', {}).get('new_email', ''), autocomplete='email', inputmode='email', pid='m') }}
+        {{ field('password', 'Пароль для подтверждения', type='password', error=errors.get('email', {}).get('password', ''), autocomplete='current-password', maxlength=128, pid='m') }}
+        <button class="btn btn--primary" type="submit">Отправить письмо</button>
+      </form>
+    </section>
+
+    <section class="panel acct__panel acct__panel--danger" aria-labelledby="a-delete-h">
+      <h2 id="a-delete-h">Удалить аккаунт</h2>
+      {% if me.is_admin %}
+      <p class="hint">Аккаунт администратора через сайт удалить нельзя.</p>
+      {% else %}
+      <p class="hint">Аккаунт и всё, что с ним связано: резюме, отклики, переписка, ваши вакансии, будет удалено без возможности восстановить.</p>
+      {{ summary(errors.get('delete', {}), 'd') }}
+      <form class="auth__form" method="post" action="/account/delete" novalidate>
+        {{ csrf(csrf_token) }}
+        {{ field('password', 'Пароль для подтверждения', type='password', error=errors.get('delete', {}).get('password', ''), autocomplete='current-password', maxlength=128, pid='d') }}
+        <div class="field{% if errors.get('delete', {}).get('confirm') %} field--invalid{% endif %}">
+          <label class="check" for="d-confirm"><input type="checkbox" id="d-confirm" name="confirm" value="1"><span>Я понимаю, что это нельзя отменить</span></label>
+          {% if errors.get('delete', {}).get('confirm') %}<p class="error"><span>{{ errors['delete']['confirm'] }}</span></p>{% endif %}
+        </div>
+        <button class="btn btn--danger" type="submit">Удалить аккаунт</button>
+      </form>
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

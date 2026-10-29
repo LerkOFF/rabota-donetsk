@@ -2,35 +2,65 @@
 <svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons.svg#i-{{ name }}"></use></svg>
 {%- endmacro %}
 
-{# Карточка вакансии: профессия, оплата с периодом, район, график, формат, значки, кнопки, источник и свежесть #}
+{# Строка поиска: профессия и "где" (город или район) с подсказками. sid делает id полей уникальными на странице #}
+{% macro search_bar(sid, q='', where='', big=False) -%}
+{# search_hints и district_label может не быть в чужих окружениях шаблонов (юридические страницы): тогда подсказок нет #}
+{% set hints = search_hints() if search_hints is defined else {'professions': [], 'cities': [], 'districts': []} %}
+<form class="sbar{% if big %} sbar--big{% endif %}" action="/vacancies" method="get" role="search">
+  <div class="sbar__field sbar__field--q">
+    {{ icon('magnifying-glass') }}
+    <label class="visually-hidden" for="{{ sid }}-q">Профессия или должность</label>
+    <input class="sbar__input" id="{{ sid }}-q" name="q" type="search" value="{{ q }}" maxlength="80" autocomplete="off"
+           enterkeyhint="search" placeholder="{% if big %}Профессия или должность{% else %}Профессия{% endif %}" list="{{ sid }}-prof">
+  </div>
+  <div class="sbar__field sbar__field--where">
+    {{ icon('map-pin') }}
+    <label class="visually-hidden" for="{{ sid }}-where">Город или район</label>
+    <input class="sbar__input" id="{{ sid }}-where" name="where" type="text" value="{{ where }}" maxlength="60" autocomplete="off"
+           enterkeyhint="search" placeholder="Город или район" list="{{ sid }}-place">
+  </div>
+  <button class="btn btn--primary sbar__btn" type="submit">Найти</button>
+  <datalist id="{{ sid }}-prof">{% for name in hints.professions %}<option value="{{ name[:1] | upper }}{{ name[1:] }}"></option>{% endfor %}</datalist>
+  <datalist id="{{ sid }}-place">
+    {% for name in hints.cities %}<option value="{{ name }}"></option>{% endfor %}
+    {% for name in hints.districts %}<option value="{{ district_label(name) }}"></option>{% endfor %}
+  </datalist>
+</form>
+{%- endmacro %}
+
+{# Карточка вакансии: профессия, оплата с периодом, работодатель, район, график, формат, значки, кнопки, источник и свежесть #}
 {% macro vcard(v, heading='h3') -%}
-<article class="vcard" data-vacancy-id="{{ v.id }}">
+<article class="vcard{% if v.is_direct %} vcard--direct{% endif %}" data-vacancy-id="{{ v.id }}">
   <div class="vcard__in">
-  <div class="vcard__head">
     <span class="vcard__ico">{{ icon(category_icon(v.category)) }}</span>
-    <div>
-      <{{ heading }} class="vcard__title"><a class="vcard__link" href="/vacancy/{{ v.id }}">{{ v.profession_title }}</a></{{ heading }}>
-      {% if v.employer %}<p class="vcard__employer">{{ v.employer }}</p>{% endif %}
+    <div class="vcard__body">
+      <div class="vcard__head">
+        <div class="vcard__titles">
+          <{{ heading }} class="vcard__title"><a class="vcard__link" href="/vacancy/{{ v.id }}">{{ v.profession_title }}</a></{{ heading }}>
+          {% if v.employer or v.is_direct %}
+          <p class="vcard__employer">{% if v.employer %}<span>{{ v.employer }}</span>{% endif %}{% if v.is_direct %}<span class="tag tag--direct">{{ icon('seal-check') }}От работодателя</span>{% endif %}</p>
+          {% endif %}
+        </div>
+        {{ pay(v) }}
+      </div>
+      <ul class="meta">
+        {% if v.location %}<li>{{ icon('map-pin') }}<span>{{ v.location }}</span></li>{% endif %}
+        {% if v.schedule %}<li>{{ icon('clock') }}<span>{{ v.schedule }}</span></li>{% endif %}
+        {% if v.work_format_label %}<li>{{ icon('buildings') }}<span>{{ v.work_format_label }}</span></li>{% endif %}
+      </ul>
+      {% if v.badges %}
+      <ul class="badges">
+        {% for b in v.badges %}<li class="badge badge--{{ b.kind }}">{% if b.kind == 'pay' %}{{ icon('lightning') }}{% endif %}{{ b.label }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+      {% if v.summary %}<p class="vcard__summary">{{ v.summary }}</p>{% endif %}
+      <div class="vcard__foot">
+        <div class="vcard__actions">
+          {{ actions(v) }}
+        </div>
+        <p class="vcard__source"><span>{% if v.is_direct %}Работодатель на сайте{% else %}{{ v.source_label }}{% endif %}{% if v.ago %}, <time datetime="{{ v.published_at }}">{{ v.ago }}</time>{% endif %}</span>{% if v.dup_count %}<span class="also-tag">{{ icon('copy') }}{{ v.also_label }}</span>{% endif %}</p>
+      </div>
     </div>
-  </div>
-  {{ pay(v) }}
-  <ul class="meta">
-    {% if v.location %}<li>{{ icon('map-pin') }}<span>{{ v.location }}</span></li>{% endif %}
-    {% if v.schedule %}<li>{{ icon('clock') }}<span>{{ v.schedule }}</span></li>{% endif %}
-    {% if v.work_format_label %}<li>{{ icon('buildings') }}<span>{{ v.work_format_label }}</span></li>{% endif %}
-  </ul>
-  {% if v.badges %}
-  <ul class="badges">
-    {% for b in v.badges %}<li class="badge badge--{{ b.kind }}">{% if b.kind == 'pay' %}{{ icon('lightning') }}{% endif %}{{ b.label }}</li>{% endfor %}
-  </ul>
-  {% endif %}
-  {% if v.summary %}<p class="vcard__summary">{{ v.summary }}</p>{% endif %}
-  <div class="vcard__foot">
-    <div class="vcard__actions">
-      {{ actions(v) }}
-    </div>
-    <p class="vcard__source"><span>{{ v.source_label }}{% if v.ago %}, <time datetime="{{ v.published_at }}">{{ v.ago }}</time>{% endif %}</span>{% if v.dup_count %}<span class="also-tag">{{ icon('copy') }}{{ v.also_label }}</span>{% endif %}</p>
-  </div>
   </div>
 </article>
 {%- endmacro %}
@@ -42,15 +72,18 @@
 </p>
 {%- endmacro %}
 
-{# Кнопки "Позвонить" и "Оригинал". Если телефона нет, предлагаем Telegram. #}
-{% macro actions(v) -%}
-  {% if v.phone %}
-  <a class="btn btn--primary" href="tel:{{ phone_href(v.phone) }}" aria-label="Позвонить: {{ v.profession_title }}, {{ phone_pretty(v.phone) }}">{{ icon('phone') }}Позвонить</a>
-  {% elif v.telegram %}
-  <a class="btn btn--primary" href="{{ telegram_href(v.telegram) }}" rel="noopener nofollow" aria-label="Написать в Telegram: {{ v.profession_title }}">{{ icon('telegram-logo') }}Написать</a>
+{# Кнопки отклика. Вакансия работодателя: "Откликнуться" на сайте. Спарсенная: "Позвонить" (или Telegram) и "Оригинал". #}
+{% macro actions(v, long=False) -%}
+  {% if v.is_direct %}
+  <a class="btn btn--primary" href="{{ v.apply_url }}" aria-label="Откликнуться на вакансию: {{ v.profession_title }}">{{ icon('paper-plane-tilt') }}Откликнуться</a>
   {% endif %}
-  {% if v.original_url and not v.is_site %}
-  <a class="btn btn--ghost" href="{{ v.original_url }}" target="_blank" rel="noopener nofollow ugc" aria-label="Оригинал вакансии: {{ v.profession_title }}">{{ icon('arrow-square-out') }}Оригинал</a>
+  {% if v.phone %}
+  <a class="btn {% if v.is_direct %}btn--ghost{% else %}btn--primary{% endif %}" href="tel:{{ phone_href(v.phone) }}" aria-label="Позвонить: {{ v.profession_title }}, {{ phone_pretty(v.phone) }}">{{ icon('phone') }}Позвонить</a>
+  {% elif v.telegram %}
+  <a class="btn {% if v.is_direct %}btn--ghost{% else %}btn--primary{% endif %}" href="{{ telegram_href(v.telegram) }}" rel="noopener nofollow" aria-label="Написать в Telegram: {{ v.profession_title }}">{{ icon('telegram-logo') }}Написать</a>
+  {% endif %}
+  {% if v.original_url and not v.is_site and not v.is_direct %}
+  <a class="btn btn--ghost" href="{{ v.original_url }}" target="_blank" rel="noopener nofollow ugc" aria-label="Оригинал вакансии: {{ v.profession_title }}">{{ icon('arrow-square-out') }}{% if long %}Открыть оригинал{% else %}Оригинал{% endif %}</a>
   {% endif %}
 {%- endmacro %}
 
@@ -66,4 +99,19 @@
   {% if page.has_next %}<a class="btn btn--primary" rel="next" href="{{ base_path }}?{% if query %}{{ query }}&amp;{% endif %}page={{ page.page + 1 }}">Показать ещё{{ icon('caret-right') }}</a>{% endif %}
 </nav>
 {% endif %}
+{%- endmacro %}
+
+{# Заглушка логотипа работодателя: первая буква названия #}
+{% macro logo_tile(name, size='') -%}
+<span class="logo-tile{% if size %} logo-tile--{{ size }}{% endif %}" aria-hidden="true">{{ (name or '?')[:1] | upper }}</span>
+{%- endmacro %}
+
+{# Пустое состояние: значок, заголовок, пояснение, кнопки (передаются через caller) #}
+{% macro empty_state(icon_name, title, text, heading='h2') -%}
+<div class="state">
+  <span class="state__ico">{{ icon(icon_name) }}</span>
+  <{{ heading }} class="h3">{{ title }}</{{ heading }}>
+  <p>{{ text }}</p>
+  <div class="state__actions">{{ caller() }}</div>
+</div>
 {%- endmacro %}

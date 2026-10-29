@@ -24,6 +24,15 @@ from rabota.models import Vacancy
 
 DEMO_DB = ROOT / "data" / "demo.db"
 
+# Вакансии, которые в демо "разместили работодатели на сайте" (origin='direct'): внешний номер -> компания
+DEMO_DIRECT = {
+    "1004": "Торговая компания «Гермес»",
+    "1005": "Склад «Оптовик»",
+    "1010": "Салон красоты «Лотос»",
+    "1012": "Магазин одежды «Стиль»",
+    "1015": "Школа № 120",
+}
+
 
 def _phone(n: int) -> dict:
     return {"phones": [f"+794900000{n:02d}"]}
@@ -242,9 +251,28 @@ def seed(db_path: Path, reset: bool = True, now: datetime | None = None) -> int:
     for v, dup in vacancies:
         if dup is not None:
             conn.execute("UPDATE vacancies SET duplicate_of = ? WHERE id = ?", (ids[dup], ids[v.external_id]))
+    mark_direct(conn, ids)
     conn.commit()
     conn.close()
     return len(vacancies)
+
+
+def mark_direct(conn, ids: dict[str, int]) -> None:
+    """Часть вакансий помечается как размещённые работодателями: у них есть компания и кнопка отклика."""
+    conn.execute("INSERT OR IGNORE INTO users(email, password_hash, role, name) VALUES ('demo-employer@example.test', '!', 'employer', 'Демо')")
+    owner = conn.execute("SELECT id FROM users WHERE email = 'demo-employer@example.test'").fetchone()[0]
+    conn.execute("DELETE FROM companies WHERE owner_user_id = ?", (owner,))
+    for external_id, name in DEMO_DIRECT.items():
+        if external_id not in ids:
+            continue
+        cur = conn.execute(
+            "INSERT INTO companies(owner_user_id, name, description, city, verified) VALUES (?, ?, ?, 'Донецк', 1)",
+            (owner, name, "Демонстрационный работодатель: описание выдумано для проверки оформления."),
+        )
+        conn.execute(
+            "UPDATE vacancies SET origin = 'direct', company_id = ?, source_type = 'site', source = 'razmestit', source_url = '' WHERE id = ?",
+            (cur.lastrowid, ids[external_id]),
+        )
 
 
 def main() -> None:

@@ -1,0 +1,55 @@
+/* Страницы аккаунта: вход, регистрация, настройки. Только токены из tokens.css. */
+.auth { display: grid; justify-items: center; padding-block: var(--sp-6) var(--sp-12); }
+.auth__card {
+  width: min(100%, 30rem); display: grid; gap: var(--sp-5); padding: var(--sp-6);
+  background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); box-shadow: var(--shadow-card);
+}
+.auth__card--wide { width: min(100%, 40rem); }
+.auth__head { display: grid; gap: var(--sp-2); }
+.auth__head h1 { font-size: var(--fs-2xl); line-height: var(--lh-tight); letter-spacing: -0.02em; font-weight: var(--fw-heavy); text-wrap: balance; }
+.auth__head p { color: var(--c-ink-2); }
+.auth__form { display: grid; gap: var(--sp-4); }
+.auth__alt { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); justify-content: space-between; font-size: var(--fs-sm); color: var(--c-ink-2); }
+.auth__alt a { font-weight: var(--fw-semibold); }
+.auth__input { position: relative; display: grid; }
+.auth__input .input { padding-right: 5.5rem; }
+.auth__toggle {
+  position: absolute; right: var(--sp-2); top: 50%; translate: 0 -50%; min-height: 2.5rem; padding: 0 var(--sp-3);
+  background: transparent; border: 0; border-radius: var(--r-ctl); color: var(--c-accent-ink); font-weight: var(--fw-semibold); font-size: var(--fs-sm); cursor: pointer;
+}
+.auth__toggle:hover { background: var(--c-accent-soft); }
+.auth__toggle:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 1px; }
+.auth__toggle[hidden] { display: none; }
+.auth__done { display: grid; justify-items: start; gap: var(--sp-4); }
+.auth__done .state__ico { margin-bottom: var(--sp-1); }
+.auth__done p { color: var(--c-ink-2); max-width: 32rem; }
+.auth__done .state__actions { margin-top: var(--sp-2); }
+.auth__inline { display: grid; gap: var(--sp-3); padding-top: var(--sp-4); border-top: 1px solid var(--c-line); }
+.auth__inline p { font-size: var(--fs-sm); color: var(--c-ink-2); }
+
+.role-pick { display: grid; gap: var(--sp-3); border: 0; padding: 0; margin: 0; min-width: 0; }
+.role-pick > legend { font-weight: var(--fw-semibold); font-size: var(--fs-sm); margin-bottom: var(--sp-2); padding: 0; }
+.role-pick__item {
+  display: grid; grid-template-columns: auto 1fr; align-items: start; gap: var(--sp-3); padding: var(--sp-4); cursor: pointer;
+  background: var(--c-surface); border: 1px solid var(--c-line-strong); border-radius: var(--r-ctl);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.role-pick__item:hover { border-color: var(--c-accent); }
+.role-pick__item:has(input:checked) { background: var(--c-accent-soft); border-color: var(--c-accent); }
+.role-pick__item:has(input:focus-visible) { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+.role-pick__item input { width: 1.4rem; height: 1.4rem; accent-color: var(--c-accent); margin: 0.1rem 0 0; }
+.role-pick__title { display: block; font-weight: var(--fw-bold); }
+.role-pick__text { display: block; color: var(--c-ink-2); font-size: var(--fs-sm); }
+
+.acct { display: grid; gap: var(--sp-5); padding-bottom: var(--sp-12); }
+.acct__who { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-4); }
+.acct__who p { color: var(--c-ink-2); }
+.acct__grid { display: grid; gap: var(--sp-5); }
+.acct__panel { display: grid; gap: var(--sp-4); align-content: start; }
+.acct__panel h2 { font-size: var(--fs-lg); font-weight: var(--fw-bold); margin: 0; }
+.acct__panel--danger { border-color: var(--c-danger); }
+.acct__panel--danger h2 { color: var(--c-danger); }
+.cabinet-stub { display: grid; gap: var(--sp-4); justify-items: start; padding-bottom: var(--sp-12); }
+@media (min-width: 62rem) {
+  .acct__grid { grid-template-columns: 1fr 1fr; }
+}

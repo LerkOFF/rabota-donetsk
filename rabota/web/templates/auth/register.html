@@ -1,0 +1,41 @@
+{% extends 'auth/layout.html' %}
+{% from 'auth/_forms.html' import csrf, honeypot, field, summary %}
+{% block auth_body %}
+<div class="wrap auth">
+  <div class="auth__card auth__card--wide">
+    <header class="auth__head">
+      <h1>Регистрация</h1>
+      <p>Создайте аккаунт, чтобы откликаться на вакансии и писать работодателям или размещать вакансии. Почту нужно будет подтвердить.</p>
+    </header>
+    {{ summary(errors, 'r') }}
+    <form class="auth__form" method="post" action="/register" novalidate>
+      {{ csrf(csrf_token) }}
+      {{ honeypot() }}
+      <fieldset class="role-pick{% if errors.get('role') %} field--invalid{% endif %}" id="r-role">
+        <legend>Кто вы</legend>
+        <label class="role-pick__item">
+          <input type="radio" name="role" value="job_seeker" required{% if form.get('role') == 'job_seeker' %} checked{% endif %}>
+          <span><span class="role-pick__title">Ищу работу</span><span class="role-pick__text">Резюме, отклики, переписка с работодателями.</span></span>
+        </label>
+        <label class="role-pick__item">
+          <input type="radio" name="role" value="employer" required{% if form.get('role') == 'employer' %} checked{% endif %}>
+          <span><span class="role-pick__title">Набираю сотрудников</span><span class="role-pick__text">Вакансии, отклики, поиск по резюме.</span></span>
+        </label>
+        {% if errors.get('role') %}<p class="error">{{ errors['role'] }}</p>{% endif %}
+      </fieldset>
+      {{ field('name', 'Как к вам обращаться', value=form.get('name', ''), error=errors.get('name', ''), autocomplete='name', maxlength=80, pid='r') }}
+      {{ field('email', 'Электронная почта', type='email', value=form.get('email', ''), error=errors.get('email', ''), autocomplete='email', inputmode='email', pid='r') }}
+      {{ field('password', 'Пароль', type='password', error=errors.get('password', ''), hint='Не короче 8 знаков. Лучше фраза из нескольких слов.', autocomplete='new-password', maxlength=128, pid='r', toggle=True) }}
+      <div class="field{% if errors.get('consent') %} field--invalid{% endif %}">
+        <label class="check" for="r-consent">
+          <input type="checkbox" id="r-consent" name="consent" value="1"{% if form.get('consent') %} checked{% endif %}{% if errors.get('consent') %} aria-invalid="true" aria-describedby="r-consent-err"{% endif %}>
+          <span>Я согласен на <a href="/legal/consent" target="_blank" rel="noopener">обработку моих персональных данных</a> для работы аккаунта на сайте</span>
+        </label>
+        {% if errors.get('consent') %}<p class="error" id="r-consent-err"><span>{{ errors['consent'] }}</span></p>{% endif %}
+      </div>
+      <button class="btn btn--primary btn--lg btn--block" type="submit">Зарегистрироваться</button>
+    </form>
+    <p class="auth__alt"><span>Уже есть аккаунт?</span> <a href="/login">Войти</a></p>
+  </div>
+</div>
+{% endblock %}

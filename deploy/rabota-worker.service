@@ -1,0 +1,45 @@
+# Образец юнита воркера реального времени. Подставьте значения вместо <заглушек>:
+#   <USER>         системный пользователь, под которым работает проект (не root)
+#   <PROJECT_DIR>  папка проекта; в ней лежат .env, .venv и data/
+# Установка: см. docs/REALTIME.md, раздел "Запуск на сервере".
+[Unit]
+Description=Работа Донецк: приём данных в реальном времени (Telegram, VK, открытые базы)
+After=network-online.target
+Wants=network-online.target
+# Если Telegram идёт через SSH-туннель (rabota-tg-proxy.service), раскомментируйте:
+# After=rabota-tg-proxy.service
+# Wants=rabota-tg-proxy.service
+
+[Service]
+Type=simple
+User=<USER>
+Group=<USER>
+WorkingDirectory=<PROJECT_DIR>
+EnvironmentFile=<PROJECT_DIR>/.env
+ExecStart=<PROJECT_DIR>/.venv/bin/python -m rabota worker
+Restart=always
+RestartSec=10
+# Воркер завершает начатый опрос по SIGTERM; через минуту systemd добивает
+KillSignal=SIGTERM
+TimeoutStopSec=60
+
+# Ограничения: только чтение системы, запись лишь в data/
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=read-only
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+SystemCallArchitectures=native
+UMask=0077
+ReadWritePaths=<PROJECT_DIR>/data
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target

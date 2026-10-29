@@ -143,8 +143,8 @@ def test_feed_selected_filter_options(client, add):
     add(profession="а", city="Донецк")
     add(profession="б", city="Макеевка")
     html = client.get("/vacancies?city=Макеевка").text
-    assert '<option value="Макеевка" selected>' in html
-    assert '<option value="Донецк">' in html
+    assert re.search(r'<input type="radio" name="city" value="Макеевка" checked>', html)
+    assert re.search(r'<input type="radio" name="city" value="Донецк">', html)
 
 
 # ------------------------------------------------------------------ страница вакансии
@@ -200,7 +200,8 @@ def test_vacancy_similar_block(client, add):
     add(profession="оператор 1с", category="офис")
     add(profession="водитель", category="транспорт")
     html = client.get(f"/vacancy/{vid}").text
-    assert "Похожие вакансии" in html and "Оператор 1с" in html and "Водитель" not in html
+    similar_block = html.split('id="similar"', 1)[1].split("</section>", 1)[0]
+    assert "Похожие вакансии" in html and "Оператор 1с" in similar_block and "Водитель" not in similar_block
 
 
 @pytest.mark.parametrize("kw", [

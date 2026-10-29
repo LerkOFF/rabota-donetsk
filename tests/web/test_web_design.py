@@ -62,10 +62,13 @@ TEXT_PAIRS = [
     ("--c-on-pay", "--c-pay"),
     ("--c-danger", "--c-danger-soft"), ("--c-danger", "--c-surface"), ("--c-danger", "--c-bg"),
     ("--c-ink", "--c-danger-soft"),
+    ("--c-on-brand", "--c-brand"), ("--c-on-brand", "--c-brand-2"), ("--c-on-brand-2", "--c-brand"),
+    ("--c-pay", "--c-brand"),
 ]
 UI_PAIRS = [  # границы полей и фокус: не меньше 3:1
     ("--c-line-strong", "--c-surface"), ("--c-line-strong", "--c-bg"),
     ("--c-focus", "--c-bg"), ("--c-focus", "--c-surface"),
+    ("--c-on-brand-2", "--c-brand"),
 ]
 
 
@@ -113,13 +116,13 @@ def test_templates_have_no_inline_styles_and_images_have_alt():
 
 
 def test_html_forms_have_labels_for_every_field():
-    for name in ("post.html", "vacancies.html", "vacancy.html", "index.html"):
+    for name in ("post.html", "vacancies.html", "vacancy.html", "index.html", "_macros.html", "base.html", "employers.html", "company.html"):
         text = (WEB / "templates" / name).read_text(encoding="utf-8")
         for tag in re.findall(r"<(?:input|select|textarea)\b[^>]*>", text):
             if 'type="hidden"' in tag or 'type="submit"' in tag or 'name="website"' in tag:
                 continue
-            if 'type="checkbox"' in tag:
-                continue  # чекбокс внутри <label>
+            if 'type="checkbox"' in tag or 'type="radio"' in tag:
+                continue  # чекбокс и радиокнопка внутри <label>
             assert 'id="' in tag, f"{name}: поле без id: {tag[:70]}"
 
 

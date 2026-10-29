@@ -1,0 +1,20 @@
+{% extends 'auth/layout.html' %}
+{% from 'auth/_forms.html' import csrf, field, alert %}
+{# Форма из одного поля - почта: повторное письмо подтверждения и сброс пароля #}
+{% block auth_body %}
+<div class="wrap auth">
+  <div class="auth__card">
+    <header class="auth__head">
+      <h1>{{ heading }}</h1>
+      <p>{{ lead }}</p>
+    </header>
+    {{ alert(error) }}
+    <form class="auth__form" method="post" action="{{ action }}" novalidate>
+      {{ csrf(csrf_token) }}
+      {{ field('email', 'Электронная почта', type='email', value=form.get('email', ''), autocomplete='email', inputmode='email', pid='e') }}
+      <button class="btn btn--primary btn--lg btn--block" type="submit">{{ button }}</button>
+    </form>
+    <p class="auth__alt"><a href="/login">Вернуться ко входу</a></p>
+  </div>
+</div>
+{% endblock %}

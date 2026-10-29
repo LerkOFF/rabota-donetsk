@@ -463,3 +463,103 @@ def test_accessibility_audit_with_open_forms(make_page, db_file, scheme):
     visit(page, "/razmestit")
     page.get_by_role("button", name="Отправить на проверку").click()
     assert page.evaluate(AUDIT_JS) == []
+
+
+# ---------------------------------------------------------------- биржа: новые страницы и оболочка
+
+
+def direct_ids(db_file):
+    c = sqlite3.connect(db_file)
+    rows = c.execute("SELECT id, company_id FROM vacancies WHERE origin='direct' AND duplicate_of IS NULL ORDER BY id").fetchall()
+    c.close()
+    assert rows, "в демо-данных нет вакансий работодателей"
+    return rows
+
+
+@pytest.mark.parametrize("width", [360, 390, 768, 1280, 1920])
+@pytest.mark.parametrize("kind", ["employers", "company", "direct"])
+def test_new_pages_have_no_horizontal_scroll(make_page, db_file, width, kind):
+    vid, company_id = direct_ids(db_file)[0]
+    path = {"employers": "/employers", "company": f"/company/{company_id}", "direct": f"/vacancy/{vid}"}[kind]
+    page = make_page({"width": width, "height": 800}, mobile=width < 800)
+    visit(page, path)
+    sizes = page.evaluate("[document.documentElement.scrollWidth, document.documentElement.clientWidth]")
+    assert sizes[0] <= sizes[1], f"{path} при {width}px: {sizes}"
+
+
+@pytest.mark.parametrize("width", [360, 390, 1280])
+def test_card_buttons_are_not_clipped(make_page, width):
+    page = make_page({"width": width, "height": 800}, mobile=width < 800)
+    visit(page, "/vacancies")
+    clipped = page.evaluate("[...document.querySelectorAll('.vcard .btn')].filter(b => b.scrollWidth > b.clientWidth + 1).map(b => b.textContent.trim())")
+    assert clipped == []
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+@pytest.mark.parametrize("kind", ["employers", "company", "direct", "legal"])
+def test_new_pages_accessibility_audit(make_page, db_file, scheme, kind):
+    vid, company_id = direct_ids(db_file)[0]
+    path = {"employers": "/employers", "company": f"/company/{company_id}", "direct": f"/vacancy/{vid}", "legal": "/legal/privacy"}[kind]
+    for viewport, mobile in ((MOBILE, True), (DESKTOP, False)):
+        page = make_page(viewport, scheme, mobile=mobile)
+        visit(page, path)
+        problems = page.evaluate(AUDIT_JS)
+        assert problems == [], f"{path} ({scheme}, {viewport['width']}): {problems}"
+
+
+def test_mobile_filters_drawer_opens_traps_focus_and_closes(make_page):
+    page = make_page(MOBILE, mobile=True)
+    visit(page, "/vacancies")
+    panel = page.locator("#filters")
+    assert not panel.is_visible()
+    page.locator("[data-filters-toggle]").click()
+    assert panel.is_visible()
+    assert page.locator("[data-filters-toggle]").get_attribute("aria-expanded") == "true"
+    for _ in range(40):
+        page.keyboard.press("Tab")
+    assert page.evaluate("document.querySelector('#filters').contains(document.activeElement)")
+    page.keyboard.press("Escape")
+    panel.wait_for(state="hidden")
+    page.locator("[data-filters-toggle]").click()
+    page.locator("[data-filters-close]").click()
+    panel.wait_for(state="hidden")
+
+
+def test_burger_menu_opens_and_closes(make_page):
+    page = make_page(MOBILE, mobile=True)
+    visit(page, "/")
+    burger = page.locator("[data-menu-toggle]")
+    menu = page.locator("[data-menu-panel]")
+    assert not menu.is_visible()
+    burger.click()
+    assert menu.is_visible() and burger.get_attribute("aria-expanded") == "true"
+    assert menu.get_by_role("link", name="Войти").is_visible()
+    burger.click()
+    menu.wait_for(state="hidden")
+
+
+def test_desktop_has_filters_sidebar_and_no_burger(make_page):
+    page = make_page(DESKTOP)
+    visit(page, "/vacancies")
+    assert page.locator("#filters").is_visible()
+    assert not page.locator("[data-menu-toggle]").is_visible()
+    assert not page.locator("[data-filters-toggle]").is_visible()
+
+
+def test_desktop_filter_applies_without_button_and_sort_changes(make_page):
+    page = make_page(DESKTOP)
+    visit(page, "/vacancies")
+    page.get_by_label("Только от работодателей").check()
+    page.wait_for_url("**direct=1**")
+    assert page.locator(".vcard--direct").count() == page.locator(".vcard").count() > 0
+    page.get_by_label("Сортировка").select_option("pay")
+    page.wait_for_url("**sort=pay**")
+    assert "direct=1" in page.url
+
+
+def test_direct_vacancy_shows_apply_in_sidebar(make_page, db_file):
+    vid, _ = direct_ids(db_file)[0]
+    page = make_page(DESKTOP)
+    visit(page, f"/vacancy/{vid}")
+    link = page.locator(".vpage__side").get_by_role("link", name="Откликнуться")
+    assert link.is_visible() and link.get_attribute("href") == f"/vacancy/{vid}/apply"

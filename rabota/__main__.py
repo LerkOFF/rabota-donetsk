@@ -6,6 +6,9 @@
     python -m rabota run [--limit 10]                                         всё сразу
     python -m rabota stats                                                    сводка по базе
     python -m rabota serve [--port 8000]                                      сайт
+    python -m rabota worker                                                   приём данных в реальном времени
+    python -m rabota health [--json]                                          свежесть источников, код 1 при просрочке
+    python -m rabota tg-login                                                 один раз: вход в Telegram для слушателя
 """
 from __future__ import annotations
 
@@ -64,7 +67,7 @@ def _vision_provider():
 def cmd_process(conn: sqlite3.Connection) -> dict:
     """Разобрать текст, затем картинки там, где текста мало, склеить дубли."""
     from rabota.pipeline.run import process_db
-    from rabota.vision.extract import vacancies_from_images
+    from rabota.realtime.ingest import new_image_vacancies
 
     stats = process_db(conn)
     provider = _vision_provider()
@@ -72,24 +75,14 @@ def cmd_process(conn: sqlite3.Connection) -> dict:
     for raw in load_raw(conn):
         if not raw.image_urls:
             continue
-        try:
-            found = vacancies_from_images(raw, provider)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("картинки %s: %s", raw.url, exc)
-            continue
-        if not found:
-            continue
         have = {
             r["profession"]
             for r in conn.execute(
                 "SELECT profession FROM vacancies WHERE source=? AND external_id=?", (raw.source, raw.external_id)
             )
         }
-        for vac in found:
-            if vac.profession in have:
-                continue
+        for vac in new_image_vacancies(raw, provider, have):
             save_vacancy(conn, vac)
-            have.add(vac.profession)
             from_images += 1
     if from_images:
         from rabota.pipeline.dedupe import dedupe
@@ -123,7 +116,24 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("stats")
     serve = sub.add_parser("serve")
     serve.add_argument("--port", type=int, default=8000)
+    sub.add_parser("worker", help="воркер реального времени: Telegram, VK, открытые базы, expire")
+    health = sub.add_parser("health", help="свежесть источников; код возврата 1, если что-то просрочено")
+    health.add_argument("--json", action="store_true")
+    sub.add_parser("tg-login", help="интерактивный вход в Telegram (телефон, код, пароль), сессия в файл")
     args = parser.parse_args(argv)
+
+    if args.cmd == "worker":
+        from rabota.realtime.worker import main as worker_main
+
+        return worker_main()
+    if args.cmd == "health":
+        from rabota.realtime.health import main as health_main
+
+        return health_main(["--json"] if args.json else [])
+    if args.cmd == "tg-login":
+        from rabota.realtime.telegram_listener import login
+
+        return login()
 
     logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(name)s: %(message)s")
     if args.cmd == "serve":

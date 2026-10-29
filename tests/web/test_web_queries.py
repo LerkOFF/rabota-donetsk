@@ -164,7 +164,7 @@ def test_facets_and_stats(conn, add):
     assert dict(f["cities"]) == {"Донецк": 1, "Макеевка": 1}
     assert f["professions"] == [("а", 2)]
     s = q.stats(conn, NOW)
-    assert s == {"total": 2, "fresh": 1, "no_experience": 1, "daily": 1, "side_job": 0}
+    assert s == {"total": 2, "fresh": 1, "no_experience": 1, "daily": 1, "direct": 0, "side_job": 0}
 
 
 def test_stats_fresh_uses_24_hours(conn, add):
@@ -204,3 +204,90 @@ def test_stale_vacancy_is_not_shown_even_if_active(tmp_path):
     conn.commit()
     names = [r[0] for r in conn.execute(f"SELECT profession FROM vacancies WHERE {queries.VISIBLE_SQL}")]
     assert names == ["свежая"]
+
+
+# ------------------------------------------------------------------ оплата от, сортировка, вакансии работодателей
+
+
+def mark_direct(conn, vid, company_id=None):
+    conn.execute("UPDATE vacancies SET origin = 'direct', company_id = ? WHERE id = ?", (company_id, vid))
+    conn.commit()
+
+
+def test_filters_parse_new_params():
+    f = q.Filters.from_params({"pay_from": "30 000 ₽", "direct": "1", "sort": "pay"})
+    assert (f.pay_from, f.direct, f.sort) == (30000, True, "pay")
+    assert f.active_count == 2 and not f.is_empty
+    assert q.Filters.from_params({"pay_from": "abc"}).pay_from == 0
+    assert q.Filters.from_params({"pay_from": "99999999999"}).pay_from == q.MAX_PAY_FROM
+    assert q.Filters.from_params({"sort": "date"}).sort == ""
+    assert q.Filters.from_params({"sort": "x'; DROP"}).sort == ""
+    assert not q.Filters.from_params({"sort": "pay"}).is_empty  # сортировка не дублирует главную страницу ленты
+
+
+def test_query_string_keeps_new_params():
+    f = q.Filters.from_params({"pay_from": "25000", "direct": "on", "sort": "pay", "q": "кассир"})
+    qs = f.query_string()
+    assert "pay_from=25000" in qs and "direct=1" in qs and "sort=pay" in qs
+    assert "pay_from" not in f.query_string(pay_from=0)
+
+
+def test_pay_from_uses_month_value_and_estimate(conn, add):
+    add(profession="мало", pay_min=20000, pay_max=25000, pay_period="месяц")
+    add(profession="много", pay_min=50000, pay_max=70000, pay_period="месяц")
+    add(profession="смена", pay_min=3000, pay_max=3000, pay_period="смена", pay_monthly_estimate=60000)
+    add(profession="смена мало", pay_min=1000, pay_max=1000, pay_period="смена", pay_monthly_estimate=20000)
+    add(profession="без оплаты")
+    assert sorted(prof(conn, q.Filters(pay_from=30000))) == ["много", "смена"]
+    assert sorted(prof(conn, q.Filters(pay_from=70000))) == ["много"]  # верхняя граница вилки считается
+    assert q.search(conn, q.Filters(pay_from=70001)).total == 0
+    assert q.search(conn, q.Filters()).total == 5
+
+
+def test_sort_by_pay_puts_unknown_last(conn, add):
+    add(profession="средняя", pay_min=40000, pay_max=40000, pay_period="месяц", ago=5)
+    add(profession="неизвестно", ago=1)
+    add(profession="высокая", pay_min=90000, pay_max=90000, pay_period="месяц", ago=100)
+    add(profession="смена", pay_min=3000, pay_max=3000, pay_period="смена", pay_monthly_estimate=66000, ago=200)
+    assert prof(conn, q.Filters(sort="pay")) == ["высокая", "смена", "средняя", "неизвестно"]
+    assert prof(conn)[0] == "неизвестно"  # по дате свежие первыми
+
+
+def test_sort_by_pay_ignores_text_ranking_but_keeps_filter(conn, add):
+    add(profession="кассир", pay_min=30000, pay_max=30000, pay_period="месяц")
+    add(profession="старший кассир", pay_min=60000, pay_max=60000, pay_period="месяц")
+    add(profession="повар", pay_min=99000, pay_max=99000, pay_period="месяц")
+    assert prof(conn, q.Filters(q="кассир", sort="pay")) == ["старший кассир", "кассир"]
+
+
+def test_direct_filter_and_stats(conn, add):
+    a = add(profession="от работодателя")
+    add(profession="из канала")
+    mark_direct(conn, a)
+    assert prof(conn, q.Filters(direct=True)) == ["от работодателя"]
+    assert q.stats(conn, NOW)["direct"] == 1
+    assert q.get_vacancy(conn, a)["origin"] == "direct"
+
+
+def test_company_helpers(conn, add):
+    conn.execute("INSERT INTO users(email, password_hash, role) VALUES ('c@example.test', '!', 'employer')")
+    conn.execute("INSERT INTO companies(owner_user_id, name, city) VALUES (1, 'Кофейня', 'Донецк')")
+    conn.commit()
+    one = add(profession="бариста")
+    add(profession="чужая")
+    hidden = add(profession="скрытая", status="hidden")
+    for vid in (one, hidden):
+        mark_direct(conn, vid, company_id=1)
+    assert q.get_company(conn, 1)["name"] == "Кофейня"
+    assert q.get_company(conn, 99) is None
+    assert [v["profession"] for v in q.company_vacancies(conn, 1)] == ["бариста"]
+
+
+def test_search_hints(conn, add):
+    add(profession="бариста", district="Ворошиловский")
+    add(profession="бариста")
+    add(profession="кассир", city="Макеевка")
+    add(profession="военные", kind="military")
+    h = q.search_hints(conn)
+    assert h["professions"][0] == "бариста" and "военные" not in h["professions"]
+    assert set(h["cities"]) == {"Донецк", "Макеевка"} and h["districts"] == ["Ворошиловский"]

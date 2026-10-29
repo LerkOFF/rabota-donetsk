@@ -1,0 +1,111 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon %}
+{% block hsearch %}{% endblock %}
+{% block content %}
+<section class="hero hero--employers" aria-labelledby="emp-title">
+  <div class="wrap">
+    <div class="hero__band">
+      <div class="hero__text">
+        <h1 class="h1" id="emp-title">Найдите сотрудника в Донецке</h1>
+        <p class="hero__lead">Опубликуйте вакансию бесплатно, получайте отклики и общайтесь с соискателями на сайте.</p>
+        <div class="state__actions">
+          <a class="btn btn--pay btn--lg" href="/razmestit">Разместить вакансию</a>
+          {% if user %}
+          <a class="btn btn--outline-brand btn--lg" href="/cabinet">Перейти в кабинет</a>
+          {% else %}
+          <a class="btn btn--outline-brand btn--lg" href="/register">Создать кабинет</a>
+          {% endif %}
+        </div>
+        <p class="hero__fine">Сейчас в ленте {{ count_label(stats.total, 'вакансия', 'вакансии', 'вакансий') }}, за сутки добавлено {{ stats.fresh }}.</p>
+      </div>
+
+      <div class="preview" aria-label="Так соискатели увидят вашу вакансию">
+        <p class="preview__cap">Так увидят вашу вакансию</p>
+        <article class="vcard vcard--direct vcard--static">
+          <div class="vcard__in">
+            <span class="vcard__ico">{{ icon('shopping-bag') }}</span>
+            <div class="vcard__body">
+              <div class="vcard__head">
+                <div class="vcard__titles">
+                  <p class="vcard__title">Продавец-консультант</p>
+                  <p class="vcard__employer"><span>Ваша компания</span><span class="tag tag--direct">{{ icon('seal-check') }}От работодателя</span></p>
+                </div>
+                <p class="pay"><span class="pay__main">от 38&nbsp;000&nbsp;₽</span> <span class="pay__period">в месяц</span></p>
+              </div>
+              <ul class="meta">
+                <li>{{ icon('map-pin') }}<span>Донецк, Ворошиловский район</span></li>
+                <li>{{ icon('clock') }}<span>2/2</span></li>
+              </ul>
+              <ul class="badges"><li class="badge badge--ok">Без опыта</li><li class="badge badge--pay">{{ icon('lightning') }}Выплата каждый день</li></ul>
+              <div class="vcard__actions"><span class="btn btn--primary">{{ icon('paper-plane-tilt') }}Откликнуться</span></div>
+            </div>
+          </div>
+        </article>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="why">
+  <div class="wrap">
+    <h2 class="h2 section__title" id="why">Что вы получаете</h2>
+    <ul class="adv">
+      <li class="adv__item adv__item--wide">
+        <span class="adv__ico">{{ icon('currency-rub') }}</span>
+        <h3 class="h3">Публикация бесплатная</h3>
+        <p>Вы платите только временем: заполните профессию, оплату, график и как с вами связаться.</p>
+      </li>
+      <li class="adv__item">
+        <span class="adv__ico">{{ icon('shield-warning') }}</span>
+        <h3 class="h3">Проверка до публикации</h3>
+        <p>Мы смотрим каждую вакансию, поэтому в ленте меньше обмана и больше доверия к вашему объявлению.</p>
+      </li>
+      <li class="adv__item">
+        <span class="adv__ico">{{ icon('chat-circle-dots') }}</span>
+        <h3 class="h3">Отклики и чат</h3>
+        <p>Соискатели откликаются на сайте, а вы отвечаете в личном кабинете без звонков и пропущенных.</p>
+      </li>
+      <li class="adv__item adv__item--wide">
+        <span class="adv__ico">{{ icon('users') }}</span>
+        <h3 class="h3">Вас увидят там, где ищут</h3>
+        <p>Лента собирает вакансии из каналов, пабликов и сайтов, и ваша вакансия стоит рядом с ними, с пометкой «От работодателя».</p>
+      </li>
+    </ul>
+  </div>
+</section>
+
+<section class="section section--tight" aria-labelledby="how">
+  <div class="wrap">
+    <h2 class="h2 section__title" id="how">Как разместить вакансию</h2>
+    <ol class="steps">
+      <li><span class="steps__n" aria-hidden="true">1</span><div><h3 class="h3">Зарегистрируйтесь</h3><p>Почта и пароль, без документов. Можно и без регистрации, через форму.</p></div></li>
+      <li><span class="steps__n" aria-hidden="true">2</span><div><h3 class="h3">Опишите работу</h3><p>Профессия, оплата, график, район. Две минуты, сложные поля не нужны.</p></div></li>
+      <li><span class="steps__n" aria-hidden="true">3</span><div><h3 class="h3">Получайте отклики</h3><p>После проверки вакансия попадёт в ленту, а отклики придут в кабинет.</p></div></li>
+    </ol>
+  </div>
+</section>
+
+<section class="section section--tight" aria-labelledby="faq">
+  <div class="wrap">
+    <h2 class="h2 section__title" id="faq">Частые вопросы</h2>
+    <div class="faq">
+      <details><summary>Сколько стоит размещение{{ icon('caret-down') }}</summary><p>Сейчас размещение бесплатное. Если условия изменятся, мы предупредим заранее.</p></details>
+      <details><summary>Когда вакансия появится на сайте{{ icon('caret-down') }}</summary><p>После короткой проверки, обычно в течение нескольких часов. Проверяем, что это настоящая вакансия и нет просьбы платить за работу.</p></details>
+      <details><summary>Как соискатели свяжутся со мной{{ icon('caret-down') }}</summary><p>Откликом на сайте или по телефону и в Telegram, если вы их указали. Контакты можно не публиковать и принимать отклики только в кабинете.</p></details>
+      <details><summary>Что делать, если вакансия закрыта{{ icon('caret-down') }}</summary><p>Закройте её в кабинете или нажмите «Пожаловаться» на странице вакансии и выберите «Вакансия не актуальна».</p></details>
+    </div>
+  </div>
+</section>
+
+<section class="section" aria-labelledby="emp-cta">
+  <div class="wrap">
+    <div class="cta-band">
+      <div>
+        <h2 class="h2" id="emp-cta">Нужен сотрудник?</h2>
+        <p class="muted">Опубликуйте вакансию сегодня, первые отклики часто приходят в тот же день.</p>
+      </div>
+      <a class="btn btn--primary btn--lg" href="/razmestit">Разместить вакансию</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

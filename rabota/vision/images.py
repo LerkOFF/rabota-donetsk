@@ -6,11 +6,13 @@ import json
 import logging
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlparse
 
 import httpx
 import imagehash
 from PIL import Image, UnidentifiedImageError
 
+from rabota import config
 from rabota.config import ROOT, USER_AGENT
 
 log = logging.getLogger("rabota.vision")
@@ -39,7 +41,13 @@ def download_image(
     max_bytes: int = MAX_IMAGE_BYTES,
     client: httpx.Client | None = None,
 ) -> bytes:
-    """Скачивает картинку с лимитом размера. Лимит проверяется по ходу чтения, а не после."""
+    """Скачивает картинку с лимитом размера. Лимит проверяется по ходу чтения, а не после.
+
+    Ссылка file:// читает локальный файл, но только из папки медиа (MEDIA_DIR, по умолчанию data/media):
+    туда слушатель Telegram складывает уменьшенные копии фото.
+    """
+    if url.lower().startswith("file://"):
+        return read_local_image(url, max_bytes=max_bytes)
     if not url.lower().startswith(("http://", "https://")):
         raise ImageError(f"не http-адрес: {url[:80]}")
     own = client is None
@@ -58,6 +66,33 @@ def download_image(
         if own:
             http.close()
     raise ImageError(f"не удалось скачать {url[:80]}")  # недостижимо, для типизации
+
+
+def media_dir() -> Path:
+    """Папка локальных картинок: MEDIA_DIR из окружения или data/media."""
+    return Path(config.get("MEDIA_DIR") or ROOT / "data" / "media")
+
+
+def local_path(url: str) -> Path:
+    """Путь из ссылки file://. Вне папки медиа ссылка не принимается."""
+    parsed = urlparse(url)
+    if parsed.scheme.lower() != "file" or parsed.netloc not in ("", "localhost"):
+        raise ImageError(f"не локальная ссылка: {url[:80]}")
+    path = Path(unquote(parsed.path)).resolve()
+    root = media_dir().resolve()
+    if root != path and root not in path.parents:
+        raise ImageError(f"файл вне папки медиа: {path.name}")
+    return path
+
+
+def read_local_image(url: str, *, max_bytes: int = MAX_IMAGE_BYTES) -> bytes:
+    path = local_path(url)
+    try:
+        if path.stat().st_size > max_bytes:
+            raise ImageError(f"картинка больше лимита ({max_bytes} байт)")
+        return path.read_bytes()
+    except OSError as exc:
+        raise ImageError(f"файл не читается: {path.name}") from exc
 
 
 def _fetch_once(http: httpx.Client, url: str, timeout: float, max_bytes: int) -> bytes:

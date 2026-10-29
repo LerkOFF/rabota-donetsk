@@ -9,7 +9,7 @@ import contextlib
 import sqlite3
 import time
 from collections import defaultdict, deque
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -24,6 +24,7 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from rabota import config
+from rabota import legal as legal_docs
 from rabota.models import CATEGORIES, EMPLOYMENTS, PAY_PERIODS, WORK_FORMATS, Vacancy
 from rabota.web import format as fmt
 from rabota.web import queries as q
@@ -44,6 +45,47 @@ COMPLAINT_REASONS = (
 )
 
 DEFAULT_RATE_LIMITS = {"complaint": (6, 3600), "post": (4, 3600)}
+
+# Пункты меню вошедшего пользователя: ключ, подпись, адрес, значок, показывать в шапке отдельной ссылкой.
+# Роли как в таблице users: job_seeker, employer, admin. Адреса кабинетов меняются здесь, в одном месте.
+MenuItem = tuple[str, str, str, str, bool]
+SEEKER_MENU: tuple[MenuItem, ...] = (
+    ("resume", "Резюме", "/cabinet/resume", "file-text", False),
+    ("responses", "Отклики", "/cabinet/responses", "paper-plane-tilt", True),
+    ("messages", "Сообщения", "/cabinet/messages", "chat-circle-dots", True),
+    ("favorites", "Избранное", "/cabinet/favorites", "heart", True),
+    ("profile", "Профиль", "/account", "user-circle", False),
+)
+EMPLOYER_MENU: tuple[MenuItem, ...] = (
+    ("vacancies", "Мои вакансии", "/cabinet/vacancies", "briefcase", True),
+    ("responses", "Отклики", "/cabinet/responses", "paper-plane-tilt", True),
+    ("messages", "Сообщения", "/cabinet/messages", "chat-circle-dots", True),
+    ("company", "Компания", "/cabinet/company", "buildings", False),
+    ("profile", "Профиль", "/account", "user-circle", False),
+)
+ADMIN_MENU: tuple[MenuItem, ...] = (
+    ("cabinet", "Кабинет", "/cabinet", "gear-six", False),
+    ("profile", "Профиль", "/account", "user-circle", False),
+)
+ROLE_MENUS = {"job_seeker": SEEKER_MENU, "employer": EMPLOYER_MENU, "admin": ADMIN_MENU}
+
+
+def current_user(request: Request) -> dict[str, Any] | None:
+    """Пользователь из request.state.user (его ставит middleware аккаунтов). Нет атрибута или пусто: гость."""
+    user = getattr(request.state, "user", None)
+    if not user:
+        return None
+    data = dict(user) if isinstance(user, Mapping) else {k: getattr(user, k, None) for k in ("id", "email", "name", "role")}
+    role = data.get("role") or "job_seeker"
+    data["role"] = role
+    label = (data.get("name") or data.get("email") or "").strip() or "Профиль"
+    data["label"] = label
+    data["initial"] = label[:1].upper()
+    data["menu"] = [
+        {"key": k, "label": t, "href": h, "icon": i, "quick": q} for k, t, h, i, q in ROLE_MENUS.get(role, SEEKER_MENU)
+    ]
+    data["is_employer"] = role == "employer"
+    return data
 
 
 class RateLimiter:
@@ -75,8 +117,10 @@ def create_app(
     premoderate: bool = True,
     rate_limits: dict[str, tuple[int, int]] | None = None,
     now: Callable[[], datetime] | None = None,
+    auth_options: Mapping[str, Any] | None = None,
 ) -> FastAPI:
-    """Собирает приложение. premoderate=True: вакансии из формы ждут проверки и в ленте не видны."""
+    """Собирает приложение. premoderate=True: вакансии из формы ждут проверки и в ленте не видны.
+    auth_options: необязательные параметры подключения аккаунтов (почтовик, часы, лимиты, секрет), нужны тестам."""
     app = FastAPI(title="Работа Донецк", docs_url=None, redoc_url=None, openapi_url=None)
     base_url = (site_url or config.get("SITE_URL") or DEFAULT_SITE_URL).rstrip("/")
     limiter = RateLimiter({**DEFAULT_RATE_LIMITS, **(rate_limits or {})})
@@ -106,12 +150,31 @@ def create_app(
     def db() -> Any:
         return q.open_conn(db_path)
 
+    hints_cache: dict[str, Any] = {"at": -1e9, "data": {"professions": [], "cities": [], "districts": []}}
+
+    def search_hints() -> dict[str, list[str]]:
+        """Подсказки строки поиска, обновляются раз в полминуты: страницы не ходят за ними в базу каждый раз."""
+        if time.monotonic() - hints_cache["at"] > 30:
+            try:
+                with db() as conn:
+                    hints_cache["data"] = q.search_hints(conn)
+            except sqlite3.Error:
+                pass
+            hints_cache["at"] = time.monotonic()
+        return hints_cache["data"]
+
+    env.globals["search_hints"] = search_hints
+
     # журнал WAL: сборщики пишут, сайт читает без блокировок; если базу открыть нельзя, сайт всё равно стартует
     with contextlib.suppress(sqlite3.Error), db() as c:
         c.execute("PRAGMA journal_mode=WAL")
 
     def render(request: Request, name: str, context: dict[str, Any] | None = None, status: int = 200) -> Response:
-        ctx: dict[str, Any] = {"path": request.url.path, "seo": {}}
+        ctx: dict[str, Any] = {
+            "path": request.url.path, "seo": {}, "user": current_user(request),
+            "csrf_token": getattr(request.state, "csrf_token", "") or "",
+            "contact_email": config.get("CONTACT_EMAIL") or "",
+        }
         ctx.update(context or {})
         seo = ctx["seo"]
         seo.setdefault("title", "Работа Донецк: вакансии Донецка и ДНР")
@@ -208,11 +271,11 @@ def create_app(
 
     @app.get("/vacancies")
     def vacancies(request: Request) -> Response:
-        flt = q.Filters.from_params(request.query_params)
         page_no = q.parse_page(request.query_params.get("page"))
         with db() as conn:
-            page = q.search(conn, flt, page_no)
             facets = q.facets(conn)
+            flt = q.Filters.from_params(resolve_where(request.query_params, facets))
+            page = q.search(conn, flt, page_no)
         items = [present(v) for v in page.items]
         title = "Вакансии в Донецке и ДНР"
         if flt.q:
@@ -221,6 +284,8 @@ def create_app(
             title = f"Вакансии: {fmt.CATEGORY_LABELS.get(flt.category, flt.category).lower()}"
         return render(request, "vacancies.html", {
             "flt": flt, "page": page, "items": items, "facets": facets,
+            "where": flt.district and fmt.district_label(flt.district) or flt.city,
+            "sorts": SORT_LABELS,
             "chips": active_chips(flt),
             "options": filter_options(facets, flt),
             "base_qs": flt.query_string(),
@@ -413,6 +478,34 @@ def create_app(
     def post_thanks(request: Request) -> Response:
         return render(request, "post_thanks.html", {"seo": {"title": "Вакансия отправлена", "noindex": True}})
 
+    @app.get("/employers")
+    def employers(request: Request) -> Response:
+        with db() as conn:
+            stats = q.stats(conn, clock())
+        return render(request, "employers.html", {
+            "stats": stats,
+            "seo": {
+                "title": "Разместить вакансию в Донецке: поиск сотрудников для работодателей",
+                "description": "Опубликуйте вакансию, получайте отклики соискателей и общайтесь с ними на сайте. "
+                               "Бесплатно, после короткой проверки.",
+            },
+        })
+
+    @app.get("/company/{company_id}")
+    def company_page(request: Request, company_id: int) -> Response:
+        with db() as conn:
+            row = q.get_company(conn, company_id)
+            vacancies_ = [present(v) for v in q.company_vacancies(conn, company_id)]
+        company = company_stub(company_id, row)
+        return render(request, "company.html", {
+            "company": company, "items": vacancies_,
+            "seo": {
+                "title": f"{company['name']}: вакансии и о компании",
+                "description": f"Работодатель {company['name']} на сайте Работа Донецк: описание компании и открытые вакансии.",
+                "noindex": row is None,
+            },
+        })
+
     @app.get("/about")
     def about(request: Request) -> Response:
         return render(request, "about.html", {"seo": {
@@ -429,6 +522,7 @@ def create_app(
             "Allow: /\n"
             "Disallow: /razmestit/spasibo\n"
             "Disallow: /vacancy/*/complaint\n"
+            "Disallow: /vacancy/*/apply\n"
             f"Sitemap: {base_url}/sitemap.xml\n"
         )
         return PlainTextResponse(body)
@@ -443,8 +537,10 @@ def create_app(
             entries = q.sitemap_entries(conn)
         today = clock().date().isoformat()
         urls: list[tuple[str, str]] = [
-            ("/", today), ("/vacancies", today), ("/razmestit", today), ("/about", today),
+            ("/", today), ("/vacancies", today), ("/employers", today), ("/razmestit", today), ("/about", today),
+            ("/legal", today),
         ]
+        urls += [(f"/legal/{d.slug}", today) for d in legal_docs.list_documents()]
         urls += [(f"/profession/{quote(p.lower())}", today) for p in entries["professions"]]
         urls += [(f"/district/{quote(d)}", today) for d in entries["districts"]]
         urls += [(f"/city/{quote(c)}", today) for c in entries["cities"]]
@@ -457,6 +553,12 @@ def create_app(
             parts.append(f"<url><loc>{xml_escape(base_url + path)}</loc><lastmod>{lastmod}</lastmod></url>")
         parts.append("</urlset>")
         return Response("\n".join(parts), media_type="application/xml")
+
+    from rabota.web import legal_routes
+    from rabota.web.auth_routes import install as install_auth
+
+    legal_routes.install(app, site_url=base_url)
+    install_auth(app, db_path=db_path, site_url=base_url, **(auth_options or {}))
 
     return app
 
@@ -485,6 +587,45 @@ def _page_url(base: str, query: str, page: int) -> str:
     return base + ("?" + "&".join(parts) if parts else "")
 
 
+SORT_LABELS = (("", "По дате"), ("pay", "По оплате"))
+
+
+def resolve_where(params: Mapping[str, str], facets: dict[str, list[tuple[str, int]]]) -> dict[str, str]:
+    """Поле "Где" из строки поиска превращает в город или район. Явно выбранные city и district главнее."""
+    out = dict(params)
+    where = " ".join((params.get("where") or "").split())[:60]
+    if not where or out.get("city") or out.get("district"):
+        return out
+    key = q.fold(where)
+    key_short = key.removesuffix(" район").strip()
+    for name, _ in facets["districts"]:
+        if q.fold(name) in (key, key_short) or q.fold(fmt.district_label(name)) == key:
+            out["district"] = name
+            return out
+    for name, _ in facets["cities"]:
+        if q.fold(name) == key:
+            out["city"] = name
+            return out
+    out["city"] = where
+    return out
+
+
+def company_stub(company_id: int, row: dict[str, Any] | None) -> dict[str, Any]:
+    """Данные страницы работодателя: из таблицы companies, а чего нет, заменяют заглушки."""
+    row = row or {}
+    name = (row.get("name") or "").strip() or "Название компании"
+    return {
+        "id": company_id,
+        "name": name,
+        "initial": name[:1].upper(),
+        "city": row.get("city") or "Донецк",
+        "site": row.get("site") or "",
+        "verified": bool(row.get("verified")),
+        "description": (row.get("description") or "").strip(),
+        "is_stub": not row,
+    }
+
+
 def present_vacancy(v: dict[str, Any], now: datetime) -> dict[str, Any]:
     """Готовит запись для шаблона: подписи, значки, контакты."""
     out = dict(v)
@@ -496,6 +637,9 @@ def present_vacancy(v: dict[str, Any], now: datetime) -> dict[str, Any]:
     out["ago"] = fmt.time_ago(v["published_at"] or v.get("created_at"), now)
     out["source_label"] = fmt.SOURCE_LABELS.get(v["source_type"], v["source_type"] or "Источник")
     out["is_site"] = v["source_type"] == "site"
+    out["is_direct"] = v.get("origin") == "direct"
+    out["company_id"] = v.get("company_id")
+    out["apply_url"] = f"/vacancy/{v['id']}/apply" if out["is_direct"] else ""
     exp = (v["experience"] or "").lower()
     out["no_experience"] = exp.startswith(("не нужен", "без опыт"))
     badges: list[dict[str, str]] = []
@@ -577,6 +721,10 @@ def active_chips(f: q.Filters) -> list[dict[str, str]]:
         add("Выплата каждый день", daily=False)
     if f.adult:
         add("Подходит с 18 лет", adult=False)
+    if f.direct:
+        add("От работодателя", direct=False)
+    if f.pay_from:
+        add(f"Оплата от {fmt.money(f.pay_from)} ₽", pay_from=0)
     return chips
 
 
