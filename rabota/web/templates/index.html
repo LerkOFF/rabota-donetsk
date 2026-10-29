@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, vcard %}
+{% block content %}
+<section class="hero">
+  <div class="wrap hero__grid">
+    <div class="hero__text">
+      <h1 class="h1">Работа в Донецке без лишних постов</h1>
+      <p class="lead">Оплата, район и телефон в одной карточке. Ссылка на оригинал всегда рядом.</p>
+      <form class="search" action="/vacancies" method="get" role="search">
+        <div class="search__field">
+          {{ icon('magnifying-glass') }}
+          <label class="visually-hidden" for="q">Профессия или должность</label>
+          <input class="input" id="q" name="q" type="search" maxlength="80" autocomplete="off" enterkeyhint="search"
+                 placeholder="Например, бариста">
+        </div>
+        <button class="btn btn--primary" type="submit">Найти</button>
+      </form>
+      {% if professions %}
+      <ul class="chip-row" aria-label="Частые запросы">
+        {% for name, n in professions[:6] %}
+        <li><a class="chip" href="/profession/{{ name | quote }}">{{ name | ucfirst }}</a></li>
+        {% endfor %}
+      </ul>
+      {% endif %}
+    </div>
+
+    <aside class="today" aria-label="Что сейчас на сайте">
+      <a class="today__top" href="/vacancies">
+        <div class="today__big">{{ stats.total }}</div>
+        <div class="today__cap">{{ plural(stats.total, 'актуальная вакансия', 'актуальные вакансии', 'актуальных вакансий') }}, за сутки новых: {{ stats.fresh }}</div>
+      </a>
+      <ul class="today__list">
+        <li><a class="today__row" href="/vacancies?no_experience=1">{{ icon('seal-check') }}Без опыта<span class="today__n">{{ stats.no_experience }}</span></a></li>
+        <li><a class="today__row" href="/vacancies?daily=1">{{ icon('lightning') }}Выплата каждый день<span class="today__n">{{ stats.daily }}</span></a></li>
+        <li><a class="today__row" href="/vacancies?side_job=1">{{ icon('calendar-blank') }}Подработка<span class="today__n">{{ stats.side_job }}</span></a></li>
+      </ul>
+    </aside>
+  </div>
+</section>
+
+{% if categories %}
+<section class="section section--tight" aria-labelledby="cats">
+  <div class="wrap">
+    <h2 class="h2 section__title" id="cats">Сферы работы</h2>
+    <ul class="chip-row">
+      {% for name, n in categories %}
+      <li><a class="chip" href="/vacancies?category={{ name | quote }}">{{ icon(category_icon(name)) }}{{ category_label(name) }} <span class="chip__n">{{ n }}</span></a></li>
+      {% endfor %}
+    </ul>
+  </div>
+</section>
+{% endif %}
+
+<section class="section" aria-labelledby="fresh">
+  <div class="wrap">
+    <div class="section__head">
+      <h2 class="h2" id="fresh">Свежие вакансии</h2>
+      <a class="link-arrow" href="/vacancies">Все вакансии{{ icon('arrow-right') }}</a>
+    </div>
+    {% if fresh %}
+    <div class="vlist vlist--cols">
+      {% for v in fresh %}{{ vcard(v) }}{% endfor %}
+    </div>
+    {% else %}
+    <div class="state">
+      <span class="state__ico">{{ icon('binoculars') }}</span>
+      <h3 class="h3">Пока нет вакансий</h3>
+      <p>Новые вакансии появляются сразу после проверки. Загляните позже или разместите свою.</p>
+      <div class="state__actions"><a class="btn btn--primary" href="/razmestit">Разместить вакансию</a></div>
+    </div>
+    {% endif %}
+  </div>
+</section>
+
+{% if professions or districts %}
+<section class="section section--tight" aria-labelledby="popular">
+  <div class="wrap">
+    <h2 class="h2 section__title" id="popular">Ищут чаще всего</h2>
+    {% if professions %}
+    <ul class="chip-row" aria-label="Профессии">
+      {% for name, n in professions %}<li><a class="chip" href="/profession/{{ name | quote }}">{{ name | ucfirst }} <span class="chip__n">{{ n }}</span></a></li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if districts %}
+    <ul class="chip-row chip-row--spaced" aria-label="Районы">
+      {% for name, n, city in districts %}<li><a class="chip" href="/district/{{ name | quote }}">{{ icon('map-pin') }}{{ district_label(name) }} <span class="chip__n">{{ n }}</span></a></li>{% endfor %}
+    </ul>
+    {% endif %}
+  </div>
+</section>
+{% endif %}
+
+<section class="section">
+  <div class="wrap">
+    <div class="cta-band">
+      <div>
+        <h2 class="h2">Нужен сотрудник?</h2>
+        <p class="muted">Опубликуйте вакансию бесплатно: профессия, оплата, график и телефон. Появится после короткой проверки.</p>
+      </div>
+      <a class="btn btn--primary btn--lg" href="/razmestit">Разместить вакансию</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

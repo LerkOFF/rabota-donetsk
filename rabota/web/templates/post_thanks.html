@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon %}
+{% block content %}
+<div class="wrap">
+  <div class="error-page">
+    <span class="state__ico">{{ icon('check-circle') }}</span>
+    <h1 class="h1 h1--page">Вакансия отправлена</h1>
+    <p class="lead">Мы проверим её и опубликуем. Обычно это занимает несколько часов.</p>
+    <div class="state__actions">
+      <a class="btn btn--primary" href="/vacancies">Смотреть вакансии</a>
+      <a class="btn btn--ghost" href="/">На главную</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

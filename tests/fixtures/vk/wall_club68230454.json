@@ -1,0 +1,153 @@
+{
+ "response": {
+  "count": 4,
+  "items": [
+   {
+    "id": 78712,
+    "owner_id": -68230454,
+    "date": 1776761961,
+    "post_type": "post",
+    "type": "post",
+    "from_id": -68230454,
+    "text": "",
+    "is_pinned": 1,
+    "marked_as_ads": 0,
+    "copy_history": [
+     {
+      "id": 26308,
+      "owner_id": -77959200,
+      "date": 1776761857,
+      "text": "Post deleted ",
+      "post_type": "post"
+     }
+    ]
+   },
+   {
+    "id": 85979,
+    "owner_id": -68230454,
+    "date": 1793258384,
+    "post_type": "post",
+    "type": "post",
+    "from_id": -68230454,
+    "text": "Обучение работе повара и ОПЛАЧИВАЕМАЯ работа с первого дня! \nДонецк, Макеевка ул. Дальневосточная \n2000-4000 выход! \n+79490000000",
+    "marked_as_ads": 0,
+    "attachments": [
+     {
+      "type": "photo",
+      "photo": {
+       "id": 457275632,
+       "owner_id": -68230454,
+       "date": 1793258384,
+       "sizes": [
+        {
+         "height": 1128,
+         "type": "base",
+         "width": 752,
+         "url": "https://sun9-81.userapi.com/s/v1/ig2/PtAAg_UPzG9WPziu09m103kMssGoBLvQgrmC5qtb5keJ9QkyKj_WE2Q8LIa-_wp9mmRGw5gUPwsmoRyv0-43FvTk.jpg?quality=95&crop=0,76,752,1128&as=32x48,48x72,72x108,108x162,160x240,240x360,360x540,480x720,540x810,640x960,720x1080,752x1128&from=bu"
+        },
+        {
+         "height": 960,
+         "type": "x",
+         "width": 640,
+         "url": "https://sun9-81.userapi.com/s/v1/ig2/PtAAg_UPzG9WPziu09m103kMssGoBLvQgrmC5qtb5keJ9QkyKj_WE2Q8LIa-_wp9mmRGw5gUPwsmoRyv0-43FvTk.jpg?quality=95&crop=0,76,752,1128&as=32x48,48x72,72x108,108x162,160x240,240x360,360x540,480x720,540x810,640x960,720x1080,752x1128&from=bu&cs=640x0"
+        },
+        {
+         "height": 240,
+         "type": "m",
+         "width": 160,
+         "url": "https://sun9-81.userapi.com/s/v1/ig2/PtAAg_UPzG9WPziu09m103kMssGoBLvQgrmC5qtb5keJ9QkyKj_WE2Q8LIa-_wp9mmRGw5gUPwsmoRyv0-43FvTk.jpg?quality=95&crop=0,76,752,1128&as=32x48,48x72,72x108,108x162,160x240,240x360,360x540,480x720,540x810,640x960,720x1080,752x1128&from=bu&cs=160x0"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": 85977,
+    "owner_id": -68230454,
+    "date": 1793257015,
+    "post_type": "post",
+    "type": "post",
+    "from_id": -68230454,
+    "text": "",
+    "marked_as_ads": 0,
+    "attachments": [
+     {
+      "type": "photo",
+      "photo": {
+       "id": 457244352,
+       "owner_id": -128367811,
+       "date": 1787646853,
+       "sizes": [
+        {
+         "height": 2000,
+         "type": "w",
+         "width": 2000,
+         "url": "https://sun9-68.userapi.com/s/v1/ig2/_3bVu4579R6nl25RjxS1icAw0LvD0ROxnE0W7u3SRXDcRCSickNot3unlZpinQoY68RskNhUfSq2IbTAApCSVIsM.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080,1280x1280,1440x1440,2000x2000&from=bu&cs=2000x0"
+        },
+        {
+         "height": 2000,
+         "type": "base",
+         "width": 2000,
+         "url": "https://sun9-68.userapi.com/s/v1/ig2/_3bVu4579R6nl25RjxS1icAw0LvD0ROxnE0W7u3SRXDcRCSickNot3unlZpinQoY68RskNhUfSq2IbTAApCSVIsM.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080,1280x1280,1440x1440,2000x2000&from=bu"
+        },
+        {
+         "height": 640,
+         "type": "x",
+         "width": 640,
+         "url": "https://sun9-68.userapi.com/s/v1/ig2/_3bVu4579R6nl25RjxS1icAw0LvD0ROxnE0W7u3SRXDcRCSickNot3unlZpinQoY68RskNhUfSq2IbTAApCSVIsM.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080,1280x1280,1440x1440,2000x2000&from=bu&cs=640x0"
+        },
+        {
+         "height": 160,
+         "type": "m",
+         "width": 160,
+         "url": "https://sun9-68.userapi.com/s/v1/ig2/_3bVu4579R6nl25RjxS1icAw0LvD0ROxnE0W7u3SRXDcRCSickNot3unlZpinQoY68RskNhUfSq2IbTAApCSVIsM.jpg?quality=95&as=32x32,48x48,72x72,108x108,160x160,240x240,360x360,480x480,540x540,640x640,720x720,1080x1080,1280x1280,1440x1440,2000x2000&from=bu&cs=160x0"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   {
+    "id": 85976,
+    "owner_id": -68230454,
+    "date": 1793256581,
+    "post_type": "post",
+    "type": "post",
+    "from_id": -68230454,
+    "text": "",
+    "marked_as_ads": 0,
+    "attachments": [
+     {
+      "type": "photo",
+      "photo": {
+       "id": 457275630,
+       "owner_id": -68230454,
+       "date": 1793256581,
+       "sizes": [
+        {
+         "height": 1280,
+         "type": "base",
+         "width": 720,
+         "url": "https://sun9-56.userapi.com/s/v1/ig2/WJbk98bSsDQ-MnAp8dHVBQl9d9MNdfUlvaOwkCpxAaKRbw55uchCu0mS_xRQsEAZpeZZ7XflHXcGZFgumuwx0Pdw.jpg?quality=95&as=32x57,48x85,72x128,108x192,160x284,240x427,360x640,480x853,540x960,640x1138,720x1280&from=bu"
+        },
+        {
+         "height": 1138,
+         "type": "x",
+         "width": 640,
+         "url": "https://sun9-56.userapi.com/s/v1/ig2/WJbk98bSsDQ-MnAp8dHVBQl9d9MNdfUlvaOwkCpxAaKRbw55uchCu0mS_xRQsEAZpeZZ7XflHXcGZFgumuwx0Pdw.jpg?quality=95&as=32x57,48x85,72x128,108x192,160x284,240x427,360x640,480x853,540x960,640x1138,720x1280&from=bu&cs=640x0"
+        },
+        {
+         "height": 284,
+         "type": "m",
+         "width": 160,
+         "url": "https://sun9-56.userapi.com/s/v1/ig2/WJbk98bSsDQ-MnAp8dHVBQl9d9MNdfUlvaOwkCpxAaKRbw55uchCu0mS_xRQsEAZpeZZ7XflHXcGZFgumuwx0Pdw.jpg?quality=95&as=32x57,48x85,72x128,108x192,160x284,240x427,360x640,480x853,540x960,640x1138,720x1280&from=bu&cs=160x0"
+        }
+       ]
+      }
+     }
+    ]
+   }
+  ]
+ }
+}

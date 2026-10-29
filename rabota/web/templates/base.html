@@ -1,0 +1,80 @@
+{% from '_macros.html' import icon %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ seo.title }}</title>
+  <meta name="description" content="{{ seo.description }}">
+  {% if seo.noindex %}<meta name="robots" content="noindex, follow">{% endif %}
+  <link rel="canonical" href="{{ seo.canonical }}">
+  {% if seo.prev_url %}<link rel="prev" href="{{ site_url }}{{ seo.prev_url }}">{% endif %}
+  {% if seo.next_url %}<link rel="next" href="{{ site_url }}{{ seo.next_url }}">{% endif %}
+  <meta name="theme-color" content="#f1f5f3" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0d1411" media="(prefers-color-scheme: dark)">
+  <meta property="og:site_name" content="Работа Донецк">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:type" content="{{ seo.og_type or 'website' }}">
+  <meta property="og:title" content="{{ seo.title }}">
+  <meta property="og:description" content="{{ seo.description }}">
+  <meta property="og:url" content="{{ seo.canonical }}">
+  <meta property="og:image" content="{{ site_url }}/static/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Работа Донецк: вакансии Донецка и ДНР">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/onest-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ asset('tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset('site.css') }}">
+  <script src="{{ asset('theme-init.js') }}"></script>
+  {% if seo.jsonld %}<script type="application/ld+json">{{ seo.jsonld | tojson }}</script>{% endif %}
+</head>
+<body>
+  <a class="skip-link" href="#main">К содержимому</a>
+  <header class="site-header">
+    <div class="wrap">
+      <a class="logo" href="/" aria-label="Работа Донецк, на главную">
+        <svg class="logo__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+          <rect width="32" height="32" rx="8" fill="var(--c-accent)"></rect>
+          <path d="M4 25 12.5 9.5c1-1.8 2.9-1.8 3.9 0L19 14l2.2-3.3c.9-1.4 2.7-1.4 3.6 0L29 25z" fill="var(--c-on-accent)"></path>
+          <circle cx="23.5" cy="7" r="2.6" fill="var(--c-pay)"></circle>
+        </svg>
+        <span translate="no">Работа <span class="logo__city">Донецк</span></span>
+      </a>
+      <nav class="nav" aria-label="Основное меню">
+        <a href="/vacancies"{% if path == '/vacancies' %} aria-current="page"{% endif %}>Вакансии</a>
+        <a class="nav__extra" href="/razmestit"{% if path == '/razmestit' %} aria-current="page"{% endif %}>Разместить вакансию</a>
+        <a class="nav__extra" href="/about"{% if path == '/about' %} aria-current="page"{% endif %}>О сайте</a>
+        <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false" aria-label="Включить тёмную тему">
+          {{ icon('moon', 'i-moon') }}{{ icon('sun', 'i-sun') }}
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer__grid">
+      <div>
+        <p class="logo__text"><strong>Работа Донецк</strong></p>
+        <p class="footer__note">Вакансии из открытых источников Донецка и ДНР, собранные в одну ленту. Мы не работодатель: у каждой вакансии есть ссылка на оригинал. Не переводите деньги за трудоустройство.</p>
+      </div>
+      <nav class="footer__links" aria-label="Разделы">
+        <a href="/vacancies">Все вакансии</a>
+        <a href="/razmestit">Разместить вакансию</a>
+        <a href="/about">О сайте</a>
+      </nav>
+      <nav class="footer__links" aria-label="Популярное">
+        <a href="/vacancies?daily=1">Выплата каждый день</a>
+        <a href="/vacancies?no_experience=1">Без опыта</a>
+        <a href="/vacancies?side_job=1">Подработка</a>
+      </nav>
+    </div>
+  </footer>
+  <script src="{{ asset('app.js') }}" defer></script>
+</body>
+</html>

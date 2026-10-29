@@ -1,0 +1,82 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, vcard, pager %}
+{% block content %}
+<div class="wrap">
+  <header class="page-head">
+    <h1 class="h1 h1--page">{% if flt.q %}Вакансии: {{ flt.q }}{% else %}Вакансии Донецка и ДНР{% endif %}</h1>
+  </header>
+
+  <form class="feed" action="/vacancies" method="get" data-autosubmit>
+    <div class="feed__toolbar">
+      <div class="search__field search__field--grow">
+        {{ icon('magnifying-glass') }}
+        <label class="visually-hidden" for="q">Профессия или должность</label>
+        <input class="input input--search" id="q" name="q" type="search" value="{{ flt.q }}" maxlength="80" autocomplete="off" enterkeyhint="search" placeholder="Профессия">
+      </div>
+      <button class="btn btn--primary" type="submit">Найти</button>
+      <button class="btn btn--ghost filters-toggle" type="button" data-filters-toggle aria-expanded="false" aria-controls="filters">
+        {{ icon('sliders-horizontal') }}Фильтры{% if flt.active_count %} ({{ flt.active_count }}){% endif %}
+      </button>
+    </div>
+
+    <section class="filters" id="filters" aria-label="Фильтры">
+      <h2 class="filters__title">Фильтры</h2>
+      {% for key, label in [('city', 'Город'), ('district', 'Район'), ('category', 'Сфера'), ('work_format', 'Где работать'), ('pay_period', 'Как платят')] %}
+      {% set opts = options[key] %}
+      {% if opts %}
+      <div class="field">
+        <label for="f-{{ key }}">{{ label }}</label>
+        <select class="input" id="f-{{ key }}" name="{{ key }}">
+          <option value="">Любой</option>
+          {% for value, text in opts %}<option value="{{ value }}"{% if value == flt[key] %} selected{% endif %}>{{ text }}</option>{% endfor %}
+        </select>
+      </div>
+      {% endif %}
+      {% endfor %}
+      <fieldset class="fieldset">
+        <legend>Условия</legend>
+        <label class="check"><input type="checkbox" name="no_experience" value="1"{% if flt.no_experience %} checked{% endif %}>Без опыта</label>
+        <label class="check"><input type="checkbox" name="side_job" value="1"{% if flt.side_job %} checked{% endif %}>Подработка</label>
+        <label class="check"><input type="checkbox" name="daily" value="1"{% if flt.daily %} checked{% endif %}>Выплата каждый день</label>
+        <label class="check"><input type="checkbox" name="adult" value="1"{% if flt.adult %} checked{% endif %}>Подходит с 18 лет</label>
+      </fieldset>
+      <div class="filters__actions">
+        <button class="btn btn--primary" type="submit">Показать</button>
+        <a class="btn btn--ghost" href="/vacancies">Сбросить</a>
+      </div>
+    </section>
+
+    <div class="feed__main">
+      <div class="results-head">
+        <p class="results-count" role="status">{{ count_label(page.total, 'вакансия', 'вакансии', 'вакансий') }}</p>
+        {% if chips %}
+        <ul class="chip-row" aria-label="Включённые фильтры">
+          {% for c in chips %}<li><a class="chip chip--active chip--remove" href="{{ c.url }}" aria-label="Убрать: {{ c.label }}">{{ c.label }}{{ icon('x') }}</a></li>{% endfor %}
+        </ul>
+        {% endif %}
+      </div>
+
+      {% if items %}
+      <div class="vlist">
+        {% for v in items %}{{ vcard(v) }}{% endfor %}
+      </div>
+      {{ pager(page, '/vacancies', base_qs) }}
+      {% else %}
+      <div class="state">
+        <span class="state__ico">{{ icon('binoculars') }}</span>
+        <h2 class="h3">Ничего не нашлось</h2>
+        {% if flt.is_empty %}
+        <p>Пока в ленте нет вакансий. Они появляются сразу после проверки, загляните чуть позже.</p>
+        {% else %}
+        <p>Попробуйте убрать часть фильтров или написать профессию короче: например, «кассир» вместо «кассир-консультант».</p>
+        {% endif %}
+        <div class="state__actions">
+          {% if not flt.is_empty %}<a class="btn btn--primary" href="/vacancies">Сбросить фильтры</a>{% endif %}
+          <a class="btn btn--ghost" href="/razmestit">Разместить вакансию</a>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}

@@ -1,0 +1,113 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, field_error %}
+
+{% macro text_field(name, label, required=False, hint='', placeholder='', maxlength=80, type='text', inputmode='', autocomplete='off') -%}
+<div class="field{% if errors.get(name) %} field--invalid{% endif %}">
+  <label for="p-{{ name }}">{{ label }}{% if required %} <span class="muted">(обязательно)</span>{% endif %}</label>
+  {% if hint %}<p class="hint" id="hint-{{ name }}">{{ hint }}</p>{% endif %}
+  <input class="input" id="p-{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ form.get(name, '') }}" maxlength="{{ maxlength }}"
+         placeholder="{{ placeholder }}" spellcheck="{{ 'false' if type in ('tel', 'email') or name in ('telegram', 'phone') else 'true' }}"{% if inputmode %} inputmode="{{ inputmode }}"{% endif %} autocomplete="{{ autocomplete }}"
+         {% if required %}required{% endif %}
+         {% if errors.get(name) %}aria-invalid="true"{% endif %}
+         {% set d = [] %}{% if hint %}{% set _ = d.append('hint-' ~ name) %}{% endif %}{% if errors.get(name) %}{% set _ = d.append('err-' ~ name) %}{% endif %}{% if d %}aria-describedby="{{ d | join(' ') }}"{% endif %}>
+  {{ field_error(errors, name) }}
+</div>
+{%- endmacro %}
+
+{% macro select_field(name, label, options, required=False, empty='Не указывать') -%}
+<div class="field{% if errors.get(name) %} field--invalid{% endif %}">
+  <label for="p-{{ name }}">{{ label }}{% if required %} <span class="muted">(обязательно)</span>{% endif %}</label>
+  <select class="input" id="p-{{ name }}" name="{{ name }}" {% if required %}required{% endif %}{% if errors.get(name) %} aria-invalid="true" aria-describedby="err-{{ name }}"{% endif %}>
+    <option value="">{{ empty }}</option>
+    {% for value, text in options %}<option value="{{ value }}"{% if form.get(name) == value %} selected{% endif %}>{{ text }}</option>{% endfor %}
+  </select>
+  {{ field_error(errors, name) }}
+</div>
+{%- endmacro %}
+
+{% block content %}
+<div class="wrap post">
+  <header class="page-head">
+    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>Разместить вакансию</li></ol></nav>
+    <h1 class="h1 h1--page">Разместить вакансию</h1>
+    <p class="lead">Бесплатно. Заполните главное: профессию, оплату, график и как с вами связаться. Вакансия появится после короткой проверки.</p>
+  </header>
+
+  {% if errors %}
+  <div class="error-summary" role="alert" tabindex="-1" id="error-summary">
+    <h2>Нужно поправить {{ plural(errors | length, 'поле', 'поля', 'полей') }}</h2>
+    <ul>
+      {% for name, text in errors.items() %}<li><a href="#p-{{ name }}">{{ text }}</a></li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <form class="form-grid" method="post" action="/razmestit" novalidate>
+    <div class="hp" aria-hidden="true"><label>Не заполняйте это поле<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+    <section class="form-section" aria-labelledby="s-work">
+      <h2 id="s-work">Что за работа</h2>
+      {{ text_field('profession', 'Профессия или должность', required=True, placeholder='Например: бариста', maxlength=80) }}
+      <div class="form-row form-row--2">
+        {{ select_field('category', 'Сфера', categories, required=True, empty='Выберите сферу') }}
+        {{ select_field('work_format', 'Где работать', work_formats) }}
+      </div>
+      <div class="form-row form-row--2">
+        {{ select_field('employment', 'Тип занятости', employments) }}
+        {{ text_field('schedule', 'График', placeholder='2/2, с 9:00 до 18:00', maxlength=60) }}
+      </div>
+      <div class="form-row form-row--2">
+        {{ text_field('age_min', 'Возраст от', placeholder='18', maxlength=2, inputmode='numeric') }}
+        <div class="field">
+          <span class="label">Опыт</span>
+          <label class="check"><input type="checkbox" name="no_experience" value="1"{% if form.get('no_experience') %} checked{% endif %}>Опыт не нужен</label>
+        </div>
+      </div>
+    </section>
+
+    <section class="form-section" aria-labelledby="s-pay">
+      <h2 id="s-pay">Оплата</h2>
+      <div class="form-row form-row--3">
+        {{ text_field('pay_min', 'От, ₽', placeholder='4000', maxlength=7, inputmode='numeric') }}
+        {{ text_field('pay_max', 'До, ₽', placeholder='5000', maxlength=7, inputmode='numeric') }}
+        {{ select_field('pay_period', 'За что платите', periods, empty='Выберите') }}
+      </div>
+      <label class="check"><input type="checkbox" name="pay_daily" value="1"{% if form.get('pay_daily') %} checked{% endif %}>Выплата каждый день</label>
+    </section>
+
+    <section class="form-section" aria-labelledby="s-where">
+      <h2 id="s-where">Где</h2>
+      <div class="form-row form-row--2">
+        {{ text_field('city', 'Город', maxlength=60) }}
+        {{ text_field('district', 'Район или улица', placeholder='Ворошиловский', maxlength=60) }}
+      </div>
+    </section>
+
+    <section class="form-section" aria-labelledby="s-text">
+      <h2 id="s-text">Описание</h2>
+      <div class="field{% if errors.get('summary') %} field--invalid{% endif %}">
+        <label for="p-summary">Чем предстоит заниматься <span class="muted">(обязательно)</span></label>
+        <p class="hint" id="hint-summary">Пара предложений без капса и эмодзи. До 1000 знаков.</p>
+        <textarea class="input" id="p-summary" name="summary" maxlength="1000" rows="5" required aria-describedby="hint-summary{% if errors.get('summary') %} err-summary{% endif %}"{% if errors.get('summary') %} aria-invalid="true"{% endif %}>{{ form.get('summary', '') }}</textarea>
+        {{ field_error(errors, 'summary') }}
+      </div>
+      {{ text_field('requirements', 'Требования', placeholder='Права категории B', maxlength=400) }}
+    </section>
+
+    <section class="form-section" aria-labelledby="s-contact">
+      <h2 id="s-contact">Контакты</h2>
+      {{ text_field('employer', 'Название организации', placeholder='Кофейня «Зерно»', maxlength=120) }}
+      <div class="form-row form-row--2">
+        {{ text_field('phone', 'Телефон', hint='Нужен телефон или ник Telegram.', placeholder='+7 949 000-00-00', maxlength=30, type='tel', inputmode='tel', autocomplete='tel') }}
+        {{ text_field('telegram', 'Telegram', placeholder='@name', maxlength=64) }}
+      </div>
+      {{ text_field('email', 'Электронная почта', placeholder='mail@example.ru', maxlength=120, type='email', inputmode='email', autocomplete='email') }}
+    </section>
+
+    <div class="form-actions">
+      <button class="btn btn--primary btn--lg" type="submit">Отправить на проверку</button>
+      <p class="hint">Нажимая кнопку, вы подтверждаете, что вакансия настоящая, а телефон принадлежит работодателю.</p>
+    </div>
+  </form>
+</div>
+{% endblock %}

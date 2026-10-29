@@ -26,7 +26,20 @@
 
 ## Статус
 
-Планирование. Код не написан. Порядок работ в [docs/PLAN.md](docs/PLAN.md).
+Работает локально: сборщики Telegram, VK, MAX, Работа России, Мой ЦЗН и hh.ru, разбор текста и картинок, склейка дублей, сайт с фильтрами. Авито закрывает автоматический доступ (капча), сборщик написан, но живых данных пока не получает. Дальнейший порядок работ в [docs/PLAN.md](docs/PLAN.md).
+
+## Запуск локально
+
+```bash
+uv sync --group dev                         # окружение
+cp .env.example .env                        # добавить ключ VK_ACCESS_TOKEN
+.venv/bin/python -m rabota run --limit 10   # собрать по 10 постов с канала, разобрать, склеить дубли
+.venv/bin/python -m rabota serve            # сайт на http://127.0.0.1:8000
+.venv/bin/pytest                            # тесты, включая браузерные
+.venv/bin/ruff check rabota tests scripts   # линтер
+```
+
+Локально база SQLite (`data/rabota.db`), схема переносится на PostgreSQL. Команды: `collect`, `process`, `run`, `stats`, `serve`. Демо-база с выдуманными вакансиями: `scripts/seed_demo.py`.
 
 ## Настройка
 

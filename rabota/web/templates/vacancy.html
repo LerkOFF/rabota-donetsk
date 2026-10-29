@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, vcard, pay, actions, field_error %}
+{% block content %}
+<div class="wrap vpage">
+  <div class="vpage__main">
+    <nav aria-label="Вы здесь">
+      <ol class="crumbs">
+        <li><a href="/">Главная</a></li>
+        <li><a href="/vacancies">Вакансии</a></li>
+        {% if v.city %}<li><a href="/city/{{ v.city | quote }}">{{ v.city }}</a></li>{% endif %}
+      </ol>
+    </nav>
+
+    {% if closed %}
+    <p class="notice notice--warn" role="status">{{ icon('warning') }}<span>Вакансия закрыта: работодатель больше не ищет сотрудника. Похожие вакансии смотрите в <a href="/vacancies">ленте</a>.</span></p>
+    {% endif %}
+    {% if complained %}
+    <p class="notice" role="status">{{ icon('check-circle') }}<span>Спасибо, жалоба принята. Мы проверим вакансию и скроем её, если это подтвердится.</span></p>
+    {% endif %}
+
+    <header class="vhead">
+      <p class="vhead__kicker">
+        <span class="badge badge--ok">{{ icon(category_icon(v.category)) }}{{ category_label(v.category) }}</span>
+        {% if v.ago %}<span>Опубликовано <time datetime="{{ v.published_at }}">{{ v.ago }}</time></span>{% endif %}
+      </p>
+      <h1 class="h1 h1--page">{{ v.profession_title }}</h1>
+      {% if v.employer %}<p class="muted">{{ v.employer }}</p>{% endif %}
+      {{ pay(v, estimate=True) }}
+      {% if v.badges %}
+      <ul class="badges">
+        {% for b in v.badges %}<li class="badge badge--{{ b.kind }}">{% if b.kind == 'pay' %}{{ icon('lightning') }}{% endif %}{{ b.label }}</li>{% endfor %}
+      </ul>
+      {% endif %}
+    </header>
+
+    <section class="panel" aria-labelledby="facts">
+      <h2 id="facts">Коротко</h2>
+      <dl class="facts">
+        {% if v.location %}<div><dt>Где</dt><dd>{{ v.location }}</dd></div>{% endif %}
+        {% if v.schedule %}<div><dt>График</dt><dd>{{ v.schedule }}</dd></div>{% endif %}
+        {% if v.work_format_label %}<div><dt>Формат</dt><dd>{{ v.work_format_label }}</dd></div>{% endif %}
+        {% if v.employment_label %}<div><dt>Занятость</dt><dd>{{ v.employment_label }}</dd></div>{% endif %}
+        {% if v.experience %}<div><dt>Опыт</dt><dd>{{ v.experience | ucfirst }}</dd></div>{% endif %}
+        {% if v.age_min %}<div><dt>Возраст</dt><dd>От {{ v.age_min }} лет</dd></div>{% endif %}
+        {% if v.requirements %}<div><dt>Требования</dt><dd>{{ v.requirements }}</dd></div>{% endif %}
+      </dl>
+    </section>
+
+    {% if v.summary %}
+    <section class="panel" aria-labelledby="desc">
+      <h2 id="desc">О работе</h2>
+      <div class="prose"><p>{{ v.summary }}</p></div>
+    </section>
+    {% endif %}
+
+    <section class="panel vpart--late" aria-labelledby="src">
+      <h2 id="src">Источник</h2>
+      <p class="source-line">
+        {% if v.is_site %}Вакансию разместил работодатель на нашем сайте.{% else %}Вакансия найдена в источнике: {{ v.source_label }}{% if v.source %}, {{ v.source }}{% endif %}.{% endif %}
+        {% if v.ago %}Опубликована {{ v.ago }}.{% endif %}
+        Условия могут измениться, уточняйте их по телефону.
+      </p>
+    </section>
+
+    {% if also %}
+    <section class="panel vpart--late" aria-labelledby="also" data-also-published>
+      <h2 id="also">Эту вакансию также публикуют</h2>
+      <ul class="also-list">
+        {% for a in also %}
+        <li class="also-list__item">
+          <span class="badge badge--src">{{ a.label }}</span>
+          <span class="also-list__name">{{ a.source or a.label }}</span>
+          {% if a.url %}<a class="also-list__link" href="{{ a.url }}" target="_blank" rel="noopener nofollow ugc" aria-label="Открыть публикацию: {{ a.label }}{% if a.source %}, {{ a.source }}{% endif %}">Открыть{{ icon('arrow-square-out') }}</a>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <section class="vpart--late" aria-labelledby="complain-h">
+      <h2 class="visually-hidden" id="complain-h">Жалоба на вакансию</h2>
+      <details class="complain"{% if complaint_open %} open{% endif %}>
+        <summary>{{ icon('flag') }}Пожаловаться на вакансию</summary>
+        <form method="post" action="/vacancy/{{ v.id }}/complaint" novalidate>
+          <div class="hp" aria-hidden="true"><label>Не заполняйте это поле<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+          <div class="field{% if errors.reason %} field--invalid{% endif %}">
+            <label for="c-reason">Что не так</label>
+            <select class="input" id="c-reason" name="reason" required{% if errors.reason %} aria-invalid="true" aria-describedby="err-reason"{% endif %}>
+              <option value="">Выберите причину</option>
+              {% for r in reasons %}<option value="{{ r }}"{% if form.reason == r %} selected{% endif %}>{{ r }}</option>{% endfor %}
+            </select>
+            {{ field_error(errors, 'reason') }}
+          </div>
+          <div class="field{% if errors.comment %} field--invalid{% endif %}">
+            <label for="c-comment">Комментарий <span class="muted">(по желанию)</span></label>
+            <textarea class="input" id="c-comment" name="comment" maxlength="500" rows="3"{% if errors.comment %} aria-invalid="true" aria-describedby="err-comment"{% endif %}>{{ form.comment }}</textarea>
+            {{ field_error(errors, 'comment') }}
+          </div>
+          <button class="btn btn--danger" type="submit">Отправить жалобу</button>
+        </form>
+      </details>
+    </section>
+
+    {% if similar %}
+    <section class="vpart--late" aria-labelledby="similar">
+      <h2 class="h2 section__title" id="similar">Похожие вакансии</h2>
+      <div class="vlist">
+        {% for s in similar %}{{ vcard(s) }}{% endfor %}
+      </div>
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="vpage__side" aria-label="Связаться">
+    {% if not closed %}
+    <section class="panel contact-box">
+      <h2>Связаться</h2>
+      {% if v.has_contact %}
+      <ul class="contact-list">
+        {% for p in v.phones %}<li><a class="contact-box__phone" href="tel:{{ phone_href(p) }}">{{ phone_pretty(p) }}</a></li>{% endfor %}
+        {% if v.telegram %}<li>{{ icon('telegram-logo') }} <a href="{{ telegram_href(v.telegram) }}" rel="noopener nofollow">{{ v.telegram }}</a></li>{% endif %}
+        {% if v.max_contact %}<li>MAX: {{ v.max_contact }}</li>{% endif %}
+        {% if v.email %}<li>{{ icon('envelope-simple') }} <a href="mailto:{{ v.email }}">{{ v.email }}</a></li>{% endif %}
+      </ul>
+      <div class="contact-box__desktop contact-box__buttons">{{ actions(v) }}</div>
+      {% else %}
+      <p class="muted">Контактов в вакансии нет. Они указаны в оригинале.</p>
+      {% if v.original_url and not v.is_site %}<div class="contact-box__buttons">{{ actions(v) }}</div>{% endif %}
+      {% endif %}
+      <p class="safety">{{ icon('shield-warning') }} Не платите за трудоустройство и не присылайте копии документов до встречи.</p>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+
+{% if not closed and (v.phone or v.telegram or (v.original_url and not v.is_site)) %}
+<div class="action-bar">{{ actions(v) }}</div>
+{% endif %}
+{% endblock %}

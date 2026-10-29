@@ -1,0 +1,86 @@
+{
+  "kind": "vacancy",
+  "vacancies": [
+    {
+      "profession": "Продавец, кассир",
+      "pay_min": 48500,
+      "pay_max": 56000,
+      "pay_period": "месяц",
+      "city": null,
+      "district": null,
+      "schedule": null,
+      "requirements": null,
+      "employer": "Геркулес Moloko",
+      "phones": [
+        "335"
+      ],
+      "telegram": null,
+      "extra_text": "Возможно оформление без увольнения с основного места работы. Звонок на 335 бесплатный с Феникса"
+    },
+    {
+      "profession": "Приёмщик товаров",
+      "pay_min": 55000,
+      "pay_max": 63000,
+      "pay_period": "месяц",
+      "city": null,
+      "district": null,
+      "schedule": null,
+      "requirements": null,
+      "employer": "Геркулес Moloko",
+      "phones": [
+        "335"
+      ],
+      "telegram": null,
+      "extra_text": "Возможно оформление без увольнения с основного места работы. Звонок на 335 бесплатный с Феникса"
+    },
+    {
+      "profession": "Грузчик",
+      "pay_min": 45500,
+      "pay_max": 50000,
+      "pay_period": "месяц",
+      "city": null,
+      "district": null,
+      "schedule": null,
+      "requirements": null,
+      "employer": "Геркулес Moloko",
+      "phones": [
+        "335"
+      ],
+      "telegram": null,
+      "extra_text": "Возможно оформление без увольнения с основного места работы. Звонок на 335 бесплатный с Феникса"
+    },
+    {
+      "profession": "Охранник",
+      "pay_min": 48500,
+      "pay_max": 56000,
+      "pay_period": "месяц",
+      "city": null,
+      "district": null,
+      "schedule": null,
+      "requirements": null,
+      "employer": "Геркулес Moloko",
+      "phones": [
+        "335"
+      ],
+      "telegram": null,
+      "extra_text": "Возможно оформление без увольнения с основного места работы. Звонок на 335 бесплатный с Феникса"
+    },
+    {
+      "profession": "Уборщик",
+      "pay_min": 40500,
+      "pay_max": 45500,
+      "pay_period": "месяц",
+      "city": null,
+      "district": null,
+      "schedule": null,
+      "requirements": null,
+      "employer": "Геркулес Moloko",
+      "phones": [
+        "335"
+      ],
+      "telegram": null,
+      "extra_text": "Возможно оформление без увольнения с основного места работы. Звонок на 335 бесплатный с Феникса"
+    }
+  ],
+  "raw_text": "РАБОТА\nГеркулес MOLOKO\nПРОДАВЕЦ, КАССИР\nот 48 500 - 56 000 ₽ и выше\nПРИЁМЩИК ТОВАРОВ\nот 55 000 - 63 000 ₽ и выше\nГРУЗЧИК\nот 45 500 - 50 000 ₽ и выше\nОХРАННИК\nот 48 500 - 56 000 ₽ и выше\nУБОРЩИК\nот 40 500 - 45 500 ₽ и выше\nВозможно оформление без увольнения с основного места работы\n335 (бесплатно с Феникса)\nС заботой о людях!"
+}

@@ -1,0 +1,69 @@
+{% macro icon(name, cls='') -%}
+<svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons.svg#i-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{# Карточка вакансии: профессия, оплата с периодом, район, график, формат, значки, кнопки, источник и свежесть #}
+{% macro vcard(v, heading='h3') -%}
+<article class="vcard" data-vacancy-id="{{ v.id }}">
+  <div class="vcard__in">
+  <div class="vcard__head">
+    <span class="vcard__ico">{{ icon(category_icon(v.category)) }}</span>
+    <div>
+      <{{ heading }} class="vcard__title"><a class="vcard__link" href="/vacancy/{{ v.id }}">{{ v.profession_title }}</a></{{ heading }}>
+      {% if v.employer %}<p class="vcard__employer">{{ v.employer }}</p>{% endif %}
+    </div>
+  </div>
+  {{ pay(v) }}
+  <ul class="meta">
+    {% if v.location %}<li>{{ icon('map-pin') }}<span>{{ v.location }}</span></li>{% endif %}
+    {% if v.schedule %}<li>{{ icon('clock') }}<span>{{ v.schedule }}</span></li>{% endif %}
+    {% if v.work_format_label %}<li>{{ icon('buildings') }}<span>{{ v.work_format_label }}</span></li>{% endif %}
+  </ul>
+  {% if v.badges %}
+  <ul class="badges">
+    {% for b in v.badges %}<li class="badge badge--{{ b.kind }}">{% if b.kind == 'pay' %}{{ icon('lightning') }}{% endif %}{{ b.label }}</li>{% endfor %}
+  </ul>
+  {% endif %}
+  {% if v.summary %}<p class="vcard__summary">{{ v.summary }}</p>{% endif %}
+  <div class="vcard__foot">
+    <div class="vcard__actions">
+      {{ actions(v) }}
+    </div>
+    <p class="vcard__source"><span>{{ v.source_label }}{% if v.ago %}, <time datetime="{{ v.published_at }}">{{ v.ago }}</time>{% endif %}</span>{% if v.dup_count %}<span class="also-tag">{{ icon('copy') }}{{ v.also_label }}</span>{% endif %}</p>
+  </div>
+  </div>
+</article>
+{%- endmacro %}
+
+{% macro pay(v, estimate=False) -%}
+<p class="pay{% if not v.pay.known %} pay--none{% endif %}">
+  <span class="pay__main">{{ v.pay.main }}</span>{% if v.pay.period %} <span class="pay__period">{{ v.pay.period }}</span>{% endif %}
+  {% if estimate and v.pay_monthly_estimate %}<span class="pay__est">Примерно {{ money(v.pay_monthly_estimate) }}&nbsp;₽ в месяц, расчёт сайта</span>{% endif %}
+</p>
+{%- endmacro %}
+
+{# Кнопки "Позвонить" и "Оригинал". Если телефона нет, предлагаем Telegram. #}
+{% macro actions(v) -%}
+  {% if v.phone %}
+  <a class="btn btn--primary" href="tel:{{ phone_href(v.phone) }}" aria-label="Позвонить: {{ v.profession_title }}, {{ phone_pretty(v.phone) }}">{{ icon('phone') }}Позвонить</a>
+  {% elif v.telegram %}
+  <a class="btn btn--primary" href="{{ telegram_href(v.telegram) }}" rel="noopener nofollow" aria-label="Написать в Telegram: {{ v.profession_title }}">{{ icon('telegram-logo') }}Написать</a>
+  {% endif %}
+  {% if v.original_url and not v.is_site %}
+  <a class="btn btn--ghost" href="{{ v.original_url }}" target="_blank" rel="noopener nofollow ugc" aria-label="Оригинал вакансии: {{ v.profession_title }}">{{ icon('arrow-square-out') }}Оригинал</a>
+  {% endif %}
+{%- endmacro %}
+
+{% macro field_error(errors, name) -%}
+{% if errors.get(name) %}<p class="error" id="err-{{ name }}">{{ icon('warning') }}<span>{{ errors[name] }}</span></p>{% endif %}
+{%- endmacro %}
+
+{% macro pager(page, base_path, query) -%}
+{% if page.pages > 1 %}
+<nav class="pager" aria-label="Страницы">
+  <p class="pager__info">Страница {{ page.page }} из {{ page.pages }}</p>
+  {% if page.has_prev %}<a class="btn btn--ghost" rel="prev" href="{{ base_path }}?{% if query %}{{ query }}&amp;{% endif %}page={{ page.page - 1 }}">{{ icon('caret-left') }}Назад</a>{% endif %}
+  {% if page.has_next %}<a class="btn btn--primary" rel="next" href="{{ base_path }}?{% if query %}{{ query }}&amp;{% endif %}page={{ page.page + 1 }}">Показать ещё{{ icon('caret-right') }}</a>{% endif %}
+</nav>
+{% endif %}
+{%- endmacro %}
