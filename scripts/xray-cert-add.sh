@@ -82,7 +82,8 @@ PY
 }
 
 xray_test() {
-  "$XRAY" run -test -config "$1" >/dev/null 2>&1 || "$XRAY" -test -config "$1" >/dev/null 2>&1
+  # формат указан явно: временный файл называется config.json.new.XXXXXX, по такому имени xray формат не определяет
+  "$XRAY" run -test -format json -config "$1" >/dev/null 2>&1 || "$XRAY" -test -format json -config "$1" >/dev/null 2>&1
 }
 
 hook_block() {

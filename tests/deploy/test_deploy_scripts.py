@@ -232,9 +232,13 @@ def xray_env(tmp_path, with_hook=True):
     bin_dir = tmp_path / "stubs"
     bin_dir.mkdir()
     log = tmp_path / "calls.log"
-    # xray: -test принимает только корректный JSON с тегом vless-tcp; systemctl пишет вызовы
+    # xray: -test принимает только корректный JSON с тегом vless-tcp и, как настоящий xray, не угадывает формат
+    # по имени файла без расширения .json (временный файл скрипта называется config.json.new.XXXXXX); systemctl пишет вызовы
     (bin_dir / "xray").write_text(
-        f"#!/bin/sh\n{os.sys.executable} -c \"import json,sys; c=json.load(open(sys.argv[-1])); sys.exit(0 if c.get('inbounds') and not c.get('broken') else 1)\" \"$@\"\n",
+        f"#!/bin/sh\n{os.sys.executable} -c \"import json,sys; a=sys.argv[1:]; p=a[a.index('-config')+1]; "
+        "fmt=a[a.index('-format')+1] if '-format' in a else ''; "
+        "ok=fmt=='json' or p.endswith('.json'); "
+        "c=json.load(open(p)); sys.exit(0 if ok and c.get('inbounds') and not c.get('broken') else 1)\" \"$@\"\n",
         encoding="utf-8")
     (bin_dir / "systemctl").write_text(f"#!/bin/sh\necho \"$@\" >> {log}\nexit ${{SYSTEMCTL_RC:-0}}\n", encoding="utf-8")
     for f in bin_dir.iterdir():
