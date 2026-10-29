@@ -1,0 +1,7 @@
+{% from '_macros.html' import icon %}
+
+{# Состояние вакансии: слово всегда есть, цвет и значок только помогают #}
+{% macro state_badge(state) -%}
+{% set icons = {'published': 'check-circle', 'pending': 'hourglass', 'rejected': 'x-circle', 'closed': 'lock-simple', 'expired': 'clock', 'hidden': 'shield-warning'} %}
+<span class="vstate vstate--{{ state.key }}">{{ icon(icons.get(state.key, 'info')) }}{{ state.label }}</span>
+{%- endmacro %}

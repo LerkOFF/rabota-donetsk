@@ -1,0 +1,124 @@
+/* Кабинет работодателя и сводки кабинетов. Только токены из tokens.css. Мобильный экран первичен, шире через min-width. */
+
+.cab { display: grid; gap: var(--sp-5); align-content: start; padding-bottom: var(--sp-12); }
+.cab > .notice { margin: 0; }
+.cab__head { padding-bottom: 0; }
+.cab__titlebar { display: grid; gap: var(--sp-4); align-items: start; }
+.cab__titles { display: grid; gap: var(--sp-2); min-width: 0; }
+.cab__cta { justify-self: start; }
+.cab__state { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+.cab__section { display: grid; gap: var(--sp-3); }
+.cab__section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--sp-3); }
+.cab__more { display: inline-flex; align-items: center; gap: var(--sp-1); min-height: var(--tap-min); font-weight: var(--fw-semibold); color: var(--c-accent-ink); text-decoration: none; }
+.cab__more:hover { text-decoration: underline; }
+.cab__more .icon { width: 1em; height: 1em; }
+.cab__foot { font-size: var(--fs-sm); }
+.cab__foot a { display: inline-flex; align-items: center; min-height: var(--tap-min); }
+.cab__list { display: grid; gap: var(--sp-2); padding-left: var(--sp-5); list-style: disc; }
+.cab__confirm { display: grid; gap: var(--sp-4); max-width: 40rem; }
+.cab__confirm-actions { display: grid; gap: var(--sp-3); }
+.cab__confirm-actions .btn { width: 100%; }
+.cab__confirm-actions form { display: contents; }
+.cab__split { display: grid; gap: var(--sp-5); align-items: start; }
+.cab__aside { display: grid; gap: var(--sp-3); }
+.cab__aside .btn { justify-self: start; }
+.cab__preview { display: flex; align-items: center; gap: var(--sp-3); }
+.cab__preview-name { font-weight: var(--fw-bold); overflow-wrap: anywhere; }
+.cab__company { display: grid; gap: var(--sp-3); }
+.cab__filters { min-width: 0; }
+
+/* ---------- состояние вакансии ---------- */
+.vstate {
+  display: inline-flex; align-items: center; gap: var(--sp-1); padding: 0.15rem 0.7rem 0.15rem 0.5rem; border-radius: var(--r-pill);
+  border: 1px solid transparent; font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 1.4; white-space: nowrap;
+}
+.vstate .icon { width: 1.05em; height: 1.05em; }
+.vstate--published { background: var(--c-accent-soft); color: var(--c-accent-ink); }
+.vstate--pending { background: var(--c-surface-2); color: var(--c-ink); border-color: var(--c-line-strong); }
+.vstate--rejected { background: var(--c-danger-soft); color: var(--c-danger); border-color: var(--c-danger); }
+.vstate--closed { background: var(--c-surface); color: var(--c-ink-2); border: 1px dashed var(--c-line-strong); }
+.vstate--expired { background: var(--c-surface-2); color: var(--c-ink-2); border-color: var(--c-line); }
+.vstate--hidden { background: var(--c-surface-2); color: var(--c-ink); border: 1px dashed var(--c-line-strong); }
+
+/* ---------- список вакансий ---------- */
+.vlist-cab { display: grid; gap: var(--sp-3); }
+.vrow {
+  display: grid; gap: var(--sp-4); padding: var(--sp-4); background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card);
+  border-left: 4px solid var(--c-line-strong);
+}
+.vrow--published { border-left-color: var(--c-accent); }
+.vrow--rejected { border-left-color: var(--c-danger); }
+.vrow--pending { border-left-color: var(--c-pay); }
+.vrow__main { display: grid; gap: var(--sp-2); min-width: 0; }
+.vrow__head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-1) var(--sp-3); }
+.vrow__title { font-size: var(--fs-md); font-weight: var(--fw-bold); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+.vrow__title a { display: inline-flex; align-items: center; min-height: var(--tap-min); color: var(--c-ink); text-decoration: none; }
+.vrow__title a:hover { color: var(--c-accent-ink); text-decoration: underline; }
+.vrow__sub { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1) var(--sp-4); font-size: var(--fs-sm); }
+.vrow__pay { font-weight: var(--fw-bold); }
+.vrow__pay--none { font-weight: var(--fw-regular); color: var(--c-ink-2); }
+.vrow__where { display: inline-flex; align-items: center; gap: var(--sp-1); color: var(--c-ink-2); }
+.vrow__where .icon, .vrow__resp .icon, .vrow__wait .icon { width: 1.1em; height: 1.1em; flex: none; }
+.vrow__note { font-size: var(--fs-sm); color: var(--c-ink-2); max-width: var(--w-prose); overflow-wrap: anywhere; }
+.vrow__note--rejected { padding: var(--sp-3); border-radius: var(--r-ctl); background: var(--c-danger-soft); color: var(--c-danger); }
+.vrow__note--published { color: var(--c-ink-2); }
+.vrow__dates { display: flex; flex-wrap: wrap; gap: 0 var(--sp-4); font-size: var(--fs-xs); color: var(--c-ink-2); }
+.vrow__resp { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-1); font-size: var(--fs-sm); }
+.vrow__resp a { display: inline-flex; align-items: center; gap: var(--sp-1); min-height: var(--tap-min); font-weight: var(--fw-semibold); color: var(--c-accent-ink); }
+.vrow__resp .muted { display: inline-flex; align-items: center; gap: var(--sp-1); min-height: var(--tap-min); }
+.vrow__actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-2); align-content: start; }
+.vrow__actions form { display: contents; }
+.vrow__actions .btn { width: 100%; white-space: normal; text-align: center; line-height: var(--lh-snug); }
+.vrow__fresh { padding: 0.1rem 0.6rem; border-radius: var(--r-pill); background: var(--c-accent-soft); color: var(--c-accent-ink); font-size: var(--fs-xs); font-weight: var(--fw-semibold); }
+.vrow__wait { grid-column: 1 / -1; display: flex; align-items: center; gap: var(--sp-2); min-height: var(--tap-min); color: var(--c-ink-2); font-size: var(--fs-sm); }
+
+/* ---------- сводка кабинета ---------- */
+.kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--sp-3); }
+.kpi { display: grid; gap: var(--sp-1); height: 100%; padding: var(--sp-4); background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-ctl); color: var(--c-ink); text-decoration: none; }
+.kpi:hover { border-color: var(--c-accent); color: var(--c-ink); }
+.kpi:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+.kpi__n { font-size: var(--fs-xl); font-weight: var(--fw-heavy); line-height: 1; font-variant-numeric: tabular-nums; }
+.kpi__l { color: var(--c-ink-2); font-size: var(--fs-sm); line-height: var(--lh-snug); }
+.kpi--published { background: var(--c-accent-soft); border-color: var(--c-accent); }
+.kpi--published .kpi__l { color: var(--c-accent-ink); }
+.kpi--wait { border-color: var(--c-pay); }
+.kpi--bad { background: var(--c-danger-soft); border-color: var(--c-danger); }
+.kpi--bad .kpi__n, .kpi--bad .kpi__l { color: var(--c-danger); }
+
+.attn { display: grid; gap: var(--sp-2); }
+.attn__item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-2) var(--sp-3); align-items: center; padding: var(--sp-3) var(--sp-4); background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-ctl); }
+.attn__item .btn { grid-column: 1 / -1; }
+.attn__ico .icon { width: 1.4rem; height: 1.4rem; }
+.attn__item--rejected { border-color: var(--c-danger); }
+.attn__item--rejected .attn__ico { color: var(--c-danger); }
+.attn__item--soon .attn__ico { color: var(--c-accent-ink); }
+.attn__text { overflow-wrap: anywhere; font-size: var(--fs-sm); }
+
+.quick { display: grid; gap: var(--sp-3); }
+.quick__item {
+  display: grid; grid-template-columns: auto minmax(0, 1fr); gap: var(--sp-3); align-items: center; min-height: var(--tap); padding: var(--sp-4);
+  background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-ctl); color: var(--c-ink); text-decoration: none;
+}
+.quick__item:hover { border-color: var(--c-accent); color: var(--c-ink); }
+.quick__item:focus-visible { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+.quick__item .icon { width: 1.5rem; height: 1.5rem; color: var(--c-accent-ink); }
+.quick__item > span { display: grid; gap: var(--sp-1); min-width: 0; }
+.quick__item .muted { font-size: var(--fs-sm); }
+.quick__item--main { background: var(--c-accent-soft); border-color: var(--c-accent); }
+
+@media (min-width: 48rem) {
+  .cab__titlebar { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  .cab__cta { justify-self: end; }
+  .cab__confirm-actions { display: flex; flex-wrap: wrap; }
+  .cab__confirm-actions .btn { width: auto; }
+  .kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .vrow { grid-template-columns: minmax(0, 1fr) auto; padding: var(--sp-5); }
+  .vrow__actions { grid-template-columns: repeat(2, 9.5rem); }
+  .attn__item { grid-template-columns: auto minmax(0, 1fr) auto; }
+  .attn__item .btn { grid-column: auto; }
+  .quick { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 62rem) {
+  .cab__split { grid-template-columns: minmax(0, 1fr) var(--w-aside); }
+  .quick { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}

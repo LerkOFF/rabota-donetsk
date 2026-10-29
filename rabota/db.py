@@ -147,6 +147,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     ):
         if col not in cols:
             conn.execute(f"ALTER TABLE vacancies ADD COLUMN {col} {ddl}")
+    # карточка компании в кабинете: телефон и почта, которые подставляются в новые вакансии
+    company_cols = {r["name"] for r in conn.execute("PRAGMA table_info(companies)")}
+    for col in ("phone", "contact_email"):
+        if company_cols and col not in company_cols:
+            conn.execute(f"ALTER TABLE companies ADD COLUMN {col} TEXT")
     conn.commit()
     from rabota.admin.schema import migrate as admin_migrate  # журнал действий, стоп-лист, запросы по ПДн
 

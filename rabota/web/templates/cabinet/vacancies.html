@@ -1,0 +1,95 @@
+{% extends 'cabinet/layout.html' %}
+{% from '_macros.html' import icon, pager, empty_state %}
+{% from 'messages/_parts.html' import crumbs, info, alert %}
+{% from 'cabinet/_parts.html' import state_badge %}
+{% block cab_body %}
+<div class="wrap cab">
+  <header class="page-head cab__head">
+    {{ crumbs([('Мои вакансии', '')]) }}
+    <div class="cab__titlebar">
+      <div class="cab__titles">
+        <h1 class="h1 h1--page">Мои вакансии</h1>
+        <p class="lead">Статус проверки, отклики и срок размещения каждой вакансии. Вакансия живёт на сайте 21 день, её можно поднять раз в сутки.</p>
+      </div>
+      <a class="btn btn--primary cab__cta" href="/razmestit">{{ icon('plus') }}Разместить вакансию</a>
+    </div>
+  </header>
+
+  {{ info(flash) }}
+  {{ alert(problem) }}
+
+  {% if filters | length > 1 %}
+  <nav class="cab__filters" aria-label="Фильтр по состоянию">
+    <ul class="chip-row chip-row--scroll">
+      {% for f in filters %}
+      <li><a class="chip{% if f.active %} chip--active{% endif %}" href="/cabinet/vacancies{% if f.key %}?state={{ f.key }}{% endif %}"{% if f.active %} aria-current="true"{% endif %}>{{ f.label }} <span class="chip__n">{{ f.n }}</span></a></li>
+      {% endfor %}
+    </ul>
+  </nav>
+  {% endif %}
+
+  {% if items %}
+  <ul class="vlist-cab">
+    {% for v in items %}
+    <li class="vrow vrow--{{ v.state.key }}" data-vacancy-id="{{ v.id }}">
+      <div class="vrow__main">
+        <div class="vrow__head">
+          <h2 class="vrow__title">{% if v.view_url %}<a href="{{ v.view_url }}">{{ v.title }}</a>{% else %}{{ v.title }}{% endif %}</h2>
+          {{ state_badge(v.state) }}
+        </div>
+        <p class="vrow__sub">
+          <span class="vrow__pay{% if not v.pay.known %} vrow__pay--none{% endif %}">{{ v.pay.main }}{% if v.pay.period %} <span class="muted">{{ v.pay.period }}</span>{% endif %}</span>
+          {% if v.location %}<span class="vrow__where">{{ icon('map-pin') }}{{ v.location }}</span>{% endif %}
+        </p>
+        {% if v.state.note and (v.state.key != 'published' or v.state.soon) %}
+        <p class="vrow__note vrow__note--{{ v.state.key }}">{% if v.state.key == 'rejected' %}<strong>Причина отказа:</strong> {% endif %}{{ v.state.note }}</p>
+        {% endif %}
+        <p class="vrow__dates">
+          <span>Создана {{ v.created_label }}</span>
+          {% if v.published_label %}<span>{% if v.state.key == 'published' %}Поднята{% else %}Последняя публикация{% endif %} {{ v.published_label }}</span>{% endif %}
+          {% if v.until_label %}<span>На сайте до {{ v.until_label }}</span>{% endif %}
+        </p>
+        <p class="vrow__resp">
+          {% if v.responses %}
+          <a href="{{ v.responses_url }}">{{ icon('paper-plane-tilt') }}Откликов: {{ v.responses }}</a>{% if v.new_responses %}<span class="vrow__fresh">{{ v.new_responses }} {{ plural(v.new_responses, 'новый', 'новых', 'новых') }}</span>{% endif %}
+          {% else %}
+          <span class="muted">{{ icon('paper-plane-tilt') }}Откликов пока нет</span>
+          {% endif %}
+        </p>
+      </div>
+      <div class="vrow__actions">
+        {% if v.can_edit %}<a class="btn btn--ghost btn--sm" href="/cabinet/vacancies/{{ v.id }}/edit" aria-label="Править вакансию: {{ v.title }}">{{ icon('pencil-simple') }}Править</a>{% endif %}
+        {% if v.can_raise %}
+          {% if v.raise_wait %}
+          <p class="vrow__wait">{{ icon('hourglass') }}Поднять можно через {{ v.raise_wait }}</p>
+          {% else %}
+          <form method="post" action="/cabinet/vacancies/{{ v.id }}/raise">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button class="btn btn--soft btn--sm" type="submit" aria-label="{{ v.raise_label }}: {{ v.title }}">{{ icon('arrow-fat-up') }}{{ v.raise_label }}</button>
+          </form>
+          {% endif %}
+        {% endif %}
+        {% if v.can_close %}
+        <form method="post" action="/cabinet/vacancies/{{ v.id }}/close">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn--ghost btn--sm" type="submit" aria-label="Закрыть вакансию: {{ v.title }}">{{ icon('lock-simple') }}Закрыть</button>
+        </form>
+        {% endif %}
+        <a class="btn btn--danger btn--sm" href="/cabinet/vacancies/{{ v.id }}/delete" aria-label="Удалить вакансию: {{ v.title }}">{{ icon('trash') }}Удалить</a>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {{ pager(page, '/cabinet/vacancies', query) }}
+  {% elif state %}
+  {% call empty_state('funnel', 'Нет вакансий с таким состоянием', 'Выберите другое состояние или покажите все вакансии.') %}
+  <a class="btn btn--primary" href="/cabinet/vacancies">Показать все вакансии</a>
+  {% endcall %}
+  {% else %}
+  {% call empty_state('briefcase', 'У вас пока нет вакансий', 'Разместите первую вакансию: после короткой проверки её увидят соискатели, а отклики придут сюда и на почту.') %}
+  <a class="btn btn--primary" href="/razmestit">{{ icon('plus') }}Разместить вакансию</a>
+  <a class="btn btn--ghost" href="/employers">Как это работает</a>
+  {% endcall %}
+  {% endif %}
+</div>
+{% endblock %}

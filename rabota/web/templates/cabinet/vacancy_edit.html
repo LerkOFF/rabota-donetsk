@@ -1,0 +1,37 @@
+{% extends 'cabinet/layout.html' %}
+{% from '_macros.html' import icon %}
+{% from 'messages/_parts.html' import crumbs %}
+{% from 'cabinet/_parts.html' import state_badge %}
+{% block cab_body %}
+<div class="wrap cab post">
+  <header class="page-head">
+    {{ crumbs([('Мои вакансии', '/cabinet/vacancies'), ('Правка', '')]) }}
+    <h1 class="h1 h1--page">Правка вакансии</h1>
+    <p class="cab__state">{{ state_badge(item.state) }}<span class="muted">{{ item.title }}</span></p>
+  </header>
+
+  {% if item.state.key == 'rejected' %}
+  <p class="notice notice--warn" role="note">{{ icon('x-circle') }}<span><strong>Причина отказа:</strong> {{ item.state.note }}</span></p>
+  {% endif %}
+
+  {% if errors %}
+  <div class="error-summary" role="alert" tabindex="-1" id="error-summary">
+    <h2>Нужно поправить {{ plural(errors | length, 'поле', 'поля', 'полей') }}</h2>
+    <ul>
+      {% for name, text in errors.items() %}<li><a href="#p-{{ name }}">{{ text }}</a></li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <form class="form-grid" method="post" action="{{ form_action }}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% include '_vacancy_form.html' %}
+
+    <div class="form-actions">
+      <button class="btn btn--primary btn--lg" type="submit">{{ submit_label }}</button>
+      <a class="btn btn--ghost btn--lg" href="/cabinet/vacancies">Отмена</a>
+      <p class="hint">{{ submit_hint }}</p>
+    </div>
+  </form>
+</div>
+{% endblock %}

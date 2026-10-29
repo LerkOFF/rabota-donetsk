@@ -500,7 +500,7 @@ def reports_list(request: Request, admin: Admin) -> Response:
         "view": view, "views": {k: v for k, v in complaints.VIEWS.items() if k != "all"}, "page": page, "counts": counts,
         "tab": "reports",
     }, section="complaints", title="Жалобы на сообщения и людей",
-        description="Жалобы на сообщения, пользователей и резюме: просмотр, отклонение и блокировка нарушителя.")
+        description="Жалобы на сообщения и пользователей: просмотр, отклонение и блокировка нарушителя.")
 
 
 def complaint_context(conn: sqlite3.Connection, request: Request, complaint_id: int) -> dict[str, Any]:
@@ -630,7 +630,7 @@ async def report_action(request: Request, admin: Admin, report_id: int, action: 
                     "view": "open", "views": {"open": "Открытые", "closed": "Закрытые"}, "page": page,
                     "counts": complaints.counts(conn), "tab": "reports", "error": str(exc),
                 }, 422, section="complaints", title="Жалобы на сообщения и людей",
-                    description="Жалобы на сообщения, пользователей и резюме: просмотр, отклонение и блокировка нарушителя.")
+                    description="Жалобы на сообщения и пользователей: просмотр, отклонение и блокировка нарушителя.")
         return see_other("/admin/reports", "report_done")
 
     return await run_in_threadpool(work)

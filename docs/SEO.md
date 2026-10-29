@@ -20,7 +20,7 @@ return render(request, "page.html", {"seo": {
 ```
 
 - `title` и `description` обязательны для индексируемых страниц; для закрытых достаточно `title`.
-- Служебные разделы закрываются сами, даже если забыть `noindex`: `/login`, `/register`, `/logout`, `/verify`, `/forgot`, `/reset`, `/account`, `/cabinet`, `/email`, `/admin`, `/messages`, `/notifications`, `/responses`, `/razmestit/spasibo`, а также `/vacancy/<id>/complaint|apply|respond|favorite`. Список: `PRIVATE_PREFIXES` и `PRIVATE_PATTERNS` в `seo.py`.
+- Служебные разделы закрываются сами, даже если забыть `noindex`: `/login`, `/register`, `/logout`, `/verify`, `/forgot`, `/reset`, `/account`, `/cabinet`, `/email`, `/admin`, `/messages`, `/notifications`, `/responses`, `/razmestit/spasibo`, а также `/vacancy/<id>/complaint|apply|respond|favorite`. Весь кабинет (`/cabinet/...`, в том числе вакансии, правка, удаление и компания работодателя) закрыт общим префиксом. Список: `PRIVATE_PREFIXES` и `PRIVATE_PATTERNS` в `seo.py`.
 - `breadcrumbs` одновременно рисуют видимые крошки (макрос `crumbs(seo.breadcrumbs)` из `_macros.html`) и дают разметку `BreadcrumbList`. Последний пункт: сама страница, путь можно оставить пустым.
 - Закрытая страница (`noindex`) разметки schema.org не получает.
 - Если страница строится не через `render` приложения, вызовите `seo.finalize(seo, site_url, path)` и `seo.apply_headers(response, seo)` сами.

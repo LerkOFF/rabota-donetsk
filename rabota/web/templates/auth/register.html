@@ -15,11 +15,11 @@
         <legend>Кто вы</legend>
         <label class="role-pick__item">
           <input type="radio" name="role" value="job_seeker" required{% if form.get('role') == 'job_seeker' %} checked{% endif %}>
-          <span><span class="role-pick__title">Ищу работу</span><span class="role-pick__text">Резюме, отклики, переписка с работодателями.</span></span>
+          <span><span class="role-pick__title">Ищу работу</span><span class="role-pick__text">Отклики и переписка с работодателями.</span></span>
         </label>
         <label class="role-pick__item">
           <input type="radio" name="role" value="employer" required{% if form.get('role') == 'employer' %} checked{% endif %}>
-          <span><span class="role-pick__title">Набираю сотрудников</span><span class="role-pick__text">Вакансии, отклики, поиск по резюме.</span></span>
+          <span><span class="role-pick__title">Набираю сотрудников</span><span class="role-pick__text">Вакансии, отклики, переписка с соискателями.</span></span>
         </label>
         {% if errors.get('role') %}<p class="error">{{ errors['role'] }}</p>{% endif %}
       </fieldset>

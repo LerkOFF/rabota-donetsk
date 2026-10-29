@@ -23,6 +23,7 @@ from rabota.web import seo
 from rabota.web.app import create_app
 from rabota.web.queries import open_conn
 from tests.accounts.harness import build_env, login, make_user
+from tests.cabinet.conftest import make_row
 from tests.web.conftest import NOW, make_vacancy
 
 SITE = "https://example.test"
@@ -48,6 +49,8 @@ URLS: dict[str, list[str]] = {
     "/responses/{application_id}": ["/responses/1"],
     "/notifications/unsubscribe/{token}": ["/notifications/unsubscribe/not-a-real-token"],
     "/vacancy/{vacancy_id}/apply": ["/vacancy/{open}/apply"],
+    "/cabinet/vacancies/{vacancy_id}/edit": ["/cabinet/vacancies/{owned}/edit"],
+    "/cabinet/vacancies/{vacancy_id}/delete": ["/cabinet/vacancies/{owned}/delete"],
 }
 # дополнительные адреса к маршрутам без параметров (фильтры, страницы)
 EXTRA = {
@@ -87,6 +90,8 @@ POLICY: dict[str, str] = {
     "/email/confirm/not-a-real-token": "noindex",
     "/account": "noindex", "/account/deleted": "noindex",
     "/cabinet": "noindex", "/cabinet/seeker": "noindex", "/cabinet/employer": "noindex",
+    "/cabinet/vacancies": "noindex", "/cabinet/company": "noindex",
+    "/cabinet/vacancies/{owned}/edit": "noindex", "/cabinet/vacancies/{owned}/delete": "noindex",
 }
 # ожидаемая разметка на индексируемых страницах: адрес -> типы JSON-LD в порядке появления
 EXPECT_LD: dict[str, list[str]] = {
@@ -278,7 +283,11 @@ def site(tmp_path):
         folder.mkdir()
         e = build_env(folder)
         e.client.__enter__()
-        make_user(e, email, role="job_seeker" if role == "admin" else role, name="Тест")
+        uid = make_user(e, email, role="job_seeker" if role == "admin" else role, name="Тест")
+        if role == "employer":  # вакансия работодателя с тем же номером, что и открытая в основной базе: страницы правки и удаления
+            c3 = e.db()
+            make_row(c3, uid, id=ids["open"])
+            c3.close()
         if role == "admin":
             c2 = e.db()
             c2.execute("UPDATE users SET role='admin' WHERE email=?", (email,))
@@ -293,7 +302,7 @@ def site(tmp_path):
 
 
 def resolve(url: str, ids: dict[str, int]) -> str:
-    return re.sub(r"\{(open|closed|pending)\}", lambda m: str(ids[m.group(1)]), url)
+    return re.sub(r"\{(open|closed|pending|owned)\}", lambda m: str(ids["open" if m.group(1) == "owned" else m.group(1)]), url)
 
 
 def walk_routes(routes, prefix: str = ""):
@@ -353,14 +362,15 @@ def test_every_get_route_is_covered_and_has_full_seo(site):
             checked += 1
     assert checked >= 20, f"проверено только {checked} страниц"
     # закрытые разделы проверены вошедшими пользователями, а не только перенаправлением на вход
-    for must in ("/account", "/cabinet/seeker", "/cabinet/employer", "/admin", "/messages", "/responses"):
+    for must in ("/account", "/cabinet/seeker", "/cabinet/employer", "/admin", "/messages", "/responses",
+                 "/cabinet/vacancies", "/cabinet/company", "/cabinet/vacancies/{owned}/edit", "/cabinet/vacancies/{owned}/delete"):
         assert must in visited, f"{must}: страница ни разу не открылась с кодом 200, SEO не проверен"
 
 
 def test_account_pages_checked_for_logged_in_roles(site):
     _, clients = site
     seen: dict[str, dict[str, str]] = {}
-    for key in ("/account", "/cabinet/seeker", "/cabinet/employer"):
+    for key in ("/account", "/cabinet/seeker", "/cabinet/employer", "/cabinet/vacancies", "/cabinet/company"):
         pages = [
             e.client.get(key, follow_redirects=False) for e in clients.values()
         ]

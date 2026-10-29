@@ -1,18 +1,26 @@
-{% extends 'auth/layout.html' %}
-{% block auth_body %}
-<div class="wrap">
-  <header class="page-head">
-    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>Кабинет соискателя</li></ol></nav>
+{% extends 'cabinet/layout.html' %}
+{% from '_macros.html' import icon %}
+{% from 'messages/_parts.html' import crumbs %}
+{% block cab_body %}
+<div class="wrap cab">
+  <header class="page-head cab__head">
+    {{ crumbs([('Кабинет соискателя', '')]) }}
     <h1 class="h1 h1--page">Кабинет соискателя</h1>
     <p class="lead">Здравствуйте, {{ me.name }}! Здесь ваши отклики и переписка с работодателями.</p>
   </header>
+
   {% include 'messages/_cabinet.html' %}
-  <div class="cabinet-stub">
-    <p class="muted">Имя, телефон, пароль и почту можно изменить в настройках аккаунта.</p>
-    <div class="state__actions">
-      <a class="btn btn--primary" href="/account">Настройки аккаунта</a>
-      <a class="btn btn--ghost" href="/vacancies">Смотреть вакансии</a>
-    </div>
-  </div>
+
+  <section class="cab__section" aria-labelledby="cab-go">
+    <h2 id="cab-go" class="h3">Быстрые ссылки</h2>
+    <ul class="quick">
+      <li><a class="quick__item quick__item--main" href="/vacancies?direct=1">{{ icon('magnifying-glass') }}<span><strong>Найти вакансию</strong><span class="muted">Только от работодателей: откликнуться можно на сайте</span></span></a></li>
+      <li><a class="quick__item" href="/vacancies">{{ icon('briefcase') }}<span><strong>Все вакансии</strong><span class="muted">Из каналов и сайтов, с телефоном и ссылкой на оригинал</span></span></a></li>
+      <li><a class="quick__item" href="/responses">{{ icon('paper-plane-tilt') }}<span><strong>Мои отклики</strong><span class="muted">Статусы и ответы работодателей</span></span></a></li>
+      <li><a class="quick__item" href="/messages">{{ icon('chat-circle-dots') }}<span><strong>Сообщения</strong><span class="muted">Переписка с работодателями</span></span></a></li>
+      <li><a class="quick__item" href="/notifications">{{ icon('bell') }}<span><strong>Уведомления по почте</strong><span class="muted">О новых ответах и сообщениях</span></span></a></li>
+      <li><a class="quick__item" href="/account">{{ icon('user-circle') }}<span><strong>Настройки аккаунта</strong><span class="muted">Имя, телефон, пароль, почта</span></span></a></li>
+    </ul>
+  </section>
 </div>
 {% endblock %}

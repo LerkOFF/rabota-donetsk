@@ -1,7 +1,7 @@
 """Подписи и форматирование для карточек: оплата с периодом, свежесть, склонения."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 NBSP = " "
@@ -215,3 +215,17 @@ def telegram_href(handle: str) -> str:
     if h.startswith(("http://", "https://")):
         return h
     return "https://t.me/" + h.lstrip("@")
+
+
+DONETSK_OFFSET = timedelta(hours=3)
+
+
+def date_label(value: str | datetime | None, now: datetime | None = None) -> str:
+    """Дата по времени Донецка: "29 октября", с годом, если он не текущий. Пусто, если даты нет."""
+    dt = value if isinstance(value, datetime) else parse_dt(value)
+    if dt is None:
+        return ""
+    local = dt.astimezone(UTC) + DONETSK_OFFSET
+    now = (now or datetime.now(UTC)).astimezone(UTC) + DONETSK_OFFSET
+    year = "" if local.year == now.year else f" {local.year}"
+    return f"{local.day} {_MONTHS[local.month - 1]}{year}"

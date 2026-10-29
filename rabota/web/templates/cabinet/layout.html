@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{% from 'messages/_parts.html' import crumbs %}
+{# Общая обёртка страниц кабинета работодателя: свои стили подключаются здесь, общие файлы не затрагиваются #}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('cabinet.css') }}">
+{% block cab_body %}{% endblock %}
+{% endblock %}

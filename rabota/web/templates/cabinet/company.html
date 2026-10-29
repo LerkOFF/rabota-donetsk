@@ -1,0 +1,93 @@
+{% extends 'cabinet/layout.html' %}
+{% from '_macros.html' import icon, field_error, logo_tile %}
+{% from 'messages/_parts.html' import crumbs, info %}
+{% block cab_body %}
+<div class="wrap cab">
+  <header class="page-head">
+    {{ crumbs([('Компания', '')]) }}
+    <h1 class="h1 h1--page">Компания</h1>
+    <p class="lead">Карточка работодателя: её видят соискатели на странице компании и в ваших вакансиях.</p>
+  </header>
+
+  {{ info(flash) }}
+
+  {% if errors %}
+  <div class="error-summary" role="alert" tabindex="-1" id="error-summary">
+    <h2>Нужно поправить {{ plural(errors | length, 'поле', 'поля', 'полей') }}</h2>
+    <ul>
+      {% for name, text in errors.items() %}<li><a href="#c-{{ name }}">{{ text }}</a></li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="cab__split">
+    <form class="form-grid" method="post" action="/cabinet/company" novalidate>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <section class="form-section" aria-labelledby="c-about">
+        <h2 id="c-about">О компании</h2>
+        <div class="field{% if errors.get('name') %} field--invalid{% endif %}">
+          <label for="c-name">Название <span class="muted">(обязательно)</span></label>
+          <input class="input" id="c-name" name="name" type="text" value="{{ form.get('name', '') }}" maxlength="{{ limits.name }}" required autocomplete="organization"{% if errors.get('name') %} aria-invalid="true" aria-describedby="err-name"{% endif %}>
+          {{ field_error(errors, 'name') }}
+        </div>
+        <div class="field{% if errors.get('description') %} field--invalid{% endif %}">
+          <label for="c-description">Описание</label>
+          <p class="hint" id="hint-description">Чем занимается компания и чем она хороша как работодатель. До {{ limits.description }} знаков.</p>
+          <textarea class="input" id="c-description" name="description" rows="6" maxlength="{{ limits.description + 500 }}" aria-describedby="hint-description{% if errors.get('description') %} err-description{% endif %}"{% if errors.get('description') %} aria-invalid="true"{% endif %}>{{ form.get('description', '') }}</textarea>
+          {{ field_error(errors, 'description') }}
+        </div>
+        <div class="form-row form-row--2">
+          <div class="field{% if errors.get('city') %} field--invalid{% endif %}">
+            <label for="c-city">Город</label>
+            <input class="input" id="c-city" name="city" type="text" value="{{ form.get('city', '') }}" maxlength="{{ limits.city }}" autocomplete="address-level2">
+            {{ field_error(errors, 'city') }}
+          </div>
+          <div class="field{% if errors.get('site') %} field--invalid{% endif %}">
+            <label for="c-site">Сайт</label>
+            <input class="input" id="c-site" name="site" type="url" inputmode="url" value="{{ form.get('site', '') }}" maxlength="400" placeholder="https://example.ru" spellcheck="false" autocomplete="url"{% if errors.get('site') %} aria-invalid="true" aria-describedby="err-site"{% endif %}>
+            {{ field_error(errors, 'site') }}
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section" aria-labelledby="c-contacts">
+        <h2 id="c-contacts">Контакты для новых вакансий</h2>
+        <p class="hint">Подставляются в форму размещения. Страница компании их не показывает.</p>
+        <div class="form-row form-row--2">
+          <div class="field{% if errors.get('phone') %} field--invalid{% endif %}">
+            <label for="c-phone">Телефон для вакансий</label>
+            <input class="input" id="c-phone" name="phone" type="tel" inputmode="tel" value="{{ form.get('phone', '') }}" maxlength="40" placeholder="+7 949 000-00-00" spellcheck="false" autocomplete="tel"{% if errors.get('phone') %} aria-invalid="true" aria-describedby="err-phone"{% endif %}>
+            {{ field_error(errors, 'phone') }}
+          </div>
+          <div class="field{% if errors.get('contact_email') %} field--invalid{% endif %}">
+            <label for="c-contact_email">Почта для откликов</label>
+            <input class="input" id="c-contact_email" name="contact_email" type="email" inputmode="email" value="{{ form.get('contact_email', '') }}" maxlength="300" placeholder="hr@example.ru" spellcheck="false" autocomplete="email"{% if errors.get('contact_email') %} aria-invalid="true" aria-describedby="err-contact_email"{% endif %}>
+            {{ field_error(errors, 'contact_email') }}
+          </div>
+        </div>
+      </section>
+
+      <div class="form-actions">
+        <button class="btn btn--primary btn--lg" type="submit">Сохранить</button>
+      </div>
+    </form>
+
+    <aside class="panel cab__aside" aria-labelledby="c-view">
+      <h2 id="c-view" class="h3">Как это видят соискатели</h2>
+      {% if company %}
+      <div class="cab__preview">
+        {{ logo_tile(company.name, 'lg') }}
+        <div>
+          <p class="cab__preview-name">{{ company.name }}</p>
+          <p class="muted">{{ company.city or 'Донецк' }}</p>
+        </div>
+      </div>
+      <a class="btn btn--ghost" href="/company/{{ company.id }}">{{ icon('arrow-square-out') }}Страница компании</a>
+      {% else %}
+      <p>Страница компании появится после первого сохранения или публикации вакансии. Название по умолчанию берётся из вакансии.</p>
+      {% endif %}
+      <p class="hint">Страницу компании ищут по названию и открывают из вакансии, поэтому описание и сайт помогают получать больше откликов.</p>
+    </aside>
+  </div>
+</div>
+{% endblock %}

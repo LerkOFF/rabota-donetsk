@@ -507,8 +507,12 @@ def add_complaint(
     return complaints.add(conn, vacancy_id, reason, code=code, reporter_email=reporter_email, reporter_key=reporter_key)
 
 
-def add_site_vacancy(conn: sqlite3.Connection, v: Vacancy, premoderate: bool = True) -> int:
-    """Сохраняет вакансию из формы. По умолчанию она ждёт проверки (status="hidden")."""
+def add_site_vacancy(
+    conn: sqlite3.Connection, v: Vacancy, premoderate: bool = True, *, owner_user_id: int | None = None,
+    company_id: int | None = None,
+) -> int:
+    """Сохраняет вакансию из формы. По умолчанию она ждёт проверки (status="hidden").
+    Вакансия вошедшего работодателя привязывается к нему и его компании и становится прямой (с откликом на сайте)."""
     v.source_type = "site"
     v.source = "razmestit"
     v.external_id = uuid.uuid4().hex
@@ -519,6 +523,12 @@ def add_site_vacancy(conn: sqlite3.Connection, v: Vacancy, premoderate: bool = T
     key_src = f"{v.profession.lower()}|{(phones or [''])[0]}|{v.city or ''}"
     v.dedupe_key = hashlib.sha1(key_src.encode()).hexdigest()[:16]
     vacancy_id = save_vacancy(conn, v)
+    if owner_user_id:
+        conn.execute(
+            "UPDATE vacancies SET owner_user_id = ?, company_id = ?, origin = 'direct' WHERE id = ?",
+            (owner_user_id, company_id, vacancy_id),
+        )
+        conn.commit()
     if premoderate:  # ждёт решения в админке: до одобрения в выдаче и карте сайта не появляется
         conn.execute("UPDATE vacancies SET moderation_status = 'pending' WHERE id = ?", (vacancy_id,))
         conn.commit()

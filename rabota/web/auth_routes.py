@@ -6,7 +6,7 @@
 После install в каждом запросе есть request.state.user (словарь или None) и request.state.csrf_token.
 Маршруты: /register, /login, POST /logout, /verify/<токен>, /verify/resend, /forgot, /reset/<токен>,
 /account (+ /account/profile, /account/password, /account/email, /account/delete), /email/confirm/<токен>,
-/cabinet (перенаправление по роли), /cabinet/seeker и /cabinet/employer (заглушки).
+/cabinet (перенаправление по роли), /cabinet/seeker и /cabinet/employer (сводки).
 """
 from __future__ import annotations
 
@@ -746,7 +746,7 @@ def account_deleted(request: Request) -> Response:
     )
 
 
-# ------------------------------------------------------------------ кабинет (заглушки)
+# ------------------------------------------------------------------ кабинет (сводки)
 
 @router.get("/cabinet")
 def cabinet(request: Request, user: Verified) -> Response:
@@ -754,17 +754,37 @@ def cabinet(request: Request, user: Verified) -> Response:
     return _redirect(target)
 
 
-stub_router = APIRouter()
+stub_router = APIRouter()  # сводки кабинетов; параметр install(cabinet_stubs=False) отключает их, если есть свои
 
 
 @stub_router.get("/cabinet/seeker")
 def cabinet_seeker(request: Request, user: Seeker) -> Response:
-    return render(request, "auth/cabinet_seeker.html", {"me": user, "seo": {"title": "Кабинет соискателя"}})
+    return render(request, "auth/cabinet_seeker.html", {
+        "me": user,
+        "seo": {"title": "Кабинет соискателя", "description": "Ваши отклики на вакансии, переписка с работодателями "
+                                                               "и быстрые ссылки на сайте Работа Донецк."},
+    })
 
 
 @stub_router.get("/cabinet/employer")
-def cabinet_employer(request: Request, user: Employer) -> Response:
-    return render(request, "auth/cabinet_employer.html", {"me": user, "seo": {"title": "Кабинет работодателя"}})
+async def cabinet_employer(request: Request, user: Employer) -> Response:
+    from rabota import cabinet as cabinet_service
+
+    acc = _acc(request)
+
+    def work() -> dict[str, Any]:
+        conn = acc.db()
+        try:
+            return cabinet_service.employer_summary(conn, user["id"], acc.now())
+        finally:
+            conn.close()
+
+    summary = await run_in_threadpool(work)
+    return render(request, "auth/cabinet_employer.html", {
+        "me": user, "summary": summary,
+        "seo": {"title": "Кабинет работодателя", "description": "Ваши вакансии по статусам, новые отклики, сообщения "
+                                                                 "и карточка компании на сайте Работа Донецк."},
+    })
 
 
 # ------------------------------------------------------------------ подключение
@@ -820,7 +840,7 @@ def install(
 
     db_path: база (по умолчанию DB_PATH из настроек); mailer: по умолчанию по MAIL_BACKEND;
     templates: окружение шаблонов приложения (иначе берётся app.state.templates, иначе своё с теми же функциями);
-    cabinet_stubs=False отключает заглушки /cabinet/seeker и /cabinet/employer, когда есть настоящие кабинеты.
+    cabinet_stubs=False отключает сводки /cabinet/seeker и /cabinet/employer, когда есть свои кабинеты.
     """
     path = Path(db_path) if db_path else config.DB_PATH
     service.ensure_schema(path)

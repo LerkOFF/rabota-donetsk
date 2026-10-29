@@ -107,15 +107,15 @@
     <div class="audience__card">
       <h2 class="h2">Ищете работу?</h2>
       <ul class="ticks">
-        <li>{{ icon('check-circle') }}Резюме один раз, отклик в одно нажатие</li>
+        <li>{{ icon('check-circle') }}Отклик на вакансию работодателя в одно нажатие</li>
         <li>{{ icon('check-circle') }}Переписка с работодателем прямо на сайте</li>
-        <li>{{ icon('check-circle') }}Избранные вакансии всегда под рукой</li>
+        <li>{{ icon('check-circle') }}Свежие вакансии Донецка и ДНР с оплатой, графиком и телефоном</li>
       </ul>
       <div class="state__actions">
         {% if user %}
         <a class="btn btn--primary btn--lg" href="/cabinet">Перейти в кабинет</a>
         {% else %}
-        <a class="btn btn--primary btn--lg" href="/register">Создать резюме</a>
+        <a class="btn btn--primary btn--lg" href="/register">Создать аккаунт</a>
         <a class="btn btn--ghost btn--lg" href="/login">Войти</a>
         {% endif %}
       </div>

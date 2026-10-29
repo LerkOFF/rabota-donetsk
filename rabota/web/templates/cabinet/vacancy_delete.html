@@ -1,0 +1,41 @@
+{% extends 'cabinet/layout.html' %}
+{% from '_macros.html' import icon %}
+{% from 'messages/_parts.html' import crumbs %}
+{% from 'cabinet/_parts.html' import state_badge %}
+{% block cab_body %}
+<div class="wrap cab">
+  <header class="page-head">
+    {{ crumbs([('Мои вакансии', '/cabinet/vacancies'), ('Удаление', '')]) }}
+    <h1 class="h1 h1--page">Удалить вакансию «{{ item.title }}»?</h1>
+    <p class="cab__state">{{ state_badge(item.state) }}</p>
+  </header>
+
+  <section class="panel cab__confirm" aria-labelledby="del-h">
+    <h2 id="del-h" class="h3">Что произойдёт</h2>
+    <ul class="cab__list">
+      <li>Вакансия пропадёт с сайта и из вашего списка, вернуть её не получится.</li>
+      {% if item.responses %}
+      <li><strong>{{ item.responses }} {{ plural(item.responses, 'отклик', 'отклика', 'откликов') }} на неё тоже удалятся.</strong> Переписки с кандидатами останутся в сообщениях.</li>
+      {% else %}
+      <li>Откликов на неё нет.</li>
+      {% endif %}
+    </ul>
+    {% if item.can_close %}
+    <p class="muted">Если вакансия просто больше не нужна, лучше закрыть её: она исчезнет с сайта, а отклики сохранятся.</p>
+    {% endif %}
+    <div class="cab__confirm-actions">
+      <form method="post" action="/cabinet/vacancies/{{ item.id }}/delete">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn--danger btn--lg" type="submit">{{ icon('trash') }}Удалить навсегда</button>
+      </form>
+      {% if item.can_close %}
+      <form method="post" action="/cabinet/vacancies/{{ item.id }}/close">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn--soft btn--lg" type="submit">{{ icon('lock-simple') }}Закрыть вместо удаления</button>
+      </form>
+      {% endif %}
+      <a class="btn btn--ghost btn--lg" href="/cabinet/vacancies">Отмена</a>
+    </div>
+  </section>
+</div>
+{% endblock %}

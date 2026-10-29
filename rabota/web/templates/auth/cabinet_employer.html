@@ -1,18 +1,62 @@
-{% extends 'auth/layout.html' %}
-{% block auth_body %}
-<div class="wrap">
-  <header class="page-head">
-    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>Кабинет работодателя</li></ol></nav>
-    <h1 class="h1 h1--page">Кабинет работодателя</h1>
-    <p class="lead">Здравствуйте, {{ me.name }}! Здесь отклики на ваши вакансии и переписка с кандидатами.</p>
-  </header>
-  {% include 'messages/_cabinet.html' %}
-  <div class="cabinet-stub">
-    <p class="muted">Имя, телефон, пароль и почту можно изменить в настройках аккаунта.</p>
-    <div class="state__actions">
-      <a class="btn btn--primary" href="/account">Настройки аккаунта</a>
-      <a class="btn btn--ghost" href="/vacancies">Смотреть вакансии</a>
+{% extends 'cabinet/layout.html' %}
+{% from '_macros.html' import icon, empty_state %}
+{% from 'messages/_parts.html' import crumbs %}
+{% block cab_body %}
+<div class="wrap cab">
+  <header class="page-head cab__head">
+    {{ crumbs([('Кабинет работодателя', '')]) }}
+    <div class="cab__titlebar">
+      <div class="cab__titles">
+        <h1 class="h1 h1--page">Кабинет работодателя</h1>
+        <p class="lead">Здравствуйте, {{ me.name }}! Вакансии, отклики и сообщения собраны здесь.</p>
+      </div>
+      <a class="btn btn--primary cab__cta" href="/razmestit">{{ icon('plus') }}Разместить вакансию</a>
     </div>
-  </div>
+  </header>
+
+  <section class="cab__section" aria-labelledby="cab-vac">
+    <div class="cab__section-head">
+      <h2 id="cab-vac" class="h3">Вакансии</h2>
+      <a class="cab__more" href="/cabinet/vacancies">Мои вакансии{{ icon('arrow-right') }}</a>
+    </div>
+    {% if summary.counts.all %}
+    <ul class="kpis">
+      <li><a class="kpi kpi--published" href="/cabinet/vacancies?state=published"><span class="kpi__n">{{ summary.counts.published }}</span><span class="kpi__l">Опубликовано</span></a></li>
+      <li><a class="kpi{% if summary.counts.pending %} kpi--wait{% endif %}" href="/cabinet/vacancies?state=pending"><span class="kpi__n">{{ summary.counts.pending }}</span><span class="kpi__l">На проверке</span></a></li>
+      <li><a class="kpi{% if summary.counts.rejected %} kpi--bad{% endif %}" href="/cabinet/vacancies?state=rejected"><span class="kpi__n">{{ summary.counts.rejected }}</span><span class="kpi__l">Отклонено</span></a></li>
+      <li><a class="kpi" href="/cabinet/vacancies?state=closed"><span class="kpi__n">{{ summary.counts.closed + summary.counts.expired }}</span><span class="kpi__l">Закрыто и истекло</span></a></li>
+    </ul>
+    {% if summary.attention %}
+    <ul class="attn" aria-label="Что требует внимания">
+      {% for a in summary.attention %}
+      <li class="attn__item attn__item--{{ a.kind }}"><span class="attn__ico">{{ icon(a.icon) }}</span><span class="attn__text">{{ a.text }}</span><a class="btn btn--ghost btn--sm" href="{{ a.href }}">{{ a.action }}</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    {% else %}
+    {% call empty_state('briefcase', 'Разместите первую вакансию', 'Это бесплатно. После короткой проверки вакансию увидят соискатели, а отклики придут в кабинет и на почту.') %}
+    <a class="btn btn--primary" href="/razmestit">{{ icon('plus') }}Разместить вакансию</a>
+    <a class="btn btn--ghost" href="/employers">Как это работает</a>
+    {% endcall %}
+    {% endif %}
+  </section>
+
+  {% include 'messages/_cabinet.html' %}
+
+  <section class="panel cab__company" aria-labelledby="cab-co">
+    <h2 id="cab-co" class="h3">Компания</h2>
+    {% if summary.company and summary.company.description %}
+    <p><strong>{{ summary.company.name }}</strong>, {{ summary.company.city or 'Донецк' }}. Карточка заполнена, её видят соискатели.</p>
+    <div class="state__actions">
+      <a class="btn btn--ghost btn--sm" href="/cabinet/company">Изменить карточку</a>
+      <a class="btn btn--ghost btn--sm" href="/company/{{ summary.company.id }}">Страница компании</a>
+    </div>
+    {% else %}
+    <p>Заполните карточку компании: название, описание и сайт. Так соискатели больше доверяют вакансиям, а телефон и почта подставятся в новые вакансии сами.</p>
+    <div class="state__actions"><a class="btn btn--primary btn--sm" href="/cabinet/company">Заполнить карточку компании</a></div>
+    {% endif %}
+  </section>
+
+  <p class="cab__foot muted">Имя, телефон, пароль и почту можно изменить в <a href="/account">настройках аккаунта</a>.</p>
 </div>
 {% endblock %}

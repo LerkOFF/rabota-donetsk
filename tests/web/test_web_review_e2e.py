@@ -189,7 +189,9 @@ def test_touch_targets_vacancy_page_on_phone(open_page, db_file):
     ("path", "role"),
     [("/cabinet", "seeker"), ("/cabinet", "employer"), ("/account", "seeker"), ("/responses", "seeker"), ("/responses", "employer"),
      ("/responses/1", "seeker"), ("/responses/1", "employer"), ("/messages", "seeker"), ("/messages/1", "seeker"),
-     ("/notifications", "seeker"), ("/vacancy/%(vid)s/apply", "seeker")],
+     ("/notifications", "seeker"), ("/vacancy/%(vid)s/apply", "seeker"),
+     ("/cabinet/vacancies", "employer"), ("/cabinet/employer", "employer"), ("/cabinet/seeker", "seeker"), ("/cabinet/company", "employer"),
+     ("/cabinet/vacancies/%(vid)s/edit", "employer"), ("/cabinet/vacancies/%(vid)s/delete", "employer"), ("/razmestit", "employer")],
 )
 def test_touch_targets_account_pages_on_phone(open_page, db_file, path, role):
     c = sqlite3.connect(db_file)
@@ -302,3 +304,91 @@ def test_saved_theme_is_applied_before_first_paint(browser, base_url, saved):
     bg = page.evaluate("getComputedStyle(document.body).backgroundColor")
     assert (bg == "rgb(15, 23, 42)") == (saved == "dark")
     ctx.close()
+
+
+CABINET_PAGES = [("/cabinet/vacancies", "employer"), ("/cabinet/vacancies?state=rejected", "employer"), ("/cabinet/employer", "employer"),
+                 ("/cabinet/seeker", "seeker"), ("/cabinet/company", "employer"), ("/cabinet/vacancies/%(vid)s/edit", "employer"),
+                 ("/cabinet/vacancies/%(vid)s/delete", "employer")]
+
+
+def _first_direct(db_file):
+    c = sqlite3.connect(db_file)
+    vid = c.execute("SELECT id FROM vacancies WHERE origin = 'direct' AND moderation_status = 'approved' ORDER BY id LIMIT 1").fetchone()[0]
+    c.close()
+    return vid
+
+
+@pytest.mark.parametrize("width", [360, 390, 768, 1280, 1920])
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+@pytest.mark.parametrize(("path", "role"), CABINET_PAGES)
+def test_cabinet_pages_fit_the_screen_in_both_themes(open_page, db_file, path, role, scheme, width):
+    page = open_page(path % {"vid": _first_direct(db_file)}, width, scheme=scheme, role=role)
+    overflow = page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth")
+    assert overflow <= 0, f"{path} {width} {scheme}: шире экрана на {overflow}px"
+    assert "в разработке" not in page.inner_text("body")
+
+
+@pytest.mark.parametrize(("path", "role"), CABINET_PAGES)
+def test_cabinet_pages_have_one_h1_and_ordered_headings(open_page, db_file, path, role):
+    page = open_page(path % {"vid": _first_direct(db_file)}, 360, role=role)
+    levels = page.evaluate("() => [...document.querySelectorAll('h1,h2,h3,h4')].filter((h) => h.checkVisibility({ visibilityProperty: true })).map((h) => Number(h.tagName[1]))")
+    assert levels.count(1) == 1, path
+    assert [(a, b) for a, b in itertools.pairwise(levels) if b - a > 1] == [], f"{path}: {levels}"
+
+
+@pytest.mark.parametrize(("path", "role"), CABINET_PAGES)
+def test_cabinet_controls_have_names(open_page, db_file, path, role):
+    page = open_page(path % {"vid": _first_direct(db_file)}, 360, role=role)
+    assert page.evaluate(NAMELESS_JS) == [], path
+
+
+def test_employer_posts_edits_and_sees_status_in_browser(open_page, db_file):
+    page = open_page("/razmestit", 390, role="employer")
+    assert "в вашем кабинете" in page.inner_text("body")
+    page.fill("#p-profession", "Кондитер")
+    page.select_option("#p-category", "общепит")
+    page.fill("#p-summary", "Печь торты и десерты для кофейни на проспекте.")
+    page.fill("#p-phone", "+7 949 555-44-33")
+    page.click("form.form-grid button[type=submit]")
+    page.wait_for_load_state("load")
+    assert page.url.endswith("/cabinet/vacancies?done=posted")
+    text = page.inner_text("body")
+    assert "отправлена на проверку" in text and "Кондитер" in text
+    card = page.locator("li.vrow", has_text="Кондитер")
+    assert "На проверке" in card.inner_text()
+    card.get_by_role("link", name="Править").click()
+    page.wait_for_load_state("load")
+    page.fill("#p-schedule", "5/2")
+    page.click("form.form-grid button[type=submit]")
+    page.wait_for_load_state("load")
+    assert "Изменения сохранены" in page.inner_text("body")
+    # пустая форма: ошибки видны сводкой и у полей, введённое не пропало
+    page.locator("li.vrow", has_text="Кондитер").get_by_role("link", name="Править").click()
+    page.wait_for_load_state("load")
+    page.fill("#p-summary", "мало")
+    page.click("form.form-grid button[type=submit]")
+    page.wait_for_load_state("load")
+    assert page.locator("#error-summary").count() == 1 and page.input_value("#p-schedule") == "5/2"
+
+
+def test_employer_deletes_with_confirmation_in_browser(open_page, db_file):
+    page = open_page("/cabinet/vacancies", 360, role="employer")
+    page.locator("li.vrow", has_text="Кондитер").get_by_role("link", name="Удалить").click()
+    page.wait_for_load_state("load")
+    assert "Удалить навсегда" in page.inner_text("body")
+    page.get_by_role("button", name="Удалить навсегда").click()
+    page.wait_for_load_state("load")
+    assert "Вакансия удалена" in page.inner_text("body") and page.locator("li.vrow", has_text="Кондитер").count() == 0
+
+
+def test_company_card_saved_in_browser(open_page):
+    page = open_page("/cabinet/company", 360, role="employer")
+    page.fill("#c-name", "Кофейня Зерно")
+    page.fill("#c-description", "Сеть кофеен Донецка.")
+    page.click("form.form-grid button[type=submit]")
+    page.wait_for_load_state("load")
+    assert "Карточка компании сохранена" in page.inner_text("body")
+    page.fill("#c-site", "это не сайт")
+    page.click("form.form-grid button[type=submit]")
+    page.wait_for_load_state("load")
+    assert page.locator("#error-summary").count() == 1 and page.input_value("#c-description") == "Сеть кофеен Донецка."

@@ -75,9 +75,10 @@ def test_seeker_header_menu(make_client):
     html = make_client("job_seeker").get("/vacancies").text
     head = header_of(html)
     assert 'href="/login"' not in head and 'href="/register"' not in head
-    for label, href in [("Резюме", "/cabinet/resume"), ("Отклики", "/responses"), ("Сообщения", "/messages"),
-                        ("Избранное", "/cabinet/favorites"), ("Профиль", "/account")]:
+    for label, href in [("Отклики", "/responses"), ("Сообщения", "/messages"), ("Профиль", "/account")]:
         assert f'href="{href}"' in head and label in head
+    assert "Резюме" not in head and "Избранное" not in head
+    assert "/cabinet/resume" not in head and "/cabinet/favorites" not in head
     assert "Анна Петрова" in head and "anna@example.test" in head
     assert re.search(r'<form class="umenu__out" method="post" action="/logout">', head)
     assert "hpost" not in head
@@ -120,7 +121,7 @@ def test_current_user_helper():
     assert current_user(Req) is None
     Req.state.user = {"id": 1, "email": "a@b.c", "name": "Иван", "role": "employer"}
     u = current_user(Req)
-    assert u["is_employer"] and u["initial"] == "И" and next(m["key"] for m in u["menu"]) == "vacancies"
+    assert u["is_employer"] and u["initial"] == "И" and [m["key"] for m in u["menu"]][:2] == ["cabinet", "vacancies"]
     Req.state.user = {"id": 1, "email": "a@b.c", "name": "", "role": "job_seeker"}
     assert current_user(Req)["label"] == "a@b.c"
 

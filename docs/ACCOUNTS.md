@@ -13,7 +13,7 @@ install(app, db_path=...)   # маршруты, middleware сессии и CSRF,
 
 ## Маршруты
 
-`/register`, `/login`, `POST /logout`, `/verify/<токен>`, `/verify/resend`, `/forgot`, `/reset/<токен>`, `/account` (профиль, пароль, смена почты, удаление), `/email/confirm/<токен>`, `/cabinet` (перенаправление по роли).
+`/register`, `/login`, `POST /logout`, `/verify/<токен>`, `/verify/resend`, `/forgot`, `/reset/<токен>`, `/account` (профиль, пароль, смена почты, удаление), `/email/confirm/<токен>`, `/cabinet` (перенаправление по роли на `/cabinet/employer` или `/cabinet/seeker`: сводки), для работодателя `/cabinet/vacancies` и `/cabinet/company` (см. `docs/WEB.md`).
 
 ## Безопасность
 
