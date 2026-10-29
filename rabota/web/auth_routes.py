@@ -206,11 +206,22 @@ def _registered_page(request: Request, email: str, mail_failed: bool = False) ->
     )
 
 
+def _registration_closed(request: Request, status: int) -> Response:
+    return notice(
+        request, "Регистрация откроется позже",
+        ["Мы готовим сервис к открытию личных кабинетов. Смотреть вакансии и звонить работодателям можно уже сейчас."],
+        [("К вакансиям", "/vacancies", "primary"), ("На главную", "/", "ghost")],
+        status=status, icon_name="clock",
+    )
+
+
 @router.get("/register")
 def register_form(request: Request) -> Response:
     user = get_current_user(request)
     if user:
         return _redirect("/cabinet")
+    if not config.registration_open():
+        return _registration_closed(request, 200)
     return render(request, "auth/register.html", {
         "form": {}, "errors": {},
         "seo": {"title": "Регистрация: Работа Донецк", "description": "Создайте аккаунт соискателя или работодателя."},
@@ -219,6 +230,8 @@ def register_form(request: Request) -> Response:
 
 @router.post("/register")
 async def register_submit(request: Request) -> Response:
+    if not config.registration_open():
+        return _registration_closed(request, 403)
     acc = _acc(request)
     form = await read_form(request)
     check_csrf(request, form)

@@ -67,3 +67,8 @@ def metrika_id() -> str:
     """Номер счётчика Яндекс Метрики (только цифры) или пусто: тогда ничего не подключается."""
     value = get("METRIKA_ID").strip()
     return value if value.isdigit() else ""
+
+
+def registration_open() -> bool:
+    """Открыта ли регистрация. REGISTRATION_OPEN=0 закрывает её (например, до подачи уведомления оператора)."""
+    return flag("REGISTRATION_OPEN", True)
