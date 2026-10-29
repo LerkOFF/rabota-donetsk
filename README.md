@@ -22,6 +22,7 @@
 | [docs/PARSING.md](docs/PARSING.md) | как из поста получается карточка |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | поля вакансии и справочники |
 | [docs/RISKS.md](docs/RISKS.md) | права, персональные данные, мошенничество |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | правила проекта: красивый интерфейс сразу, тесты на всё |
 
 ## Статус
 
