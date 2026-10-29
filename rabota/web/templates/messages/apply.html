@@ -1,0 +1,64 @@
+{% extends 'messages/layout.html' %}
+{% from 'messages/_parts.html' import csrf, alert, crumbs %}
+{% from '_macros.html' import icon, pay, logo_tile, field_error %}
+{% block msg_body %}
+<div class="wrap msg-page">
+  <header class="page-head">
+    {{ crumbs([('Вакансии', '/vacancies'), (v.profession_title, '/vacancy/' ~ v.id), ('Отклик', '')]) }}
+    <h1 class="h1 h1--page">Отклик на вакансию</h1>
+  </header>
+
+  <div class="apply">
+    <section class="panel apply__vacancy" aria-labelledby="ap-v">
+      <div class="employer-card__head">
+        {{ logo_tile(v.employer or v.profession_title) }}
+        <div>
+          <h2 id="ap-v" class="apply__title"><a href="/vacancy/{{ v.id }}">{{ v.profession_title }}</a></h2>
+          <p class="muted">{% if v.employer %}{{ v.employer }}{% endif %}{% if v.employer and v.location %}, {% endif %}{{ v.location }}</p>
+        </div>
+      </div>
+      {{ pay(v) }}
+    </section>
+
+    {% if already %}
+    <section class="panel apply__form" aria-labelledby="ap-done">
+      <h2 id="ap-done" class="visually-hidden">Ваш отклик</h2>
+      <p class="notice" role="status">{{ icon('check-circle') }}<span>Вы уже откликались на эту вакансию. Повторно отправить отклик нельзя.</span></p>
+      <div class="state__actions">
+        <a class="btn btn--primary" href="/responses/{{ already.application_id }}">Открыть отклик</a>
+        {% if already.conversation_id %}<a class="btn btn--ghost" href="/messages/{{ already.conversation_id }}">Переписка</a>{% endif %}
+      </div>
+    </section>
+    {% else %}
+    <form class="panel apply__form" method="post" action="/vacancy/{{ v.id }}/apply" novalidate data-busy-form>
+      <h2>Ваше сообщение работодателю</h2>
+      {{ alert(error) }}
+      {{ csrf(csrf_token) }}
+      <div class="hp" aria-hidden="true"><label>Не заполняйте это поле<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+      <div class="field{% if errors.cover %} field--invalid{% endif %}">
+        <label for="ap-cover">Сопроводительное сообщение <span class="muted">(по желанию)</span></label>
+        <p class="hint" id="ap-cover-hint">Расскажите, чем вы подходите: опыт, график, когда можете выйти. Работодатель ответит вам в переписке на сайте.</p>
+        <textarea class="input" id="ap-cover" name="cover" rows="6" maxlength="{{ max_cover }}" data-counter="ap-count"
+                  aria-describedby="ap-cover-hint{% if errors.cover %} err-cover{% endif %}"{% if errors.cover %} aria-invalid="true"{% endif %}>{{ form.cover }}</textarea>
+        <p class="counter" id="ap-count" aria-live="off"><span data-count>{{ (form.cover or '') | length }}</span> из {{ max_cover }}</p>
+        {{ field_error(errors, 'cover') }}
+      </div>
+      {% if phone_pretty %}
+      <label class="check" for="ap-phone">
+        <input id="ap-phone" type="checkbox" name="share_phone" value="1"{% if form.share_phone %} checked{% endif %}>
+        <span>Показать работодателю мой телефон: {{ phone_pretty }}</span>
+      </label>
+      {% else %}
+      <p class="hint">Телефон в профиле не указан, поэтому работодатель увидит только ваше имя. <a href="/account">Добавить телефон</a></p>
+      {% endif %}
+      <p class="hint">Почта работодателю не показывается: связь идёт через переписку на сайте.</p>
+      <div class="apply__actions">
+        <button class="btn btn--primary btn--lg" type="submit" data-busy-text="Отправляем…">{{ icon('paper-plane-tilt') }}Отправить отклик</button>
+        <a class="btn btn--ghost btn--lg" href="/vacancy/{{ v.id }}">Назад к вакансии</a>
+      </div>
+      <p class="safety">{{ icon('shield-warning') }} Не платите за трудоустройство и не присылайте копии документов до встречи.</p>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

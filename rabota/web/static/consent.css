@@ -1,0 +1,42 @@
+/* Окно согласия на аналитику. Только токены, обе темы работают через них. */
+.consent {
+  position: fixed;
+  z-index: calc(var(--z-drawer) + 5);
+  left: var(--sp-3);
+  right: var(--sp-3);
+  bottom: calc(var(--sp-3) + env(safe-area-inset-bottom, 0px));
+  display: grid;
+  gap: var(--sp-4);
+  max-width: 34rem;
+  margin-inline: auto;
+  padding: var(--sp-4);
+  background: var(--c-surface);
+  color: var(--c-ink);
+  border: 1px solid var(--c-line-strong);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-lift);
+  animation: consent-in var(--t-base) var(--ease) both;
+}
+.consent[hidden] { display: none; }
+.consent__title { margin: 0 0 var(--sp-1); font-size: var(--fs-md); font-weight: var(--fw-bold); line-height: var(--lh-snug); }
+.consent__text { margin: 0; font-size: var(--fs-sm); line-height: var(--lh-body); color: var(--c-ink-2); }
+.consent__text a { color: var(--c-accent-ink); text-decoration: underline; text-underline-offset: 0.15em; }
+.consent__actions { display: grid; gap: var(--sp-2); }
+.consent__actions .btn { width: 100%; }
+
+@media (min-width: 30rem) {
+  .consent__actions { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 48rem) {
+  .consent { left: var(--sp-6); right: auto; bottom: var(--sp-6); width: 30rem; margin-inline: 0; }
+}
+
+.consent-link {
+  padding: 0; border: 0; background: none; font: inherit; color: inherit; cursor: pointer;
+  text-decoration: underline; text-underline-offset: 0.15em;
+}
+.consent-link:hover { color: var(--c-accent-ink); }
+.consent-link:focus-visible { outline: 2px solid var(--c-focus); outline-offset: 2px; border-radius: 4px; }
+
+@keyframes consent-in { from { opacity: 0; transform: translateY(0.75rem); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .consent { animation: none; } }

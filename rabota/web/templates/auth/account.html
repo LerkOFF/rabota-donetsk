@@ -53,6 +53,14 @@
       </form>
     </section>
 
+    {% if me.role in ('job_seeker', 'employer') %}
+    <section class="panel acct__panel" aria-labelledby="a-notify-h">
+      <h2 id="a-notify-h">Уведомления</h2>
+      <p class="hint">Письма о новых откликах и сообщениях: {% if me.role == 'employer' %}отклики {% if me.notify_responses %}включены{% else %}отключены{% endif %}, {% endif %}сообщения {% if me.notify_messages %}включены{% else %}отключены{% endif %}.</p>
+      <a class="btn btn--ghost" href="/notifications">Настроить уведомления</a>
+    </section>
+    {% endif %}
+
     <section class="panel acct__panel acct__panel--danger" aria-labelledby="a-delete-h">
       <h2 id="a-delete-h">Удалить аккаунт</h2>
       {% if me.is_admin %}

@@ -1,0 +1,28 @@
+{% from '_macros.html' import icon %}
+
+{% macro csrf(token) -%}
+<input type="hidden" name="csrf_token" value="{{ token }}">
+{%- endmacro %}
+
+{# Статус отклика: текст всегда есть, цвет только помогает #}
+{% macro status(key, label) -%}
+{% set icons = {'new': 'bell', 'viewed': 'check', 'invited': 'check-circle', 'rejected': 'x-circle', 'withdrawn': 'x'} %}
+<span class="status status--{{ key }}">{{ icon(icons.get(key, 'info')) }}{{ label }}</span>
+{%- endmacro %}
+
+{% macro alert(text) -%}
+{% if text %}<div class="notice notice--warn" role="alert">{{ icon('warning') }}<span>{{ text }}</span></div>{% endif %}
+{%- endmacro %}
+
+{% macro info(text) -%}
+{% if text %}<p class="notice" role="status">{{ icon('check-circle') }}<span>{{ text }}</span></p>{% endif %}
+{%- endmacro %}
+
+{% macro crumbs(items) -%}
+<nav aria-label="Вы здесь">
+  <ol class="crumbs">
+    <li><a href="/">Главная</a></li>
+    {% for label, href in items %}<li>{% if href %}<a href="{{ href }}">{{ label }}</a>{% else %}<span aria-current="page">{{ label }}</span>{% endif %}</li>{% endfor %}
+  </ol>
+</nav>
+{%- endmacro %}

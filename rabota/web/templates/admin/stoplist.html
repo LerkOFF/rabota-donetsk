@@ -1,0 +1,55 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, chip, empty, csrf %}
+{% block content %}
+{{ page_head('Стоп-лист', 'Вакансии с этими телефонами, никами, названиями работодателей и словами сборщики и воркер не публикуют. Ручные размещения помечаются на карточке модерации.') }}
+
+<section class="panel" aria-labelledby="h-add">
+  <h2 id="h-add">Добавить запись</h2>
+  <form class="adm-form adm-form--row" method="post" action="/admin/stoplist/add" novalidate>
+    {{ csrf() }}
+    <div class="field"><label for="n-kind">Что это</label>
+      <select class="input input--sm" id="n-kind" name="kind">{% for k, label in kinds %}<option value="{{ k }}"{% if form.get('kind') == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+    <div class="field{% if error %} field--invalid{% endif %}"><label for="n-val">Значение</label>
+      <input class="input input--sm" id="n-val" name="value" value="{{ form.get('value', '') }}" maxlength="120" autocomplete="off" required{% if error %} aria-invalid="true" aria-describedby="n-err"{% endif %}>
+      {% if error %}<p class="error" id="n-err">{{ icon('warning') }}<span>{{ error }}</span></p>{% endif %}</div>
+    <div class="field"><label for="n-note">Заметка</label><input class="input input--sm" id="n-note" name="note" value="{{ form.get('note', '') }}" maxlength="300" autocomplete="off"></div>
+    <div class="adm-form__end">
+      <label class="check"><input type="checkbox" name="apply_existing" value="1" checked>Скрыть и уже опубликованные</label>
+      <button class="btn btn--primary" type="submit">{{ icon('plus') }}Добавить</button>
+    </div>
+  </form>
+</section>
+
+<nav class="adm-tabs" aria-label="Вид записей">
+  <ul>
+    <li><a href="/admin/stoplist"{% if not kind %} aria-current="page"{% endif %}>Все</a></li>
+    {% for k, label in kinds %}<li><a href="/admin/stoplist?kind={{ k }}"{% if kind == k %} aria-current="page"{% endif %}>{{ label }}</a></li>{% endfor %}
+  </ul>
+</nav>
+
+{% if entries %}
+<div class="adm-tablewrap">
+<table class="atable">
+  <caption class="visually-hidden">Записи стоп-листа</caption>
+  <thead><tr><th scope="col">Вид</th><th scope="col">Значение</th><th scope="col">Заметка</th><th scope="col">Добавлено</th><th scope="col">Сработало</th><th scope="col"><span class="visually-hidden">Действия</span></th></tr></thead>
+  <tbody>
+  {% for e in entries %}
+  <tr>
+    <td data-label="Вид">{{ chip(e.kind_label, 'info') }}</td>
+    <td data-label="Значение"><span class="mono">{{ e.value }}</span>{% if e.source == 'erasure' %}<span class="atable__sub">по запросу о данных, хранится хешем</span>{% endif %}</td>
+    <td data-label="Заметка">{{ e.note or '' }}</td>
+    <td data-label="Добавлено">{{ e.created_at | dt }}</td>
+    <td data-label="Сработало">{{ e.hits }}{% if e.last_hit_at %}<span class="atable__sub">{{ e.last_hit_at | dt }}</span>{% endif %}</td>
+    <td data-label="Действия" class="atable__act">
+      <form method="post" action="/admin/stoplist/{{ e.id }}/delete">{{ csrf() }}<button class="btn btn--ghost btn--sm" type="submit" data-confirm="Убрать запись из стоп-листа? Такие вакансии снова смогут публиковаться.">{{ icon('trash') }}Убрать</button></form>
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+{% call empty('Стоп-лист пуст', 'Добавьте телефон, ник, работодателя или слово, и вакансии с ними перестанут публиковаться.', 'shield-check') %}{% endcall %}
+{% endif %}
+{% endblock %}

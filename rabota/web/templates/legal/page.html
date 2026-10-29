@@ -1,14 +1,9 @@
 {% extends 'base.html' %}
+{% from '_macros.html' import crumbs %}
 {% block content %}
 <div class="wrap about legal">
   <header class="page-head">
-    <nav aria-label="Вы здесь">
-      <ol class="crumbs">
-        <li><a href="/">Главная</a></li>
-        {% if doc %}<li><a href="/legal">Документы</a></li>{% endif %}
-        <li>{{ title if doc else 'Документы' }}</li>
-      </ol>
-    </nav>
+    {{ crumbs(seo.breadcrumbs) }}
     <h1 class="h1 h1--page">{{ title }}</h1>
     {% if doc %}
     <p class="lead">{{ doc.summary }}</p>

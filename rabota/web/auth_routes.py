@@ -56,6 +56,7 @@ from rabota.accounts.service import (
 )
 from rabota.accounts.tokens import peek_email_token
 from rabota.web import format as fmt
+from rabota.web import seo as seolib
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -128,7 +129,10 @@ def render(request: Request, name: str, context: dict[str, Any] | None = None, s
     ctx: dict[str, Any] = {"me": me, "csrf_token": csrf_token(request), "seo": {}}
     ctx.update(context or {})
     ctx["seo"].setdefault("title", "Аккаунт: Работа Донецк")
-    ctx["seo"].setdefault("description", "Аккаунт на сайте Работа Донецк.")
+    ctx["seo"].setdefault(
+        "description",
+        "Личный кабинет сайта Работа Донецк: вход, подтверждение почты, настройки аккаунта, отклики на вакансии "
+        "и переписка с работодателями.")
     ctx["seo"]["noindex"] = True
     app_render = _find_app_render(request.app)
     if app_render is not None:
@@ -138,8 +142,10 @@ def render(request: Request, name: str, context: dict[str, Any] | None = None, s
     ctx.setdefault("path", request.url.path)
     ctx.setdefault("user", _header_user(me))
     ctx.setdefault("contact_email", config.get("CONTACT_EMAIL") or "")
-    ctx["seo"].setdefault("canonical", acc.site_url + quote(request.url.path, safe="/%"))
-    return templates.TemplateResponse(request, name, ctx, status_code=status)
+    ctx["seo"] = seolib.finalize(ctx["seo"], acc.site_url, request.url.path)
+    response = templates.TemplateResponse(request, name, ctx, status_code=status)
+    seolib.apply_headers(response, ctx["seo"])
+    return response
 
 
 def notice(

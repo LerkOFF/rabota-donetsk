@@ -1,0 +1,71 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, tabs, chip, pager, empty, csrf %}
+{% block content %}
+{% call page_head('Запросы по персональным данным', 'Журнал обращений: дата, от кого, тип, суть, срок ответа, решение и исполнение. Срок идёт, пока обращение «Новое» или «В работе».') %}
+<p class="adm-head__chips"><a class="btn btn--ghost btn--sm" href="/admin/requests.csv">{{ icon('file-text') }}Выгрузить журнал (CSV)</a></p>
+{% endcall %}
+
+{{ tabs([('open', 'Открытые', counts.open), ('overdue', 'Просрочены', counts.overdue), ('done', 'Завершены', counts.done), ('all', 'Все', None)], view, '/admin/requests', 'Состояние обращений') }}
+
+{% if page.items %}
+<div class="adm-tablewrap">
+<table class="atable">
+  <caption class="visually-hidden">Журнал обращений</caption>
+  <thead><tr><th scope="col">№</th><th scope="col">Дата</th><th scope="col">От кого</th><th scope="col">Тип и суть</th><th scope="col">Срок ответа</th><th scope="col">Решение</th><th scope="col">Исполнено</th><th scope="col"><span class="visually-hidden">Действия</span></th></tr></thead>
+  <tbody>
+  {% for r in page.items %}
+  <tr{% if r.overdue %} class="is-overdue"{% endif %}>
+    <td data-label="№" class="mono">{{ r.id }}</td>
+    <td data-label="Дата">{{ r.created_at | dt }}<span class="atable__sub">{{ r.channel_label }}</span></td>
+    <td data-label="От кого">{{ r.requester_name or 'Без имени' }}<span class="atable__sub">{{ r.requester_contact }}</span></td>
+    <td data-label="Тип и суть"><a class="atable__main" href="/admin/requests/{{ r.id }}">{{ r.kind_label }}</a><span class="atable__sub clamp">{{ r.body }}</span></td>
+    <td data-label="Срок ответа">
+      {{ r.due_at | date }}
+      {% if r.status == 'done' %}<span class="atable__sub">ответили {{ r.answered_at | date }}</span>
+      {% elif r.overdue %}{{ chip('Просрочено', 'danger', 'warning') }}
+      {% elif r.due_soon %}{{ chip('Остался день', 'warn', 'clock') }}
+      {% elif r.status == 'waiting' %}{{ chip('Срок стоит', 'mute', 'clock') }}
+      {% endif %}
+    </td>
+    <td data-label="Решение">{% if r.decision_label and r.decision_code %}{{ r.decision_label }}{% else %}<span class="muted">нет</span>{% endif %}<span class="atable__sub">{{ r.status_label }}</span></td>
+    <td data-label="Исполнено">{% if r.executed %}{{ chip('Да', 'ok', 'check-circle') }}{% else %}<span class="muted">нет</span>{% endif %}</td>
+    <td data-label="Действия" class="atable__act"><a class="btn btn--ghost btn--sm" href="/admin/requests/{{ r.id }}">Открыть</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{{ pager(page, '/admin/requests', 'view=' ~ view) }}
+{% else %}
+  {% if view == 'overdue' %}
+  {% call empty('Просроченных нет', 'Все открытые обращения укладываются в срок.') %}{% endcall %}
+  {% else %}
+  {% call empty('Обращений нет', 'Запросы с формы /legal/request и записанные вручную появятся здесь.', 'identification-card') %}{% endcall %}
+  {% endif %}
+{% endif %}
+
+<section class="panel" aria-labelledby="h-new">
+  <details class="adm-details"{% if open_form or error %} open{% endif %}>
+    <summary id="h-new">{{ icon('plus') }}Записать обращение вручную</summary>
+    <p class="hint">Для писем на почту и бумажных обращений. Срок считается от даты получения.</p>
+    <form class="adm-form" method="post" action="/admin/requests/new" novalidate>
+      {{ csrf() }}
+      <div class="adm-grid adm-grid--3">
+        <div class="field"><label for="m-kind">Тип</label>
+          <select class="input input--sm" id="m-kind" name="kind">{% for k, label in kinds %}<option value="{{ k }}"{% if form.get('kind') == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        <div class="field"><label for="m-ch">Как пришло</label>
+          <select class="input input--sm" id="m-ch" name="channel">{% for k, label in channels %}{% if k != 'web' %}<option value="{{ k }}"{% if form.get('channel') == k %} selected{% endif %}>{{ label }}</option>{% endif %}{% endfor %}</select></div>
+        <div class="field"><label for="m-date">Дата получения</label><input class="input input--sm" id="m-date" name="received_on" type="date" value="{{ form.get('received_on', '') }}"><p class="hint">Пусто: сегодня.</p></div>
+      </div>
+      <div class="adm-grid adm-grid--2">
+        <div class="field"><label for="m-name">От кого</label><input class="input input--sm" id="m-name" name="name" value="{{ form.get('name', '') }}" maxlength="120" autocomplete="off"></div>
+        <div class="field"><label for="m-contact">Контакт для ответа</label><input class="input input--sm" id="m-contact" name="contact" value="{{ form.get('contact', '') }}" maxlength="200" autocomplete="off"></div>
+      </div>
+      <div class="field"><label for="m-subj">О чём (ссылка, телефон, ник)</label><input class="input input--sm" id="m-subj" name="subject" value="{{ form.get('subject', '') }}" maxlength="300" autocomplete="off"></div>
+      <div class="field"><label for="m-body">Суть</label><textarea class="input" id="m-body" name="body" rows="3" maxlength="3000">{{ form.get('body', '') }}</textarea></div>
+      <div class="adm-actions"><button class="btn btn--primary" type="submit">Записать в журнал</button></div>
+    </form>
+  </details>
+</section>
+{% endblock %}

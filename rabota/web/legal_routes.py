@@ -7,13 +7,13 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
-from urllib.parse import quote
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.responses import Response
 from fastapi.templating import Jinja2Templates
 
 from rabota import legal
+from rabota.web import seo as seolib
 
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 STATIC_DIR = Path(__file__).resolve().parent / "static"
@@ -37,13 +37,13 @@ def build_router(site_url: str | None = None) -> APIRouter:
     )
 
     def render(request: Request, context: dict[str, Any], seo: dict[str, Any]) -> Response:
-        seo.setdefault("canonical", base_url + quote(request.url.path, safe="/%"))
-        ctx = {"path": request.url.path, "seo": seo, **context}
-        return templates.TemplateResponse(request, "legal/page.html", ctx)
+        ctx = {"path": request.url.path, "seo": seolib.finalize(seo, base_url, request.url.path), **context}
+        response = templates.TemplateResponse(request, "legal/page.html", ctx)
+        seolib.apply_headers(response, ctx["seo"])
+        return response
 
     @router.get("/legal")
     def legal_index(request: Request) -> Response:
-        values = legal.variables()
         docs = [
             {"slug": d.slug, "title": legal.document_title(d.slug), "summary": d.summary}
             for d in legal.list_documents()
@@ -52,8 +52,10 @@ def build_router(site_url: str | None = None) -> APIRouter:
             request,
             {"documents": docs, "doc": None, "title": "Правила и документы"},
             {
-                "title": f"Правила и документы | {values['site_name']}",
-                "description": "Политика конфиденциальности, пользовательское соглашение, правила для работодателей и другие документы сайта.",
+                "title": "Правила и документы",
+                "description": "Политика конфиденциальности, пользовательское соглашение, правила для работодателей, "
+                               "согласие на обработку данных и другие документы сайта.",
+                "breadcrumbs": [("Главная", "/"), ("Документы", "/legal")],
             },
         )
 
@@ -75,7 +77,11 @@ def build_router(site_url: str | None = None) -> APIRouter:
                 "body": page.html,
                 "toc": page.toc,
             },
-            {"title": f"{title} | {values['site_name']}", "description": document.summary},
+            {
+                "title": title,
+                "description": f"{title}. {document.summary}",
+                "breadcrumbs": [("Главная", "/"), ("Документы", "/legal"), (title, f"/legal/{slug}")],
+            },
         )
 
     return router

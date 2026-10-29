@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import icon, vcard, pager %}
+{% from '_macros.html' import icon, vcard, pager, crumbs %}
 
 {# Группа фильтров с одним выбором: радиокнопки внутри раскрывающегося блока #}
 {% macro radio_group(key, title, opts, current, label_fn=none) -%}
@@ -20,7 +20,7 @@
 {% block content %}
 <div class="wrap">
   <header class="page-head">
-    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>Вакансии</li></ol></nav>
+    {{ crumbs(seo.breadcrumbs) }}
     <h1 class="h1 h1--page">{% if flt.q %}Вакансии: {{ flt.q }}{% else %}Вакансии Донецка и ДНР{% endif %}</h1>
   </header>
 

@@ -1,0 +1,7 @@
+{% extends 'base.html' %}
+{# Общая обёртка страниц откликов и переписки: свои стили и скрипт подключаются здесь, общие файлы не затрагиваются #}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('messages.css') }}">
+{% block msg_body %}{% endblock %}
+<script src="{{ asset('messages.js') }}" defer></script>
+{% endblock %}

@@ -1,7 +1,8 @@
 # Образец юнита воркера реального времени. Подставьте значения вместо <заглушек>:
 #   <USER>         системный пользователь, под которым работает проект (не root)
 #   <PROJECT_DIR>  папка проекта; в ней лежат .env, .venv и data/
-# Установка: см. docs/REALTIME.md, раздел "Запуск на сервере".
+# Установка: scripts/bootstrap-server.sh, подробности в docs/DEPLOY.md и docs/REALTIME.md.
+# Telegram с сервера напрямую может быть закрыт: адрес SOCKS5-прокси задаётся в .env (TELEGRAM_PROXY).
 [Unit]
 Description=Работа Донецк: приём данных в реальном времени (Telegram, VK, открытые базы)
 After=network-online.target
@@ -15,6 +16,8 @@ Type=simple
 User=<USER>
 Group=<USER>
 WorkingDirectory=<PROJECT_DIR>
+Environment=PYTHONUNBUFFERED=1
+Environment=LOG_FORMAT=json
 EnvironmentFile=<PROJECT_DIR>/.env
 ExecStart=<PROJECT_DIR>/.venv/bin/python -m rabota worker
 Restart=always
@@ -39,7 +42,18 @@ LockPersonality=true
 SystemCallArchitectures=native
 UMask=0077
 ReadWritePaths=<PROJECT_DIR>/data
-MemoryMax=1G
+# Ресурсы: на сервере живут и другие сайты
+MemoryHigh=400M
+MemoryMax=450M
+TasksMax=128
+Nice=5
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelLogs=true
+ProtectClock=true
+ProtectHostname=true
+RestrictNamespaces=true
+CapabilityBoundingSet=
 
 [Install]
 WantedBy=multi-user.target

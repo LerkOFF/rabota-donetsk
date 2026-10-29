@@ -22,6 +22,8 @@
 | [docs/PARSING.md](docs/PARSING.md) | как из поста получается карточка |
 | [docs/DATA_MODEL.md](docs/DATA_MODEL.md) | поля вакансии и справочники |
 | [docs/RISKS.md](docs/RISKS.md) | права, персональные данные, мошенничество |
+| [docs/SEO.md](docs/SEO.md) | заголовки, описания, индексация, разметка, карта сайта |
+| [docs/DEPLOY.md](docs/DEPLOY.md) | запуск на сервере, переменные, резервные копии, обновление и откат |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | правила проекта: красивый интерфейс сразу, тесты на всё |
 
 ## Статус

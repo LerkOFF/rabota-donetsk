@@ -1,0 +1,29 @@
+# Резервная копия базы (снимок SQLite, проверка, ротация) и сразу проверка, что копию можно развернуть.
+# Подставьте <USER> и <PROJECT_DIR>. Копии лежат в /var/backups/rabota (создаёт scripts/bootstrap-server.sh).
+[Unit]
+Description=Работа Донецк: резервная копия базы
+After=local-fs.target
+
+[Service]
+Type=oneshot
+User=<USER>
+Group=<USER>
+WorkingDirectory=<PROJECT_DIR>
+EnvironmentFile=-<PROJECT_DIR>/.env
+ExecStart=<PROJECT_DIR>/scripts/backup.sh
+ExecStartPost=<PROJECT_DIR>/scripts/verify-backup.sh --max-age-hours 1
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=300M
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+UMask=0077
+ReadWritePaths=<PROJECT_DIR>/data
+ReadWritePaths=/var/backups/rabota

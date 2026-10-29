@@ -1,0 +1,15 @@
+{# Аналитика: подключается только при заданном METRIKA_ID (настройки в request.app.state.analytics). Без ID вывода нет. #}
+{% if request is defined %}{% set an = request.app.state.analytics %}{% if an and an.metrika_id %}
+<link rel="stylesheet" href="{{ asset('consent.css') }}">
+<section class="consent" id="cookie-consent" role="region" aria-labelledby="consent-title" hidden>
+  <div class="consent__body">
+    <h2 class="consent__title" id="consent-title">Файлы cookie</h2>
+    <p class="consent__text">Необходимые cookie нужны для входа и защиты форм. С вашего согласия мы включим ещё Яндекс Метрику: она показывает, какими страницами пользуются. Решение можно изменить в любой момент. <a href="/legal/cookies">Подробнее о cookie</a></p>
+  </div>
+  <div class="consent__actions">
+    <button class="btn btn--primary" type="button" data-consent="accept">Принять аналитику</button>
+    <button class="btn btn--ghost" type="button" data-consent="reject">Только необходимые</button>
+  </div>
+</section>
+<script src="{{ asset('consent.js') }}" data-metrika-id="{{ an.metrika_id }}" data-webvisor="{{ '1' if an.webvisor else '0' }}" defer></script>
+{% endif %}{% endif %}

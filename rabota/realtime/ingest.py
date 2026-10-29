@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from rabota import config
+from rabota.admin.stoplist import filter_vacancies
 from rabota.db import connect, save_raw, save_vacancy
 from rabota.models import RawPost, Vacancy
 from rabota.pipeline.dedupe import dedupe
@@ -76,7 +77,9 @@ def ingest_post(
     (в том числе с картинок: from_images) и число новых дублей. run_dedupe=False оставляет склейку вызывающему
     (удобно для пачки: склеить один раз в конце).
     """
-    stats: dict[str, Any] = {"new": False, "kind": None, "vacancies": 0, "from_images": 0, "duplicates": 0}
+    stats: dict[str, Any] = {
+        "new": False, "kind": None, "vacancies": 0, "from_images": 0, "duplicates": 0, "stoplisted": 0,
+    }
     exists = conn.execute(
         "SELECT 1 FROM raw_posts WHERE source = ? AND external_id = ?", (raw.source, raw.external_id)
     ).fetchone()
@@ -94,16 +97,17 @@ def ingest_post(
         return stats  # другой процесс успел раньше
     stats["new"] = True
     stats["kind"] = analysis.kind if not from_images else "vacancy"
-    for vac in analysis.vacancies + from_images:
+    kept, stats["stoplisted"] = filter_vacancies(conn, analysis.vacancies + from_images)  # стоп-лист
+    for vac in kept:
         save_vacancy(conn, vac)
         stats["vacancies"] += 1
-    stats["from_images"] = len(from_images)
+    stats["from_images"] = len([v for v in kept if v in from_images])
     if stats["vacancies"] and run_dedupe:
         stats["duplicates"] = dedupe(conn)
     return stats
 
 
-_TOTALS = ("posts", "new", "vacancies", "from_images", "duplicates", "errors")
+_TOTALS = ("posts", "new", "vacancies", "from_images", "duplicates", "errors", "stoplisted")
 
 
 class Ingestor:
@@ -165,6 +169,7 @@ class Ingestor:
                 totals["new"] += int(res["new"])
                 totals["vacancies"] += res["vacancies"]
                 totals["from_images"] += res["from_images"]
+                totals["stoplisted"] += res["stoplisted"]
                 saved += res["vacancies"]
             if saved:
                 totals["duplicates"] = dedupe(conn)

@@ -1,0 +1,65 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, tabs, vstatus, chip, pager, empty, csrf %}
+{% block content %}
+{{ page_head('Модерация вакансий', 'Вакансии работодателей ждут решения до появления в выдаче. Откройте карточку, чтобы увидеть её глазами посетителя.') }}
+
+{{ tabs([('pending', 'На проверке', counts.pending), ('rejected', 'Отклонены', counts.rejected), ('hidden', 'Скрыты', counts.hidden), ('all', 'Все', counts.all)], view, '/admin/moderation', 'Вид очереди') }}
+
+<form class="adm-search" method="get" action="/admin/moderation" role="search">
+  <input type="hidden" name="view" value="{{ view }}">
+  <label class="visually-hidden" for="q">Поиск по номеру, профессии, работодателю или телефону</label>
+  <input class="input input--sm" id="q" name="q" type="search" value="{{ q }}" maxlength="80" placeholder="Номер, профессия, работодатель, телефон">
+  <button class="btn btn--soft btn--sm" type="submit">{{ icon('magnifying-glass') }}Найти</button>
+  {% if q %}<a class="btn btn--ghost btn--sm" href="/admin/moderation?view={{ view }}">Сбросить</a>{% endif %}
+</form>
+
+{% if items %}
+<div class="adm-tablewrap">
+<table class="atable">
+  <caption class="visually-hidden">Вакансии: {{ views[view][0] }}</caption>
+  <thead>
+    <tr><th scope="col">№</th><th scope="col">Вакансия</th><th scope="col">Оплата</th><th scope="col">Контакт</th><th scope="col">Откуда</th><th scope="col">Состояние</th><th scope="col"><span class="visually-hidden">Действия</span></th></tr>
+  </thead>
+  <tbody>
+    {% for v in items %}
+    <tr>
+      <td data-label="№" class="mono">{{ v.id }}</td>
+      <td data-label="Вакансия">
+        <a class="atable__main" href="/admin/vacancies/{{ v.id }}">{{ v.pv.profession_title }}</a>
+        <span class="atable__sub">{% if v.employer %}{{ v.employer }}, {% endif %}{{ v.pv.location or 'Донецк' }}</span>
+      </td>
+      <td data-label="Оплата">{{ v.pv.pay.text }}</td>
+      <td data-label="Контакт">{% if v.pv.phone %}{{ phone_pretty(v.pv.phone) }}{% elif v.pv.telegram %}{{ v.pv.telegram }}{% elif v.pv.email %}{{ v.pv.email }}{% else %}<span class="muted">нет</span>{% endif %}</td>
+      <td data-label="Откуда">{{ v.pv.source_label }}<span class="atable__sub">{{ v.created_at | dt }}</span></td>
+      <td data-label="Состояние">
+        {{ vstatus(v) }}
+        {% if v.stop %}{{ chip('Стоп-лист', 'danger', 'shield-warning') }}{% endif %}
+        {% if v.complaints %}{{ chip('Жалоб: ' ~ v.complaints, 'warn', 'flag') }}{% endif %}
+        {% if v.moderation_note and v.moderation_status != 'approved' %}<span class="atable__sub">{{ v.moderation_note }}</span>{% endif %}
+      </td>
+      <td data-label="Действия" class="atable__act">
+        <a class="btn btn--ghost btn--sm" href="/admin/vacancies/{{ v.id }}">Открыть</a>
+        {% if v.moderation_status == 'pending' %}
+        <form method="post" action="/admin/vacancies/{{ v.id }}/approve">
+          {{ csrf() }}<input type="hidden" name="next" value="{{ request.url.path }}?view={{ view }}">
+          <button class="btn btn--primary btn--sm" type="submit">{{ icon('check') }}Одобрить</button>
+        </form>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{{ pager(page, '/admin/moderation', 'view=' ~ view ~ ('&q=' ~ (q | urlencode) if q else '')) }}
+{% else %}
+  {% if q %}
+  {% call empty('Ничего не нашлось', 'По запросу «' ~ q ~ '» вакансий в этом списке нет. Проверьте номер или попробуйте часть названия.', 'magnifying-glass') %}{% endcall %}
+  {% elif view == 'pending' %}
+  {% call empty('Очередь пуста', 'Новых вакансий на проверку нет. Когда работодатель отправит вакансию, она появится здесь.') %}{% endcall %}
+  {% else %}
+  {% call empty('Здесь пока пусто', 'В этом списке нет вакансий.', 'info') %}{% endcall %}
+  {% endif %}
+{% endif %}
+{% endblock %}

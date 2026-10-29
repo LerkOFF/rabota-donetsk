@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import icon, vcard, logo_tile %}
+{% from '_macros.html' import icon, vcard, logo_tile, crumbs %}
 {% block content %}
 <div class="wrap">
   <header class="company-head">
-    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li><a href="/vacancies">Вакансии</a></li><li>Работодатель</li></ol></nav>
+    {{ crumbs(seo.breadcrumbs) }}
     <div class="company-head__row">
       {{ logo_tile(company.name, 'lg') }}
       <div class="company-head__titles">

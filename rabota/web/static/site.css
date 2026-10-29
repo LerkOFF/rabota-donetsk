@@ -650,6 +650,12 @@ details.complain form { display: grid; gap: var(--sp-4); padding: var(--sp-4); }
   .logo__mark { width: 1.75rem; height: 1.75rem; }
 }
 
+/* Страницы-посадки: вводный текст из данных и блоки ссылок */
+.landing-intro { color: var(--c-ink-2); font-size: var(--fs-md); line-height: var(--lh-body); }
+.landing-intro__lead { color: var(--c-ink); font-weight: var(--fw-medium); }
+.link-group + .link-group { margin-top: var(--sp-4); }
+.link-group__title { font-size: var(--fs-md); font-weight: var(--fw-bold); margin-bottom: var(--sp-2); color: var(--c-ink); }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation: none !important; scroll-behavior: auto !important; }
 }

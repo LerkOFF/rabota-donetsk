@@ -370,6 +370,10 @@ def delete_account(conn: sqlite3.Connection, user_id: int) -> None:
     """Удалить аккаунт и всё, что с ним связано: сессии, резюме, отклики, переписку, компании и вакансии владельца."""
     conn.commit()
     conn.execute("PRAGMA foreign_keys=ON")
+    # отклики и переписка удаляются, жалобы на сообщения обезличиваются
+    from rabota.messaging.erase import erase_user_data
+
+    erase_user_data(conn, user_id)
     conn.execute("DELETE FROM vacancies WHERE owner_user_id=?", (user_id,))
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
     conn.commit()

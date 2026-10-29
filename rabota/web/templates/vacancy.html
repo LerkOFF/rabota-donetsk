@@ -1,15 +1,9 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import icon, vcard, pay, actions, field_error, logo_tile %}
+{% from '_macros.html' import icon, vcard, pay, actions, field_error, logo_tile, crumbs %}
 {% block content %}
 <div class="wrap vpage">
   <div class="vpage__main">
-    <nav aria-label="Вы здесь">
-      <ol class="crumbs">
-        <li><a href="/">Главная</a></li>
-        <li><a href="/vacancies">Вакансии</a></li>
-        {% if v.city %}<li><a href="/city/{{ v.city | quote }}">{{ v.city }}</a></li>{% endif %}
-      </ol>
-    </nav>
+    {{ crumbs(seo.breadcrumbs) }}
 
     {% if closed %}
     <p class="notice notice--warn" role="status">{{ icon('warning') }}<span>Вакансия закрыта: работодатель больше не ищет сотрудника. Похожие вакансии смотрите в <a href="/vacancies">ленте</a>.</span></p>
@@ -94,6 +88,11 @@
             <textarea class="input" id="c-comment" name="comment" maxlength="500" rows="3"{% if errors.comment %} aria-invalid="true" aria-describedby="err-comment"{% endif %}>{{ form.comment }}</textarea>
             {{ field_error(errors, 'comment') }}
           </div>
+          <div class="field{% if errors.email %} field--invalid{% endif %}">
+            <label for="c-email">Почта для ответа <span class="muted">(по желанию)</span></label>
+            <input class="input" id="c-email" name="email" type="email" maxlength="254" autocomplete="email" spellcheck="false" value="{{ form.email }}"{% if errors.email %} aria-invalid="true" aria-describedby="err-email"{% endif %}>
+            {{ field_error(errors, 'email') }}
+          </div>
           <button class="btn btn--danger" type="submit">Отправить жалобу</button>
         </form>
       </details>
@@ -120,11 +119,10 @@
         {% if v.max_contact %}<li>MAX: {{ v.max_contact }}</li>{% endif %}
         {% if v.email %}<li>{{ icon('envelope-simple') }} <a href="mailto:{{ v.email }}">{{ v.email }}</a></li>{% endif %}
       </ul>
-      <div class="contact-box__desktop contact-box__buttons">{{ actions(v, long=True) }}</div>
+      {% if v.is_direct %}{% include 'messages/_apply_box.html' %}{% else %}<div class="contact-box__desktop contact-box__buttons">{{ actions(v, long=True) }}</div>{% endif %}
       {% else %}
       {% if v.is_direct %}
-      <p class="muted">Работодатель принимает отклики на сайте.</p>
-      <div class="contact-box__buttons">{{ actions(v, long=True) }}</div>
+      {% include 'messages/_apply_box.html' %}
       {% else %}
       <p class="muted">Контактов в вакансии нет. Они указаны в оригинале.</p>
       {% if v.original_url and not v.is_site %}<div class="contact-box__buttons">{{ actions(v, long=True) }}</div>{% endif %}

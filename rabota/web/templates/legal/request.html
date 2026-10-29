@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, field_error %}
+{% block hsearch %}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('admin.css') }}">
+<div class="wrap wrap--narrow req">
+  {% if sent is not none %}
+  <div class="error-page">
+    <span class="state__ico">{{ icon('check-circle') }}</span>
+    <h1 class="h1 h1--page">Обращение принято</h1>
+    {% if sent != '0' %}<p class="lead">Номер обращения: <strong>{{ sent }}</strong>. Сохраните его, если решите уточнить статус.</p>{% else %}<p class="lead">Спасибо, обращение получено.</p>{% endif %}
+    <p class="lead">Мы ответим на указанный контакт в срок, который зависит от типа запроса (см. <a href="/legal/requests">порядок обработки обращений</a>).</p>
+    <div class="state__actions">
+      <a class="btn btn--primary" href="/">На главную</a>
+      <a class="btn btn--ghost" href="/legal">Документы</a>
+    </div>
+  </div>
+  {% else %}
+  <header class="page-head">
+    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li><a href="/legal">Документы</a></li><li>Запрос по данным</li></ol></nav>
+    <h1 class="h1 h1--page">Запрос по персональным данным</h1>
+    <p class="lead">Попросите показать, исправить, заблокировать или удалить ваши данные, отозвать согласие или убрать вашу вакансию. Опишите, что нужно сделать, и мы ответим на ваш контакт.</p>
+  </header>
+
+  {% if errors %}
+  <div class="error-summary" role="alert" tabindex="-1" id="error-summary">
+    <h2>Нужно поправить {{ plural(errors | length, 'поле', 'поля', 'полей') }}</h2>
+    <ul>{% for name, text in errors.items() %}<li><a href="#q-{{ name }}">{{ text }}</a></li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  <form class="form-grid req__form" method="post" action="/legal/request" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <input type="hidden" name="captcha_token" value="{{ captcha.token }}">
+    <div class="hp" aria-hidden="true"><label>Не заполняйте это поле<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+    <section class="form-section" aria-labelledby="q-s1">
+      <h2 id="q-s1">Что нужно сделать</h2>
+      <div class="field{% if errors.kind %} field--invalid{% endif %}">
+        <label for="q-kind">Тип обращения</label>
+        <select class="input" id="q-kind" name="kind"{% if errors.kind %} aria-invalid="true" aria-describedby="err-kind"{% endif %}>
+          {% for value, text in kinds %}<option value="{{ value }}"{% if form.get('kind') == value %} selected{% endif %}>{{ text }}</option>{% endfor %}
+        </select>
+        {{ field_error(errors, 'kind') }}
+      </div>
+      <div class="field">
+        <label for="q-subject">О чём речь <span class="muted">(по желанию)</span></label>
+        <p class="hint" id="hint-subject">Ссылка на вакансию, телефон или ник из объявления.</p>
+        <input class="input" id="q-subject" name="subject" value="{{ form.get('subject', '') }}" maxlength="300" autocomplete="off" aria-describedby="hint-subject">
+      </div>
+      <div class="field{% if errors.body %} field--invalid{% endif %}">
+        <label for="q-body">Опишите запрос</label>
+        <textarea class="input" id="q-body" name="body" rows="5" maxlength="3000"{% if errors.body %} aria-invalid="true" aria-describedby="err-body"{% endif %} required>{{ form.get('body', '') }}</textarea>
+        {{ field_error(errors, 'body') }}
+      </div>
+    </section>
+
+    <section class="form-section" aria-labelledby="q-s2">
+      <h2 id="q-s2">Как с вами связаться</h2>
+      <div class="form-row form-row--2">
+        <div class="field">
+          <label for="q-name">Имя <span class="muted">(по желанию)</span></label>
+          <input class="input" id="q-name" name="name" value="{{ form.get('name', '') }}" maxlength="120" autocomplete="name">
+        </div>
+        <div class="field{% if errors.contact %} field--invalid{% endif %}">
+          <label for="q-contact">Почта или телефон</label>
+          <input class="input" id="q-contact" name="contact" value="{{ form.get('contact', '') }}" maxlength="200" autocomplete="email" spellcheck="false" required{% if errors.contact %} aria-invalid="true" aria-describedby="err-contact"{% endif %}>
+          {{ field_error(errors, 'contact') }}
+        </div>
+      </div>
+      <p class="safety">{{ icon('shield-check') }}<span>Паспорт и другие документы не присылайте. Если понадобится подтвердить, что вы владелец вакансии, мы попросим об этом отдельно.</span></p>
+    </section>
+
+    <section class="form-section" aria-labelledby="q-s3">
+      <h2 id="q-s3">Проверка от автоматических отправок</h2>
+      <div class="field{% if errors.captcha_answer %} field--invalid{% endif %}">
+        <label for="q-captcha_answer">Сколько будет {{ captcha.a }} + {{ captcha.b }}?</label>
+        <input class="input req__captcha" id="q-captcha_answer" name="captcha_answer" inputmode="numeric" maxlength="3" autocomplete="off" required{% if errors.captcha_answer %} aria-invalid="true" aria-describedby="err-captcha_answer"{% endif %}>
+        {{ field_error(errors, 'captcha_answer') }}
+      </div>
+    </section>
+
+    <div class="form-actions"><button class="btn btn--primary btn--lg" type="submit">Отправить запрос</button></div>
+  </form>
+
+  <section class="panel req__terms" aria-labelledby="q-terms">
+    <h2 id="q-terms">Сроки ответа</h2>
+    <ul class="ticks">
+      {% for label, n, working in deadlines %}<li>{{ label }}: {{ n }} {{ plural(n, 'день', 'дня', 'дней') }}{% if working %} рабочих{% endif %}</li>{% endfor %}
+    </ul>
+    <p class="hint">Подробности: <a href="/legal/requests">порядок обработки обращений</a>{% if contact_email %}. Можно написать и на <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}.</p>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

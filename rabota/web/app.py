@@ -10,11 +10,10 @@ import sqlite3
 import time
 from collections import defaultdict, deque
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-from urllib.parse import parse_qs, quote, urlparse
-from xml.sax.saxutils import escape as xml_escape
+from urllib.parse import parse_qs, quote, urlencode, urlparse
 
 from fastapi import FastAPI, Request
 from fastapi.responses import PlainTextResponse, RedirectResponse, Response
@@ -23,11 +22,19 @@ from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from rabota import config
+from rabota import config, lifecycle
 from rabota import legal as legal_docs
+from rabota.accounts.service import valid_email
+from rabota.admin import complaints as complaint_service
 from rabota.models import CATEGORIES, EMPLOYMENTS, PAY_PERIODS, WORK_FORMATS, Vacancy
+from rabota.ops import deep as deep_health
+from rabota.ops.logs import StatusCounterMiddleware
 from rabota.web import format as fmt
 from rabota.web import queries as q
+from rabota.web import seo as seolib
+from rabota.web.analytics import install_analytics
+from rabota.web.security import install_security
+from rabota.web.seo import job_posting_jsonld, website_jsonld
 
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
@@ -36,13 +43,8 @@ TEMPLATES_DIR = BASE_DIR / "templates"
 DEFAULT_SITE_URL = "https://работа-донецк.рф"
 MAX_BODY = 32 * 1024
 
-COMPLAINT_REASONS = (
-    "Вакансия не актуальна",
-    "Мошенничество или просьба заплатить за работу",
-    "Это не вакансия: реклама или услуги",
-    "Ошибка в данных: оплата, телефон, адрес",
-    "Другое",
-)
+COMPLAINT_REASONS = tuple(text for _, text in complaint_service.PUBLIC_REASONS)
+COMPLAINT_CODES = {text: code for code, text in complaint_service.PUBLIC_REASONS}
 
 DEFAULT_RATE_LIMITS = {"complaint": (6, 3600), "post": (4, 3600)}
 
@@ -51,15 +53,15 @@ DEFAULT_RATE_LIMITS = {"complaint": (6, 3600), "post": (4, 3600)}
 MenuItem = tuple[str, str, str, str, bool]
 SEEKER_MENU: tuple[MenuItem, ...] = (
     ("resume", "Резюме", "/cabinet/resume", "file-text", False),
-    ("responses", "Отклики", "/cabinet/responses", "paper-plane-tilt", True),
-    ("messages", "Сообщения", "/cabinet/messages", "chat-circle-dots", True),
+    ("responses", "Отклики", "/responses", "paper-plane-tilt", True),
+    ("messages", "Сообщения", "/messages", "chat-circle-dots", True),
     ("favorites", "Избранное", "/cabinet/favorites", "heart", True),
     ("profile", "Профиль", "/account", "user-circle", False),
 )
 EMPLOYER_MENU: tuple[MenuItem, ...] = (
     ("vacancies", "Мои вакансии", "/cabinet/vacancies", "briefcase", True),
-    ("responses", "Отклики", "/cabinet/responses", "paper-plane-tilt", True),
-    ("messages", "Сообщения", "/cabinet/messages", "chat-circle-dots", True),
+    ("responses", "Отклики", "/responses", "paper-plane-tilt", True),
+    ("messages", "Сообщения", "/messages", "chat-circle-dots", True),
     ("company", "Компания", "/cabinet/company", "buildings", False),
     ("profile", "Профиль", "/account", "user-circle", False),
 )
@@ -176,11 +178,10 @@ def create_app(
             "contact_email": config.get("CONTACT_EMAIL") or "",
         }
         ctx.update(context or {})
-        seo = ctx["seo"]
-        seo.setdefault("title", "Работа Донецк: вакансии Донецка и ДНР")
-        seo.setdefault("description", DEFAULT_DESCRIPTION)
-        seo.setdefault("canonical", base_url + _quote_path(request.url.path))
-        return templates.TemplateResponse(request, name, ctx, status_code=status)
+        ctx["seo"] = seolib.finalize(ctx["seo"], base_url, request.url.path)
+        response = templates.TemplateResponse(request, name, ctx, status_code=status)
+        seolib.apply_headers(response, ctx["seo"])
+        return response
 
     def present(v: dict[str, Any]) -> dict[str, Any]:
         return present_vacancy(v, clock())
@@ -209,42 +210,47 @@ def create_app(
 
     # ---------------------------------------------------------------- служебные
 
-    @app.middleware("http")
-    async def security_headers(request: Request, call_next: Callable[..., Any]) -> Response:
-        response = await call_next(request)
-        response.headers.setdefault("X-Content-Type-Options", "nosniff")
-        response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
-        response.headers.setdefault(
-            "Content-Security-Policy",
-            "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; "
-            "font-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'",
-        )
-        if request.url.path.startswith("/static/"):
-            response.headers["Cache-Control"] = "public, max-age=604800"
-        return response
+    # заголовки безопасности, кеш статики, счётчики ответов, счётчик Метрики и файл Вебмастера: rabota/web/security.py и др.
+    analytics = install_analytics(app)
+    install_security(app, site_url=base_url, metrika=analytics.enabled)
+    app.add_middleware(StatusCounterMiddleware)
 
+    seolib.install_headers(app)
     app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException) -> Response:
         if exc.status_code == 404:
-            return render(request, "error.html", {"code": 404, "seo": {"title": "Страница не найдена", "noindex": True}}, 404)
+            return render(request, "error.html", {"code": 404, "seo": {
+                "title": "Страница не найдена", "noindex": True,
+                "description": "Такой страницы нет: вакансию могли убрать или ссылка набрана с ошибкой. "
+                               "Посмотрите свежие вакансии Донецка и ДНР."}}, 404)
         if exc.status_code == 429:
-            return render(request, "error.html", {"code": 429, "seo": {"title": "Слишком часто", "noindex": True}}, 429)
+            return render(request, "error.html", {"code": 429, "seo": {
+                "title": "Слишком часто", "noindex": True,
+                "description": "Вы отправили много форм подряд. Подождите немного и попробуйте снова: "
+                               "ограничение нужно, чтобы защитить сайт от спама."}}, 429)
         return render(
             request, "error.html",
-            {"code": exc.status_code, "detail": exc.detail, "seo": {"title": "Ошибка", "noindex": True}},
+            {"code": exc.status_code, "detail": exc.detail, "seo": {
+                "title": "Запрос не выполнен", "noindex": True,
+                "description": "Запрос не удалось выполнить. Вернитесь на главную страницу или откройте ленту "
+                               "свежих вакансий Донецка и ДНР."}},
             exc.status_code,
         )
 
     @app.exception_handler(Exception)
     async def server_error(request: Request, exc: Exception) -> Response:
-        return render(request, "error.html", {"code": 500, "seo": {"title": "Ошибка на сайте", "noindex": True}}, 500)
+        return render(request, "error.html", {"code": 500, "seo": {
+            "title": "Ошибка на сайте", "noindex": True,
+            "description": "На сайте произошла ошибка, мы уже знаем о ней и чиним. Обновите страницу через минуту "
+                           "или вернитесь на главную."}}, 500)
 
     @app.get("/healthz", include_in_schema=False)
     def healthz() -> PlainTextResponse:
         return PlainTextResponse("ok")
+
+    deep_health.install(app, db_path)
 
     # ---------------------------------------------------------------- страницы
 
@@ -263,9 +269,9 @@ def create_app(
             "cities": facets["cities"][:6],
             "fresh": fresh,
             "seo": {
-                "title": "Работа в Донецке и ДНР: свежие вакансии с оплатой и телефоном",
+                "title": "Работа в Донецке и ДНР: свежие вакансии",
                 "description": DEFAULT_DESCRIPTION,
-                "jsonld": website_jsonld(base_url),
+                "jsonld": [website_jsonld(base_url), seolib.organization_jsonld(base_url, config.get("CONTACT_EMAIL") or "")],
             },
         })
 
@@ -282,6 +288,9 @@ def create_app(
             title = f"{flt.q.capitalize()}: вакансии в Донецке"
         elif flt.category:
             title = f"Вакансии: {fmt.CATEGORY_LABELS.get(flt.category, flt.category).lower()}"
+        on_page = f" Страница {page.page} из {page.pages}." if page.page > 1 else ""
+        # индексируется только чистая лента с вакансиями: фильтры, поиск и сортировка закрыты, каноника ведёт на ленту
+        noindex = not flt.is_empty or page.total < seolib.MIN_INDEXABLE
         return render(request, "vacancies.html", {
             "flt": flt, "page": page, "items": items, "facets": facets,
             "where": flt.district and fmt.district_label(flt.district) or flt.city,
@@ -291,70 +300,88 @@ def create_app(
             "base_qs": flt.query_string(),
             "seo": {
                 "title": title + (f", страница {page.page}" if page.page > 1 else ""),
-                "description": "Свежие вакансии Донецка и ДНР: оплата, график, район, телефон и ссылка на оригинал. "
-                               "Фильтры по профессии, подработке, ежедневной выплате.",
-                "noindex": not flt.is_empty,
+                "description": f"Свежие вакансии Донецка и ДНР: {fmt.count_label(page.total, 'вакансия', 'вакансии', 'вакансий')} "
+                               f"с оплатой, графиком, районом и телефоном. Ссылка на оригинал, фильтры по профессии, "
+                               f"подработке и ежедневной выплате.{on_page}",
+                "noindex": noindex,
                 "canonical": base_url + "/vacancies" + (f"?page={page.page}" if page.page > 1 and flt.is_empty else ""),
                 "prev_url": _page_url("/vacancies", flt.query_string(), page.page - 1) if page.has_prev else "",
                 "next_url": _page_url("/vacancies", flt.query_string(), page.page + 1) if page.has_next else "",
+                "breadcrumbs": [("Главная", "/"), ("Вакансии", "")],
+                "jsonld": seolib.item_list_jsonld(base_url, items, (page.page - 1) * page.per_page),
             },
         })
 
-    def listing(request: Request, flt: q.Filters, heading: str, kind: str, name: str, page_label: str) -> Response:
+    def listing(request: Request, kind: str, raw_name: str) -> Response:
+        """Страница-посадка: профессия, район или город. Вводный текст и ссылки собираются из данных выдачи."""
+        raw_name = raw_name.strip()[:80]
         page_no = q.parse_page(request.query_params.get("page"))
         with db() as conn:
+            name = q.canonical_name(conn, kind, raw_name) or raw_name
+            name = name.lower() if kind == "profession" else name
+            flt = q.Filters(**{kind: name})
             page = q.search(conn, flt, page_no)
-            facets = q.facets(conn)
-        if page.total == 0:
-            raise StarletteHTTPException(404)
-        base = request.url.path
+            if page.total == 0:
+                raise StarletteHTTPException(404)
+            facts = q.listing_facts(conn, flt)
+            indexable = q.indexable_counts(conn, seolib.MIN_INDEXABLE)
+            category = facts["categories"][0][0] if facts["categories"] else ""
+            related = q.related_professions(conn, category, name, seolib.MIN_INDEXABLE) if kind == "profession" else []
+        items = [present(v) for v in page.items]
+        landing = landing_page(kind, name, page.total, facts)
+        path = f"/{kind}/{name}"
+        on_page = f", страница {page.page}" if page.page > 1 else ""
+        count = fmt.count_label(page.total, "вакансия", "вакансии", "вакансий")
+        title = landing["title"].replace("{count}", count) + on_page
+        description = (f"Страница {page.page} из {page.pages}. " if page.page > 1 else "") + seolib.listing_description(
+            landing["short"], page.total, facts, places=landing["places"])
         return render(request, "listing.html", {
-            "heading": heading, "kind": kind, "name": name, "page": page,
-            "items": [present(v) for v in page.items],
-            "professions": [p for p in facets["professions"] if p[0] != name][:10],
-            "districts": facets["districts"][:10],
+            "heading": landing["heading"], "kind": kind, "name": name, "page": page, "items": items,
+            "intro": seolib.listing_intro(landing["lead"].replace("{count}", count_active(page.total)), facts,
+                                          places=landing["places"]),
+            "groups": landing_links(kind, name, facts, indexable, related),
+            "list_path": _quote_path(path),
             "seo": {
-                "title": f"{heading}: {fmt.count_label(page.total, 'вакансия', 'вакансии', 'вакансий')}",
-                "description": f"{heading}: {fmt.count_label(page.total, 'вакансия', 'вакансии', 'вакансий')} с оплатой, "
-                               f"графиком и телефоном. {page_label}",
-                "canonical": base_url + _quote_path(base) + (f"?page={page.page}" if page.page > 1 else ""),
-                "prev_url": _page_url(base, "", page.page - 1) if page.has_prev else "",
-                "next_url": _page_url(base, "", page.page + 1) if page.has_next else "",
+                "title": title,
+                "description": description,
+                "noindex": page.total < seolib.MIN_INDEXABLE,
+                "canonical": seolib.path_url(base_url, path, f"page={page.page}" if page.page > 1 else ""),
+                "prev_url": _page_url(_quote_path(path), "", page.page - 1) if page.has_prev else "",
+                "next_url": _page_url(_quote_path(path), "", page.page + 1) if page.has_next else "",
+                "breadcrumbs": [("Главная", "/"), ("Вакансии", "/vacancies"), (landing["crumb"], path)],
+                "jsonld": seolib.item_list_jsonld(base_url, items, (page.page - 1) * page.per_page),
             },
         })
 
     @app.get("/profession/{name}")
     def profession_page(request: Request, name: str) -> Response:
-        name = name.strip()[:80]
-        return listing(request, q.Filters(profession=name), f"{name.capitalize()}: вакансии в Донецке",
-                       "profession", name.lower(), "Свежие предложения из открытых источников.")
+        return listing(request, "profession", name)
 
     @app.get("/district/{name}")
     def district_page(request: Request, name: str) -> Response:
-        name = name.strip()[:80]
-        return listing(request, q.Filters(district=name), f"Работа: {fmt.district_label(name)}",
-                       "district", name, "Вакансии рядом с домом.")
+        return listing(request, "district", name)
 
     @app.get("/city/{name}")
     def city_page(request: Request, name: str) -> Response:
-        name = name.strip()[:80]
-        return listing(request, q.Filters(city=name), f"Работа в городе {name}", "city", name,
-                       "Вакансии города и окрестностей.")
+        return listing(request, "city", name)
 
     def vacancy_page_context(conn: Any, vacancy_id: int) -> dict[str, Any]:
         raw = q.get_vacancy(conn, vacancy_id)
-        if raw is None or raw["kind"] != "vacancy" or raw["status"] not in ("active", "closed"):
+        if raw is None or raw["kind"] != "vacancy" or raw["status"] not in ("active", "closed", "expired"):
             raise StarletteHTTPException(404)
         if raw["duplicate_of"]:
             main = q.get_vacancy(conn, raw["duplicate_of"])
             if main and q.is_listable(main):
                 raise _Redirect(f"/vacancy/{main['id']}")
             raise StarletteHTTPException(404)
-        closed = raw["status"] == "closed"
+        # закрыта работодателем, скрыта по сроку жизни или не публиковалась дольше срока: страницы больше нет (410)
+        closed = raw["status"] != "active" or lifecycle.is_stale(raw.get("last_seen_at") or raw.get("published_at"), now=clock())
         v = present(raw)
-        similar = [present(s) for s in q.similar(conn, raw)] if not closed else []
+        similar = [present(s) for s in q.similar(conn, raw)]
         also = present_also(q.also_published_in(conn, raw["id"]))
-        return {"v": v, "closed": closed, "similar": similar, "also": also}
+        # на проверке или помечена подозрительной: страница открывается по ссылке, но в индекс не идёт
+        hidden = bool(raw.get("suspicious")) or (raw.get("moderation_status") or "approved") != "approved"
+        return {"v": v, "closed": closed, "hidden": hidden, "similar": similar, "also": also}
 
     class _Redirect(Exception):
         def __init__(self, url: str):
@@ -367,16 +394,26 @@ def create_app(
     def vacancy_seo(ctx: dict[str, Any]) -> dict[str, Any]:
         v = ctx["v"]
         where = v["location"] or "Донецк"
-        title = f"{v['profession_title']}, {where}: {v['pay']['text']}"
-        desc = f"{v['profession_title']} в {where}. {v['pay']['text']}."
+        pay_text = v["pay"]["text"]
+        # самый подробный заголовок, который помещается в 60 знаков; иначе без района, иначе только профессия
+        heads = [f"{v['profession_title']}, {where}: {pay_text}",
+                 f"{v['profession_title']}, {v['city'] or 'Донецк'}: {pay_text}",
+                 f"{v['profession_title']}: {pay_text}"]
+        title = next((h for h in heads if len(h) <= seolib.TITLE_LIMIT), heads[-1])
+        desc = f"{v['profession_title']}, {where}. {pay_text if not v['pay']['known'] else 'Оплата: ' + pay_text}."
         if v["schedule"]:
             desc += f" График {v['schedule']}."
         if v["summary"]:
             desc += " " + v["summary"]
+        crumbs = [("Главная", "/"), ("Вакансии", "/vacancies")]
+        if v["city"]:
+            crumbs.append((v["city"], f"/city/{v['city']}"))
+        crumbs.append((v["profession_title"], f"/vacancy/{v['id']}"))
+        noindex = ctx["closed"] or ctx.get("hidden", False)
         return {
-            "title": title, "description": desc[:300], "og_type": "article",
-            "noindex": ctx["closed"],
-            "jsonld": None if ctx["closed"] else job_posting_jsonld(v, base_url),
+            "title": title, "description": desc, "og_type": "article", "noindex": noindex,
+            "breadcrumbs": crumbs,
+            "jsonld": None if noindex else job_posting_jsonld(v, base_url),
         }
 
     @app.get("/vacancy/{vacancy_id}")
@@ -388,7 +425,7 @@ def create_app(
         ctx["form"] = {}
         ctx["errors"] = {}
         ctx["seo"] = vacancy_seo(ctx)
-        return render(request, "vacancy.html", ctx)
+        return render(request, "vacancy.html", ctx, 410 if ctx["closed"] else 200)
 
     @app.post("/vacancy/{vacancy_id}/complaint")
     async def complaint(request: Request, vacancy_id: int) -> Response:
@@ -412,11 +449,19 @@ def create_app(
                     errors["reason"] = "Выберите причину из списка."
                 if reason == "Другое" and len(comment) < 5:
                     errors["comment"] = "Опишите, что не так, хотя бы в паре слов."
+                email = form.get("email", "").strip().lower()[:254]
+                if email and not valid_email(email):
+                    errors["email"] = "Проверьте адрес почты или оставьте поле пустым."
                 if errors:
-                    ctx.update({"errors": errors, "form": {"reason": reason, "comment": comment}})
+                    ctx.update({"errors": errors, "form": {"reason": reason, "comment": comment, "email": email}})
                     return ctx
                 text = reason + (f": {comment}" if comment else "")
-                q.add_complaint(conn, vacancy_id, text)
+                secret = getattr(getattr(request.app.state, "accounts", None), "secret", b"")
+                q.add_complaint(
+                    conn, vacancy_id, text, code=COMPLAINT_CODES[reason], reporter_email=email or None,
+                    reporter_key=complaint_service.reporter_key(secret, client_ip(request)),
+                )
+                complaint_service.autohide_if_needed(conn, vacancy_id, now=clock())
                 return RedirectResponse(f"/vacancy/{vacancy_id}?complaint=sent", status_code=303)
 
         try:
@@ -441,7 +486,8 @@ def create_app(
             "periods": [(p, fmt.PERIOD_LABELS[p]) for p in PAY_PERIODS],
             "seo": {
                 "title": "Разместить вакансию в Донецке бесплатно",
-                "description": "Опубликуйте вакансию на сайте: профессия, оплата, график, телефон. Бесплатно, после проверки.",
+                "description": "Опубликуйте вакансию в Донецке и ДНР: профессия, оплата, график, телефон. "
+                               "Бесплатно, после короткой проверки, соискатели увидят её в ленте.",
             },
         }
 
@@ -476,7 +522,10 @@ def create_app(
 
     @app.get("/razmestit/spasibo")
     def post_thanks(request: Request) -> Response:
-        return render(request, "post_thanks.html", {"seo": {"title": "Вакансия отправлена", "noindex": True}})
+        return render(request, "post_thanks.html", {"seo": {
+            "title": "Вакансия отправлена", "noindex": True,
+            "description": "Вакансия отправлена на проверку и появится в ленте, как только мы убедимся, "
+                           "что это настоящее предложение о работе."}})
 
     @app.get("/employers")
     def employers(request: Request) -> Response:
@@ -484,10 +533,12 @@ def create_app(
             stats = q.stats(conn, clock())
         return render(request, "employers.html", {
             "stats": stats,
+            "faq": EMPLOYER_FAQ,
             "seo": {
-                "title": "Разместить вакансию в Донецке: поиск сотрудников для работодателей",
+                "title": "Найти сотрудников в Донецке бесплатно",
                 "description": "Опубликуйте вакансию, получайте отклики соискателей и общайтесь с ними на сайте. "
                                "Бесплатно, после короткой проверки.",
+                "jsonld": seolib.faq_jsonld(EMPLOYER_FAQ),
             },
         })
 
@@ -497,73 +548,124 @@ def create_app(
             row = q.get_company(conn, company_id)
             vacancies_ = [present(v) for v in q.company_vacancies(conn, company_id)]
         company = company_stub(company_id, row)
+        # в индексе только настоящий профиль, у которого есть открытые вакансии
+        noindex = row is None or not vacancies_
+        about = f" {seolib.sentence(seolib.truncate(company['description'], 90))}" if company["description"] else ""
         return render(request, "company.html", {
             "company": company, "items": vacancies_,
             "seo": {
                 "title": f"{company['name']}: вакансии и о компании",
-                "description": f"Работодатель {company['name']} на сайте Работа Донецк: описание компании и открытые вакансии.",
-                "noindex": row is None,
+                "description": f"Работодатель {company['name']} на сайте Работа Донецк: "
+                               f"{fmt.count_label(len(vacancies_), 'открытая вакансия', 'открытые вакансии', 'открытых вакансий')}."
+                               f"{about}",
+                "noindex": noindex,
+                "breadcrumbs": [("Главная", "/"), ("Вакансии", "/vacancies"), (company["name"], f"/company/{company_id}")],
+                "jsonld": seolib.company_jsonld(base_url, company),
             },
         })
 
     @app.get("/about")
     def about(request: Request) -> Response:
         return render(request, "about.html", {"seo": {
-            "title": "О сайте Работа Донецк",
-            "description": "Как мы собираем вакансии Донецка и ДНР, чем отличаемся от каналов и как не попасть на обман.",
+            "title": "О сайте",
+            "description": "Как мы собираем вакансии Донецка и ДНР из каналов и сайтов, чем отличаемся от них "
+                           "и как не попасть на обман при поиске работы.",
+            "breadcrumbs": [("Главная", "/"), ("О сайте", "/about")],
         }})
 
     # ---------------------------------------------------------------- для поисковиков
 
     @app.get("/robots.txt", include_in_schema=False)
     def robots() -> PlainTextResponse:
-        body = (
-            "User-agent: *\n"
-            "Allow: /\n"
-            "Disallow: /razmestit/spasibo\n"
-            "Disallow: /vacancy/*/complaint\n"
-            "Disallow: /vacancy/*/apply\n"
-            f"Sitemap: {base_url}/sitemap.xml\n"
-        )
-        return PlainTextResponse(body)
+        return PlainTextResponse(seolib.robots_txt(base_url))
 
     @app.get("/favicon.ico", include_in_schema=False)
     def favicon() -> RedirectResponse:
         return RedirectResponse("/static/favicon.svg", status_code=301)
 
+    def sitemap_groups() -> dict[str, list[tuple[str, str]]]:
+        """Адреса карты сайта по видам: (путь, lastmod). Только страницы, которые открыты для индекса."""
+        now_ = clock()
+        with db() as conn:
+            entries = q.sitemap_entries(conn, seolib.MIN_INDEXABLE)
+        latest = seolib.date_of(entries["latest"], now_)
+
+        def file_date(name: str) -> str:
+            try:
+                return datetime.fromtimestamp((TEMPLATES_DIR / name).stat().st_mtime, UTC).date().isoformat()
+            except OSError:
+                return now_.date().isoformat()
+
+        def doc_date(filename: str) -> str:
+            try:
+                return datetime.fromtimestamp((legal_docs.LEGAL_DIR / filename).stat().st_mtime, UTC).date().isoformat()
+            except OSError:
+                return now_.date().isoformat()
+
+        static = [
+            ("/", latest), ("/vacancies", latest), ("/employers", file_date("employers.html")),
+            ("/razmestit", file_date("post.html")), ("/about", file_date("about.html")),
+            ("/legal", max(doc_date(d.filename) for d in legal_docs.list_documents())),
+        ]
+        static += [(f"/legal/{d.slug}", doc_date(d.filename)) for d in legal_docs.list_documents()]
+        return {
+            "static": static,
+            "professions": [(f"/profession/{p.lower()}", seolib.date_of(ts, now_)) for p, ts in entries["professions"]],
+            "districts": [(f"/district/{d}", seolib.date_of(ts, now_)) for d, ts in entries["districts"]]
+            + [(f"/city/{c}", seolib.date_of(ts, now_)) for c, ts in entries["cities"]],
+            "companies": [(f"/company/{cid}", seolib.date_of(ts, now_)) for cid, ts in entries["companies"]],
+            "vacancies": [(f"/vacancy/{vid}", seolib.date_of(ts, now_)) for vid, ts in entries["vacancies"]],
+        }
+
+    def xml_response(body: str) -> Response:
+        return Response(body, media_type="application/xml")
+
     @app.get("/sitemap.xml", include_in_schema=False)
     def sitemap() -> Response:
-        with db() as conn:
-            entries = q.sitemap_entries(conn)
-        today = clock().date().isoformat()
-        urls: list[tuple[str, str]] = [
-            ("/", today), ("/vacancies", today), ("/employers", today), ("/razmestit", today), ("/about", today),
-            ("/legal", today),
-        ]
-        urls += [(f"/legal/{d.slug}", today) for d in legal_docs.list_documents()]
-        urls += [(f"/profession/{quote(p.lower())}", today) for p in entries["professions"]]
-        urls += [(f"/district/{quote(d)}", today) for d in entries["districts"]]
-        urls += [(f"/city/{quote(c)}", today) for c in entries["cities"]]
-        for vid, ts in entries["vacancies"]:
-            dt = fmt.parse_dt(ts)
-            urls.append((f"/vacancy/{vid}", (dt or clock()).date().isoformat()))
-        parts = ['<?xml version="1.0" encoding="UTF-8"?>',
-                 '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">']
-        for path, lastmod in urls:
-            parts.append(f"<url><loc>{xml_escape(base_url + path)}</loc><lastmod>{lastmod}</lastmod></url>")
-        parts.append("</urlset>")
-        return Response("\n".join(parts), media_type="application/xml")
+        """Один файл, пока адресов не больше 5000, дальше индекс с файлами по видам страниц."""
+        groups = sitemap_groups()
+        if sum(len(v) for v in groups.values()) <= seolib.SITEMAP_CHUNK:
+            return xml_response(seolib.sitemap_urlset(base_url, [u for kind in groups.values() for u in kind]))
+        files = []
+        for kind, urls in groups.items():
+            for i, part in enumerate(seolib.chunks(urls), 1):
+                if part:
+                    files.append((f"/sitemap-{kind}-{i}.xml", max(d for _, d in part)))
+        return xml_response(seolib.sitemap_index(base_url, files))
 
-    from rabota.web import legal_routes
+    @app.get("/sitemap-{kind}-{number:int}.xml", include_in_schema=False)
+    def sitemap_part(kind: str, number: int) -> Response:
+        parts = seolib.chunks(sitemap_groups().get(kind) or [])
+        if kind not in ("static", "professions", "districts", "companies", "vacancies") or not 1 <= number <= len(parts):
+            raise StarletteHTTPException(404)
+        return xml_response(seolib.sitemap_urlset(base_url, parts[number - 1]))
+
+    from rabota.web import admin_routes, legal_routes
     from rabota.web.auth_routes import install as install_auth
 
+    # админка раньше юридических документов: /legal/request не должен попасть под /legal/{slug}
+    admin_routes.install(app, db_path=db_path, site_url=base_url, clock=clock)
     legal_routes.install(app, site_url=base_url)
     install_auth(app, db_path=db_path, site_url=base_url, **(auth_options or {}))
+    from rabota.web import messages_routes
+
+    messages_routes.install(app, templates=templates)  # отклики, переписка, уведомления
 
     return app
 
 
 # -------------------------------------------------------------------- помощники
+
+# Вопросы и ответы страницы для работодателей: показываются на странице и уходят в разметку FAQPage
+EMPLOYER_FAQ: tuple[tuple[str, str], ...] = (
+    ("Сколько стоит размещение", "Сейчас размещение бесплатное. Если условия изменятся, мы предупредим заранее."),
+    ("Когда вакансия появится на сайте",
+     "После короткой проверки, обычно в течение нескольких часов. Проверяем, что это настоящая вакансия и нет просьбы платить за работу."),
+    ("Как соискатели свяжутся со мной",
+     "Откликом на сайте или по телефону и в Telegram, если вы их указали. Контакты можно не публиковать и принимать отклики только в кабинете."),
+    ("Что делать, если вакансия закрыта",
+     "Закройте её в кабинете или нажмите «Пожаловаться» на странице вакансии и выберите «Вакансия не актуальна»."),
+)
 
 DEFAULT_DESCRIPTION = (
     "Вакансии Донецка и ДНР в одном месте: бариста, кассир, водитель, грузчик, подработка на смену. "
@@ -585,6 +687,81 @@ def _quote_path(path: str) -> str:
 def _page_url(base: str, query: str, page: int) -> str:
     parts = [p for p in (query, f"page={page}" if page > 1 else "") if p]
     return base + ("?" + "&".join(parts) if parts else "")
+
+
+def count_active(n: int) -> str:
+    return fmt.count_label(n, "актуальная вакансия", "актуальные вакансии", "актуальных вакансий")
+
+
+def landing_page(kind: str, name: str, total: int, facts: dict[str, Any]) -> dict[str, Any]:
+    """Тексты страницы-посадки по виду: заголовок, начало вводного текста, ключ для title и description."""
+    if kind == "profession":
+        label = name.capitalize()
+        return {
+            "heading": f"{label}: вакансии в Донецке", "crumb": label, "short": label,
+            "title": label + ": {count} в Донецке", "places": True,
+            "lead": f"Профессия «{name}»: сейчас на сайте " + "{count}.",
+        }
+    if kind == "district":
+        label = fmt.district_label(name)
+        return {
+            "heading": f"Работа: {label}", "crumb": label, "short": label,
+            "title": f"Работа: {label}, " + "{count}", "places": False,
+            "lead": f"{label}: сейчас на сайте " + "{count}.",
+        }
+    return {
+        "heading": f"Работа в городе {name}", "crumb": name, "short": f"Город {name}",
+        "title": f"Работа в городе {name}: " + "{count}", "places": True,
+        "lead": f"Город {name}: сейчас на сайте " + "{count}.",
+    }
+
+
+def landing_links(
+    kind: str, name: str, facts: dict[str, Any], indexable: dict[str, list[tuple[str, int]]],
+    related: list[tuple[str, int]],
+) -> list[dict[str, Any]]:
+    """Перелинковка страницы-посадки. Ссылки только на страницы, которые сами проиндексируются (3 вакансии и больше),
+    и на ленту с условиями, у которых есть вакансии."""
+    pro = dict(indexable["professions"])
+    dist = dict(indexable["districts"])
+    city = dict(indexable["cities"])
+    groups: list[dict[str, Any]] = []
+
+    def link_items(pairs: list[tuple[str, int]], allowed: dict[str, int], base: str, label: Callable[[str], str]) -> list[dict[str, Any]]:
+        out = []
+        for value, n in pairs:
+            if value in allowed or value.lower() in allowed:
+                slug = value.lower() if base == "profession" else value
+                out.append({"label": label(value), "href": f"/{base}/{quote(slug, safe='')}", "n": n, "icon": base == "district"})
+        return out
+
+    def add(title: str, items: list[dict[str, Any]]) -> None:
+        if items:
+            groups.append({"title": title, "items": items})
+
+    def cap(v: str) -> str:
+        return v[:1].upper() + v[1:]
+
+    if kind == "profession":
+        add(f"Где ищут: {name}", link_items(facts["districts"], dist, "district", fmt.district_label))
+        add("Другие профессии в этой сфере", link_items(related[:10], pro, "profession", cap))
+        rest = [(p, n) for p, n in indexable["professions"] if p != name and p not in {r for r, _ in related}]
+        add("Популярные профессии", link_items(rest[:10], pro, "profession", cap))
+    elif kind == "district":
+        add("Профессии в этом районе", link_items(facts["professions"], pro, "profession", cap))
+        add("Другие районы", link_items([(d, n) for d, n in indexable["districts"] if d != name][:10], dist, "district", fmt.district_label))
+    else:
+        add("Профессии в этом городе", link_items(facts["professions"], pro, "profession", cap))
+        add("Районы", link_items(facts["districts"], dist, "district", fmt.district_label))
+        add("Другие города", link_items([(c, n) for c, n in indexable["cities"] if c != name][:8], city, "city", lambda v: v))
+    own = {"profession": "q", "district": "district", "city": "city"}[kind]
+    queries = []
+    for label, flag, key in (("Подработка", "side_job", "side_job"), ("Без опыта", "no_experience", "no_experience"),
+                             ("Выплата каждый день", "daily", "daily")):
+        if facts.get(key):
+            queries.append({"label": label, "href": "/vacancies?" + urlencode({own: name, flag: 1}), "n": facts[key], "icon": False})
+    add("Популярные запросы", queries)
+    return groups
 
 
 SORT_LABELS = (("", "По дате"), ("pay", "По оплате"))
@@ -754,71 +931,6 @@ def filter_options(facets: dict[str, list[tuple[str, int]]], f: q.Filters) -> di
         "work_format": build(ordered_fmts, f.work_format, lambda c: fmt.WORK_FORMAT_LABELS.get(c, c)),
         "pay_period": build(ordered_periods, f.pay_period, lambda c: "Оплата " + fmt.PERIOD_LABELS.get(c, c)),
     }
-
-
-def website_jsonld(base_url: str) -> dict[str, Any]:
-    return {
-        "@context": "https://schema.org",
-        "@type": "WebSite",
-        "name": "Работа Донецк",
-        "url": base_url + "/",
-        "inLanguage": "ru",
-        "potentialAction": {
-            "@type": "SearchAction",
-            "target": {"@type": "EntryPoint", "urlTemplate": base_url + "/vacancies?q={search_term_string}"},
-            "query-input": "required name=search_term_string",
-        },
-    }
-
-
-_EMPLOYMENT_TYPES = {
-    "постоянно": "FULL_TIME", "подработка": "PART_TIME", "на сегодня": "TEMPORARY", "сменная": "OTHER",
-}
-_UNIT_TEXT = {"месяц": "MONTH", "смена": "DAY", "день": "DAY", "час": "HOUR", "задача": "DAY"}
-
-
-def job_posting_jsonld(v: dict[str, Any], base_url: str) -> dict[str, Any]:
-    """Разметка JobPosting для поисковиков."""
-    posted = fmt.parse_dt(v["published_at"] or v.get("created_at"))
-    ld: dict[str, Any] = {
-        "@context": "https://schema.org",
-        "@type": "JobPosting",
-        "title": v["profession_title"],
-        "description": v["summary"] or v["title_raw"] or v["profession_title"],
-        "identifier": {"@type": "PropertyValue", "name": "Работа Донецк", "value": str(v["id"])},
-        "url": f"{base_url}/vacancy/{v['id']}",
-        "hiringOrganization": {"@type": "Organization", "name": v["employer"] or "Работодатель"},
-        "jobLocation": {
-            "@type": "Place",
-            "address": {
-                "@type": "PostalAddress",
-                "addressLocality": v["city"] or "Донецк",
-                "addressRegion": "Донецкая Народная Республика",
-                "addressCountry": "RU",
-                **({"streetAddress": v["district"]} if v["district"] else {}),
-            },
-        },
-    }
-    if posted:
-        ld["datePosted"] = posted.date().isoformat()
-        ld["validThrough"] = (posted + timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    if v["employment"] in _EMPLOYMENT_TYPES:
-        ld["employmentType"] = _EMPLOYMENT_TYPES[v["employment"]]
-    if v["work_format"] == "удалённо":
-        ld["jobLocationType"] = "TELECOMMUTE"
-        ld["applicantLocationRequirements"] = {"@type": "Country", "name": "RU"}
-    if v["pay_min"] or v["pay_max"]:
-        value: dict[str, Any] = {"@type": "QuantitativeValue", "unitText": _UNIT_TEXT.get(v["pay_period"] or "", "MONTH")}
-        if v["pay_min"] and v["pay_max"] and v["pay_min"] != v["pay_max"]:
-            value["minValue"], value["maxValue"] = sorted((v["pay_min"], v["pay_max"]))
-        else:
-            value["value"] = v["pay_min"] or v["pay_max"]
-        ld["baseSalary"] = {"@type": "MonetaryAmount", "currency": "RUB", "value": value}
-    if v["experience"] and v["no_experience"]:
-        ld["experienceRequirements"] = {"@type": "OccupationalExperienceRequirements", "monthsOfExperience": 0}
-    if v["requirements"]:
-        ld["qualifications"] = v["requirements"]
-    return ld
 
 
 # ---------------------------------------------------------------------- форма размещения

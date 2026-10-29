@@ -89,10 +89,9 @@
   <div class="wrap">
     <h2 class="h2 section__title" id="faq">Частые вопросы</h2>
     <div class="faq">
-      <details><summary>Сколько стоит размещение{{ icon('caret-down') }}</summary><p>Сейчас размещение бесплатное. Если условия изменятся, мы предупредим заранее.</p></details>
-      <details><summary>Когда вакансия появится на сайте{{ icon('caret-down') }}</summary><p>После короткой проверки, обычно в течение нескольких часов. Проверяем, что это настоящая вакансия и нет просьбы платить за работу.</p></details>
-      <details><summary>Как соискатели свяжутся со мной{{ icon('caret-down') }}</summary><p>Откликом на сайте или по телефону и в Telegram, если вы их указали. Контакты можно не публиковать и принимать отклики только в кабинете.</p></details>
-      <details><summary>Что делать, если вакансия закрыта{{ icon('caret-down') }}</summary><p>Закройте её в кабинете или нажмите «Пожаловаться» на странице вакансии и выберите «Вакансия не актуальна».</p></details>
+      {% for question, answer in faq %}
+      <details><summary>{{ question }}{{ icon('caret-down') }}</summary><p>{{ answer }}</p></details>
+      {% endfor %}
     </div>
   </div>
 </section>

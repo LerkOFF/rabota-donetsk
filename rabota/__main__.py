@@ -7,6 +7,7 @@
     python -m rabota stats                                                    сводка по базе
     python -m rabota serve [--port 8000]                                      сайт
     python -m rabota worker                                                   приём данных в реальном времени
+    python -m rabota make-admin <почта>                                       сделать пользователя администратором
     python -m rabota health [--json]                                          свежесть источников, код 1 при просрочке
     python -m rabota tg-login                                                 один раз: вход в Telegram для слушателя
 """
@@ -66,6 +67,7 @@ def _vision_provider():
 
 def cmd_process(conn: sqlite3.Connection) -> dict:
     """Разобрать текст, затем картинки там, где текста мало, склеить дубли."""
+    from rabota.admin.stoplist import filter_vacancies
     from rabota.pipeline.run import process_db
     from rabota.realtime.ingest import new_image_vacancies
 
@@ -81,7 +83,9 @@ def cmd_process(conn: sqlite3.Connection) -> dict:
                 "SELECT profession FROM vacancies WHERE source=? AND external_id=?", (raw.source, raw.external_id)
             )
         }
-        for vac in new_image_vacancies(raw, provider, have):
+        kept, dropped = filter_vacancies(conn, new_image_vacancies(raw, provider, have))  # стоп-лист
+        stats["stoplisted"] = stats.get("stoplisted", 0) + dropped
+        for vac in kept:
             save_vacancy(conn, vac)
             from_images += 1
     if from_images:
@@ -104,6 +108,20 @@ def cmd_stats(conn: sqlite3.Connection) -> None:
     print(f"на сайте: {shown}, склеено дублей: {dups}")
 
 
+def cmd_make_admin(conn: sqlite3.Connection, email: str) -> int:
+    from rabota.admin.cli import make_admin
+
+    try:
+        user_id, created = make_admin(conn, email)
+    except ValueError as exc:
+        print(f"Не получилось: {exc}", file=sys.stderr)
+        return 1
+    print(f"{email.strip().lower()}: {'аккаунт создан' if created else 'роль администратора выдана'} (id {user_id}).")
+    if created:
+        print("Пароль не задан. Откройте /forgot на сайте, введите эту почту и задайте пароль по ссылке из письма.")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="rabota")
     sub = parser.add_subparsers(dest="cmd", required=True)
@@ -119,6 +137,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("worker", help="воркер реального времени: Telegram, VK, открытые базы, expire")
     health = sub.add_parser("health", help="свежесть источников; код возврата 1, если что-то просрочено")
     health.add_argument("--json", action="store_true")
+    mk = sub.add_parser("make-admin", help="сделать пользователя администратором (пароль не передаётся в аргументах)")
+    mk.add_argument("email")
     sub.add_parser("tg-login", help="интерактивный вход в Telegram (телефон, код, пароль), сессия в файл")
     args = parser.parse_args(argv)
 
@@ -143,6 +163,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     conn = connect(Path(config.DB_PATH))
+    if args.cmd == "make-admin":
+        return cmd_make_admin(conn, args.email)
     if args.cmd in ("collect", "run"):
         cmd_collect(conn, args.limit, args.source)
     if args.cmd in ("process", "run"):

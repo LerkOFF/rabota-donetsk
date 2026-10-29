@@ -1,0 +1,14 @@
+{% extends 'messages/layout.html' %}
+{% from 'messages/_parts.html' import crumbs %}
+{% from '_macros.html' import empty_state %}
+{% block msg_body %}
+<div class="wrap msg-page">
+  <header class="page-head">
+    {{ crumbs([('Вакансии', '/vacancies'), (v.profession_title, '/vacancy/' ~ v.id), ('Отклик', '')]) }}
+  </header>
+  {% call empty_state('user-circle', 'Откликаться могут только соискатели', 'Вы вошли как работодатель. Отклики на ваши вакансии приходят в кабинет, а соискателю достаточно зарегистрироваться со своей почтой.', 'h1') %}
+  <a class="btn btn--primary" href="/vacancy/{{ v.id }}">Вернуться к вакансии</a>
+  <a class="btn btn--ghost" href="/responses">Отклики на мои вакансии</a>
+  {% endcall %}
+</div>
+{% endblock %}

@@ -1,0 +1,33 @@
+{% from '_macros.html' import icon %}
+{% if cabinet_messaging is defined %}
+{% set cm = cabinet_messaging(me) %}
+{% if cm.ok %}
+<link rel="stylesheet" href="{{ asset('messages.css') }}">
+<section class="cab-msg" aria-labelledby="cab-msg-h" data-cabinet-messaging>
+  <h2 id="cab-msg-h" class="cab-msg__title">{% if cm.is_employer %}Отклики и сообщения{% else %}Отклики и переписка{% endif %}</h2>
+  <ul class="stats">
+    {% if cm.is_employer %}
+    <li><a class="stat{% if cm.new_responses %} stat--hot{% endif %}" href="/responses?status=new" data-new-responses="{{ cm.new_responses }}"><span class="stat__n">{{ cm.new_responses }}</span><span class="stat__l">Новых откликов</span></a></li>
+    <li><a class="stat" href="/responses" data-all-responses="{{ cm.counts.all }}"><span class="stat__n">{{ cm.counts.all }}</span><span class="stat__l">Все отклики</span></a></li>
+    {% else %}
+    <li><a class="stat" href="/responses" data-my-responses="{{ cm.counts.all }}"><span class="stat__n">{{ cm.counts.all }}</span><span class="stat__l">Мои отклики</span></a></li>
+    {% endif %}
+    <li><a class="stat{% if cm.unread %} stat--hot{% endif %}" href="/messages" data-unread="{{ cm.unread }}"><span class="stat__n">{{ cm.unread }}</span><span class="stat__l">Непрочитанных сообщений</span></a></li>
+  </ul>
+  {% if cm.recent %}
+  <ul class="cab-msg__list">
+    {% for r in cm.recent %}
+    <li><a href="/responses/{{ r.id }}">{{ icon('paper-plane-tilt') }}<span class="cab-msg__who">{% if cm.is_employer %}{{ r.seeker_name }}{% else %}{{ r.vacancy_title | ucfirst }}{% endif %}</span><span class="muted">{% if cm.is_employer %}{{ r.vacancy_title }}: {% endif %}{{ r.status_label }}, {{ r.when }}</span></a></li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="muted">{% if cm.is_employer %}Откликов пока нет. Они появятся здесь, когда соискатели откликнутся на ваши вакансии.{% else %}Вы пока не откликались. Откликнуться можно на вакансии с отметкой «От работодателя».{% endif %}</p>
+  {% endif %}
+  <div class="state__actions">
+    <a class="btn btn--primary btn--sm" href="/responses">Отклики</a>
+    <a class="btn btn--ghost btn--sm" href="/messages">Сообщения</a>
+    <a class="btn btn--ghost btn--sm" href="/notifications">Уведомления по почте</a>
+  </div>
+</section>
+{% endif %}
+{% endif %}

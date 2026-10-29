@@ -1,0 +1,10 @@
+# Журналы проекта вне journald (журнал развёртываний). Журналы nginx этого сайта ротирует штатный /etc/logrotate.d/nginx.
+/var/log/rabota/*.log {
+    weekly
+    rotate 8
+    compress
+    delaycompress
+    missingok
+    notifempty
+    create 0640 <USER> <USER>
+}

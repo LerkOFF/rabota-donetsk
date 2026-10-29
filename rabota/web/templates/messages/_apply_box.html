@@ -1,0 +1,26 @@
+{# Блок отклика на странице вакансии работодателя. Подключается из vacancy.html. Нужны v, user, csrf_token. #}
+{% from '_macros.html' import icon %}
+{% set ab = apply_box(v.id, user) if apply_box is defined else {'mode': 'guest'} %}
+{% if ab.mode == 'guest' %}
+<p class="muted">Работодатель принимает отклики на сайте.</p>
+<a class="btn btn--primary btn--block" href="/vacancy/{{ v.id }}/apply">{{ icon('paper-plane-tilt') }}Откликнуться</a>
+<p class="hint">Для отклика нужен вход. Нет аккаунта? <a href="/register">Зарегистрируйтесь</a>: это займёт минуту.</p>
+{% elif ab.mode == 'applied' %}
+<p class="notice" role="status">{{ icon('check-circle') }}<span>Вы откликнулись на эту вакансию.</span></p>
+<a class="btn btn--ghost btn--block" href="/responses/{{ ab.state.application_id }}">Открыть отклик</a>
+{% elif ab.mode == 'seeker' %}
+<form method="post" action="/vacancy/{{ v.id }}/apply" class="apply-inline" id="apply" data-busy-form novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div class="hp" aria-hidden="true"><label>Не заполняйте это поле<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+  <div class="field">
+    <label for="ai-cover">Сообщение работодателю <span class="muted">(по желанию)</span></label>
+    <textarea class="input" id="ai-cover" name="cover" rows="3" maxlength="2000" placeholder="Опыт, график, когда можете выйти"></textarea>
+  </div>
+  {% if ab.phone %}
+  <label class="check" for="ai-phone"><input id="ai-phone" type="checkbox" name="share_phone" value="1" checked><span>Показать мой телефон</span></label>
+  {% endif %}
+  <button class="btn btn--primary btn--block" type="submit" data-busy-text="Отправляем…">{{ icon('paper-plane-tilt') }}Откликнуться</button>
+</form>
+{% else %}
+<p class="muted">Откликаться могут только соискатели. Отклики на ваши вакансии приходят в раздел «Отклики».</p>
+{% endif %}

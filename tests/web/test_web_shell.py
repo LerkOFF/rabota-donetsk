@@ -75,7 +75,7 @@ def test_seeker_header_menu(make_client):
     html = make_client("job_seeker").get("/vacancies").text
     head = header_of(html)
     assert 'href="/login"' not in head and 'href="/register"' not in head
-    for label, href in [("Резюме", "/cabinet/resume"), ("Отклики", "/cabinet/responses"), ("Сообщения", "/cabinet/messages"),
+    for label, href in [("Резюме", "/cabinet/resume"), ("Отклики", "/responses"), ("Сообщения", "/messages"),
                         ("Избранное", "/cabinet/favorites"), ("Профиль", "/account")]:
         assert f'href="{href}"' in head and label in head
     assert "Анна Петрова" in head and "anna@example.test" in head
@@ -86,7 +86,7 @@ def test_seeker_header_menu(make_client):
 
 def test_employer_header_menu_and_post_button(make_client):
     head = header_of(make_client("employer").get("/").text)
-    for label, href in [("Мои вакансии", "/cabinet/vacancies"), ("Отклики", "/cabinet/responses"), ("Сообщения", "/cabinet/messages"),
+    for label, href in [("Мои вакансии", "/cabinet/vacancies"), ("Отклики", "/responses"), ("Сообщения", "/messages"),
                         ("Компания", "/cabinet/company"), ("Профиль", "/account")]:
         assert f'href="{href}"' in head and label in head
     assert 'class="btn btn--primary btn--sm hpost" href="/razmestit"' in head

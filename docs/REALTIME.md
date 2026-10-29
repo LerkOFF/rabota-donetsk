@@ -55,7 +55,7 @@ health:    python -m rabota health (код 1 при просрочке)
 | --- | --- | --- |
 | `TG_API_ID`, `TG_API_HASH` | ключи приложения Telegram, выдаются на my.telegram.org | нет: слушатель пропускается |
 | `TG_SESSION_PATH` | файл сессии (Telethon добавит `.session`), хранить вне git | `data/telegram` |
-| `TG_PROXY` | `socks5://host:port` или `socks5://user:pass@host:port`; `http://` и `socks4://` тоже поддерживаются; пусто - напрямую | пусто |
+| `TELEGRAM_PROXY` (старое имя `TG_PROXY` тоже читается) | `socks5://host:port` или `socks5://user:pass@host:port`; `http://` и `socks4://` тоже поддерживаются; пусто - напрямую | пусто |
 | `TG_CHANNELS_FILE` | файл с дополнительными каналами, по строке на канал, `@` не обязателен, `#` - комментарий | `data/channels.txt` |
 | `TG_SWEEP_SECONDS` | как часто догонять пропущенное | 300 |
 | `VK_ACCESS_TOKEN` | ключ VK для `wall.get`; без него опрос VK пропускается | нет |
@@ -117,7 +117,9 @@ journalctl -u rabota-worker -f
 
 Ежедневное `expire` по умолчанию делает сам воркер. Если нужен отдельный таймер (например, воркер запущен с `WORKER_EXPIRE=0`), поставить `rabota-expire.service` и `rabota-expire.timer`, затем `systemctl enable --now rabota-expire.timer`.
 
-Прокси для Telegram, когда это обычный SSH-сервер: поставить `rabota-tg-proxy.service` (ключ без пароля, ключ сервера уже в `known_hosts`), включить, в `.env` указать `TG_PROXY=socks5://127.0.0.1:1080`. В юните воркера раскомментировать строки `After=` и `Wants=` для туннеля.
+Прокси задаётся один раз в `TELEGRAM_PROXY` и используется и слушателем Telethon, и сборщиком страниц `t.me/s`, и уведомлениями. Полная схема запуска на сервере: `docs/DEPLOY.md`.
+
+Прокси для Telegram, когда это обычный SSH-сервер: поставить `rabota-tg-proxy.service` (ключ без пароля, ключ сервера уже в `known_hosts`), включить, в `.env` указать `TELEGRAM_PROXY=socks5://127.0.0.1:1080`. В юните воркера раскомментировать строки `After=` и `Wants=` для туннеля.
 
 Сайт и воркер используют одну базу SQLite. Воркер включает режим WAL и ожидание блокировки, поэтому чтение сайта не ждёт записи.
 

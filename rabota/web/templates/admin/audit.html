@@ -1,0 +1,36 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, pager, empty %}
+{% block content %}
+{{ page_head('Журнал действий', 'Кто, что, когда и над чем сделал в админке. Записи нельзя изменить или удалить из интерфейса.') }}
+
+<form class="adm-search" method="get" action="/admin/audit" role="search">
+  <label class="visually-hidden" for="a-act">Начало названия действия</label>
+  <input class="input input--sm" id="a-act" name="action" value="{{ action }}" maxlength="40" placeholder="Действие, например vacancy. или stoplist.">
+  <button class="btn btn--soft btn--sm" type="submit">{{ icon('funnel') }}Отфильтровать действие</button>
+  {% if action %}<a class="btn btn--ghost btn--sm" href="/admin/audit">Сбросить</a>{% endif %}
+</form>
+
+{% if page.items %}
+<div class="adm-tablewrap">
+<table class="atable">
+  <caption class="visually-hidden">Журнал действий администраторов</caption>
+  <thead><tr><th scope="col">Когда</th><th scope="col">Кто</th><th scope="col">Действие</th><th scope="col">Над чем</th><th scope="col">Подробности</th></tr></thead>
+  <tbody>
+  {% for a in page.items %}
+  <tr>
+    <td data-label="Когда">{{ a.at | dt }}</td>
+    <td data-label="Кто">{{ a.actor_email }}{% if a.ip %}<span class="atable__sub">{{ a.ip }}</span>{% endif %}</td>
+    <td data-label="Действие"><span class="mono">{{ a.action }}</span></td>
+    <td data-label="Над чем">{{ a.target_type }} {{ a.target_id }}</td>
+    <td data-label="Подробности"><span class="atable__sub clamp mono">{{ a.details }}</span></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{{ pager(page, '/admin/audit', ('action=' ~ (action | urlencode)) if action else '') }}
+{% else %}
+{% call empty('Записей нет', 'Здесь появятся действия администраторов.', 'info') %}{% endcall %}
+{% endif %}
+{% endblock %}

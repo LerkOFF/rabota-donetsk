@@ -1,0 +1,91 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, chip, empty %}
+{% block content %}
+{{ page_head('Сводка', 'Что требует внимания сейчас. Числа обновляются при каждом открытии страницы.') }}
+
+<section class="kpis" aria-label="Счётчики">
+  <a class="kpi{% if d.pending %} kpi--warn{% endif %}" href="/admin/moderation">
+    <span class="kpi__n" data-counter="pending">{{ d.pending }}</span>
+    <span class="kpi__t">На проверке</span>
+    <span class="kpi__s">{% if d.oldest_pending is not none %}самая старая ждёт {{ human_age(d.oldest_pending).replace(' назад', '') }}{% else %}очередь пуста{% endif %}</span>
+  </a>
+  <a class="kpi{% if d.complaints_open %} kpi--warn{% endif %}" href="/admin/complaints">
+    <span class="kpi__n" data-counter="complaints">{{ d.complaints_open }}</span>
+    <span class="kpi__t">Жалобы на вакансии</span>
+    <span class="kpi__s">{% if d.autohidden %}скрыто автоматически: {{ d.autohidden }}{% else %}открытых жалоб{% endif %}{% if d.reports_open %}, на сообщения: {{ d.reports_open }}{% endif %}</span>
+  </a>
+  <a class="kpi{% if d.requests_overdue %} kpi--danger{% elif d.requests_open %} kpi--warn{% endif %}" href="/admin/requests{% if d.requests_overdue %}?view=overdue{% endif %}">
+    <span class="kpi__n" data-counter="requests">{{ d.requests_open }}</span>
+    <span class="kpi__t">Запросы по данным</span>
+    <span class="kpi__s">{% if d.requests_overdue %}Просрочено: {{ d.requests_overdue }}{% else %}просроченных нет{% endif %}</span>
+  </a>
+  <a class="kpi{% if d.source_problems %} kpi--danger{% endif %}" href="#sources">
+    <span class="kpi__n" data-counter="sources">{{ d.source_problems }}</span>
+    <span class="kpi__t">Источники с проблемами</span>
+    <span class="kpi__s">{% if d.sources.error %}проверка не удалась{% else %}из {{ d.sources.total }}, воркер: {{ {'ok': 'работает', 'stale': 'молчит', 'missing': 'не запущен'}.get(d.sources.worker, 'неизвестно') }}{% endif %}</span>
+  </a>
+  <a class="kpi" href="/admin/moderation?view=all">
+    <span class="kpi__n" data-counter="active">{{ d.active }}</span>
+    <span class="kpi__t">Активных вакансий</span>
+    <span class="kpi__s">видны на сайте</span>
+  </a>
+  <a class="kpi" href="/admin/stoplist">
+    <span class="kpi__n" data-counter="stoplist">{{ d.stoplist }}</span>
+    <span class="kpi__t">Записей в стоп-листе</span>
+    <span class="kpi__s">телефоны, ники, слова</span>
+  </a>
+</section>
+
+<div class="adm-cols">
+  <section class="panel" id="sources" aria-labelledby="h-src">
+    <h2 id="h-src">Источники</h2>
+    {% if d.sources.error %}
+    <p class="notice notice--warn" role="alert">{{ icon('warning') }}<span>Не удалось проверить источники: {{ d.sources.error }}</span></p>
+    {% elif d.sources.problems or d.sources.worker != 'ok' %}
+    <ul class="adm-list">
+      {% if d.sources.worker != 'ok' %}
+      <li>{{ chip('Воркер ' ~ ({'stale': 'молчит', 'missing': 'не запущен'}.get(d.sources.worker, 'неизвестно')), 'danger', 'warning') }}<span class="muted">приём данных остановлен</span></li>
+      {% endif %}
+      {% for s in d.sources.problems %}
+      <li>
+        {{ chip('Просрочен' if s.status == 'stale' else 'Нет данных', 'danger' if s.status == 'stale' else 'warn') }}
+        <strong>{{ s.label }}</strong>
+        <span class="muted">последний успех: {{ human_age(s.age) }}</span>
+        {% if s.error %}<span class="adm-list__err">{{ s.error }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="adm-ok">{{ icon('check-circle') }}<span>Все {{ d.sources.total }} источников отвечают вовремя, воркер работает.</span></p>
+    {% endif %}
+  </section>
+
+  <section class="panel" aria-labelledby="h-err">
+    <h2 id="h-err">Последние ошибки приёма</h2>
+    {% if d.errors %}
+    <ul class="adm-list">
+      {% for e in d.errors %}
+      <li><strong>{{ e.source }}</strong> <span class="muted">{{ e.at | dt }}</span><span class="adm-list__err">{{ e.error }}</span></li>
+      {% endfor %}
+    </ul>
+    {% else %}
+    <p class="adm-ok">{{ icon('check-circle') }}<span>Ошибок приёма не записано.</span></p>
+    {% endif %}
+  </section>
+
+  <section class="panel adm-cols__wide" aria-labelledby="h-aud">
+    <h2 id="h-aud">Последние действия</h2>
+    {% if d.audit %}
+    <ul class="adm-list">
+      {% for a in d.audit %}
+      <li><span class="mono">{{ a.action }}</span> <span class="muted">{{ a.actor_email }}, {{ a.at | dt }}</span></li>
+      {% endfor %}
+    </ul>
+    <p><a href="/admin/audit">Весь журнал</a></p>
+    {% else %}
+    <p class="muted">Действий пока не было.</p>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

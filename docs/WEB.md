@@ -29,8 +29,10 @@ DB_PATH=data/demo.db .venv/bin/uvicorn rabota.web.app:app --port 8000
 | `/profession/<название>`, `/district/<название>`, `/city/<название>` | страницы для поисковиков |
 | `/razmestit` | форма размещения, вакансия сохраняется со статусом `hidden` до проверки |
 | `/legal`, `/legal/<документ>` | юридические документы |
+| `/legal/request` | форма запроса по персональным данным (закрыта от индекса) |
+| `/admin/*` | админка, см. `docs/ADMIN.md` |
 | `/login`, `/register`, `/account`, `/cabinet`, `/logout` (POST) | аккаунты, подключены отдельным модулем |
-| `/about`, `/sitemap.xml`, `/robots.txt` | служебные |
+| `/about`, `/sitemap.xml`, `/sitemap-<вид>-<N>.xml`, `/robots.txt` | служебные (правила поиска: `docs/SEO.md`) |
 
 В ленту попадают только `kind="vacancy"`, `status="active"`, без `duplicate_of` и без пометки `suspicious`.
 

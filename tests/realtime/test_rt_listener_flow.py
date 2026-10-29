@@ -341,6 +341,9 @@ def test_failed_live_message_is_recorded_and_next_one_works(tmp_path, db_path, m
         task = asyncio.create_task(L.run(stop))
         while not f.clients or f.last.handler is None:
             await asyncio.sleep(0.01)
+        # обработчик ставится до первого догона: ждём, пока догон отметит канал, иначе он сам подберёт сообщение
+        while get_state(db_path) is None:
+            await asyncio.sleep(0.01)
         f.last.push("c_chan", msgs(1, 1)[0])
         while get_state(db_path) is None or not get_state(db_path).last_error:
             await asyncio.sleep(0.01)

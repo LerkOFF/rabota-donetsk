@@ -142,9 +142,9 @@ async def run_worker(
 
 
 def setup_logging() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
-    for noisy in ("httpx", "httpcore", "telethon", "asyncio"):
-        logging.getLogger(noisy).setLevel(logging.WARNING)
+    from rabota.ops.logs import setup_logging as setup  # LOG_FORMAT=json: журнал в JSON для journald
+
+    setup(logging.INFO, quiet=("httpx", "httpcore", "telethon", "asyncio"))
 
 
 def main() -> int:

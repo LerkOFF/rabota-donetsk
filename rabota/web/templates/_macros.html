@@ -2,6 +2,17 @@
 <svg class="icon {{ cls }}" aria-hidden="true" focusable="false"><use href="/static/icons.svg#i-{{ name }}"></use></svg>
 {%- endmacro %}
 
+{# Хлебные крошки из seo.breadcrumbs: та же цепочка уходит в разметку BreadcrumbList. Последний пункт - текущая страница #}
+{% macro crumbs(items) -%}
+{% if items %}
+<nav aria-label="Вы здесь">
+  <ol class="crumbs">
+    {% for c in items %}<li>{% if not loop.last %}<a href="{{ c.href }}">{{ c.name }}</a>{% else %}<span aria-current="page">{{ c.name }}</span>{% endif %}</li>{% endfor %}
+  </ol>
+</nav>
+{% endif %}
+{%- endmacro %}
+
 {# Строка поиска: профессия и "где" (город или район) с подсказками. sid делает id полей уникальными на странице #}
 {% macro search_bar(sid, q='', where='', big=False) -%}
 {# search_hints и district_label может не быть в чужих окружениях шаблонов (юридические страницы): тогда подсказок нет #}

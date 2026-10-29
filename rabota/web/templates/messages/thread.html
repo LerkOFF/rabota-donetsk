@@ -1,0 +1,107 @@
+{% extends 'messages/layout.html' %}
+{% from 'messages/_parts.html' import csrf, status as status_badge, alert, info %}
+{% from '_macros.html' import icon, logo_tile %}
+{% block msg_body %}
+<div class="wrap msg-page">
+  <div class="thread">
+    <header class="thread__head">
+      <a class="icon-btn thread__back" href="/messages" aria-label="Все сообщения">{{ icon('caret-left') }}</a>
+      {{ logo_tile(c.counterpart_name) }}
+      <div class="thread__who">
+        <h1 class="thread__name">{{ c.counterpart_name }}</h1>
+        <p class="thread__sub">
+          {% if c.vacancy_id %}<a href="/vacancy/{{ c.vacancy_id }}">{{ c.title | ucfirst }}</a>{% else %}{{ c.title | ucfirst }}{% endif %}
+          {% if status_label %}<span class="thread__state">{{ status_label }}</span>{% endif %}
+        </p>
+      </div>
+      <details class="umenu thread__menu" data-menu-popover>
+        <summary class="icon-btn" aria-label="Действия с перепиской">{{ icon('sliders-horizontal') }}</summary>
+        <div class="umenu__panel">
+          <ul>
+            {% if c.application_id %}<li><a href="/responses/{{ c.application_id }}">{{ icon('paper-plane-tilt') }}Открыть отклик</a></li>{% endif %}
+          </ul>
+          {% if c.i_blocked %}
+          <form class="umenu__out" method="post" action="/messages/{{ c.id }}/unblock">{{ csrf(csrf_token) }}<button type="submit">{{ icon('check-circle') }}Разблокировать</button></form>
+          {% else %}
+          <form class="umenu__out" method="post" action="/messages/{{ c.id }}/block">{{ csrf(csrf_token) }}<button type="submit">{{ icon('x-circle') }}Заблокировать собеседника</button></form>
+          {% endif %}
+        </div>
+      </details>
+    </header>
+
+    {% if flash == 'reported' %}{{ info('Жалоба принята. Модератор проверит сообщение, в переписке ничего не изменилось.') }}{% endif %}
+
+    {% if has_older %}
+    <p class="thread__older"><a class="btn btn--ghost btn--sm" href="{{ older_url }}" rel="prev">{{ icon('caret-left') }}Показать более ранние</a></p>
+    {% endif %}
+
+    {% if messages %}
+    <ol class="chat" aria-label="Сообщения переписки" data-chat>
+      {% for m in messages %}
+      {% if m.day_break %}<li class="chat__day" aria-hidden="false"><span>{{ m.day_break }}</span></li>{% endif %}
+      {% if m.new_divider %}<li class="chat__new"><span>{{ icon('chat-circle-dots') }}Новые сообщения</span></li>{% endif %}
+      <li class="msg {% if m.mine %}msg--mine{% else %}msg--theirs{% endif %}" data-message-id="{{ m.id }}">
+        <div class="msg__bubble">
+          <p class="msg__author visually-hidden">{% if m.mine %}Вы{% else %}{{ c.counterpart_name }}{% endif %}</p>
+          <p class="msg__text">{{ m.body }}</p>
+          <p class="msg__meta">
+            <time datetime="{{ m.created_at }}">{{ m.time }}</time>
+            {% if m.mine %}<span class="msg__read">{% if m.read_at %}{{ icon('check') }}Прочитано{% else %}Доставлено{% endif %}</span>{% endif %}
+          </p>
+        </div>
+        {% if not m.mine %}
+        <details class="msg__report"{% if report_message == m.id %} open{% endif %}>
+          <summary aria-label="Пожаловаться на сообщение">{{ icon('flag') }}<span>Пожаловаться</span></summary>
+          <form method="post" action="/messages/{{ c.id }}/report" data-busy-form>
+            {{ csrf(csrf_token) }}
+            <input type="hidden" name="message_id" value="{{ m.id }}">
+            {% if report_message == m.id %}{{ alert(report_error) }}{% endif %}
+            <div class="field">
+              <label for="rep-{{ m.id }}-reason">Что не так</label>
+              <select class="input input--sm" id="rep-{{ m.id }}-reason" name="reason" required>
+                {% for reason in report_reasons %}<option value="{{ reason }}">{{ reason }}</option>{% endfor %}
+              </select>
+            </div>
+            <div class="field">
+              <label for="rep-{{ m.id }}-comment">Комментарий <span class="muted">(по желанию)</span></label>
+              <textarea class="input" id="rep-{{ m.id }}-comment" name="comment" rows="2" maxlength="{{ max_report }}"></textarea>
+            </div>
+            <button class="btn btn--danger btn--sm" type="submit">Отправить жалобу</button>
+          </form>
+        </details>
+        {% endif %}
+      </li>
+      {% endfor %}
+    </ol>
+    {% else %}
+    <p class="chat-empty muted">Сообщений пока нет.</p>
+    {% endif %}
+    <div id="chat-end" tabindex="-1"></div>
+
+    <section class="composer" aria-labelledby="compose-h">
+      <h2 class="visually-hidden" id="compose-h">Новое сообщение</h2>
+      {% if c.can_send %}
+      <form method="post" action="/messages/{{ c.id }}" novalidate data-busy-form data-composer>
+        {{ csrf(csrf_token) }}
+        {{ alert(error) }}
+        <div class="field{% if error %} field--invalid{% endif %}">
+          <label class="visually-hidden" for="msg-body">Сообщение</label>
+          <textarea class="input" id="msg-body" name="body" rows="2" maxlength="{{ max_message }}" required data-counter="msg-count"
+                    placeholder="Напишите сообщение" enterkeyhint="send">{{ draft }}</textarea>
+          <div class="composer__bar">
+            <p class="counter" id="msg-count" aria-live="off"><span data-count>{{ draft | length }}</span> из {{ max_message }}</p>
+            <button class="btn btn--primary" type="submit" data-busy-text="Отправляем…">{{ icon('paper-plane-tilt') }}Отправить</button>
+          </div>
+        </div>
+        <p class="safety">{{ icon('shield-warning') }} Не переводите деньги и не присылайте документы до встречи. Если просят, пожалуйтесь на сообщение.</p>
+      </form>
+      {% else %}
+      <div class="notice notice--muted" role="status">{{ icon('info') }}<span>{{ c.closed_reason }}</span></div>
+      {% if c.i_blocked %}
+      <form method="post" action="/messages/{{ c.id }}/unblock" class="composer__unblock">{{ csrf(csrf_token) }}<button class="btn btn--ghost" type="submit">Разблокировать</button></form>
+      {% endif %}
+      {% endif %}
+    </section>
+  </div>
+</div>
+{% endblock %}

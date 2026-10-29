@@ -1,0 +1,182 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon, vcard, pay %}
+{% from 'admin/_macros.html' import page_head, vstatus, chip, csrf %}
+{% macro f_text(name, label, maxlength=80, hint='', type='text', inputmode='') -%}
+<div class="field{% if errors.get(name) %} field--invalid{% endif %}">
+  <label for="e-{{ name }}">{{ label }}</label>
+  <input class="input input--sm" id="e-{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ edit.get(name, '') }}" maxlength="{{ maxlength }}"{% if inputmode %} inputmode="{{ inputmode }}"{% endif %} autocomplete="off"{% if errors.get(name) %} aria-invalid="true" aria-describedby="e-{{ name }}-err"{% endif %}>
+  {% if hint %}<p class="hint">{{ hint }}</p>{% endif %}
+  {% if errors.get(name) %}<p class="error" id="e-{{ name }}-err">{{ icon('warning') }}<span>{{ errors[name] }}</span></p>{% endif %}
+</div>
+{%- endmacro %}
+{% macro f_select(name, label, options, empty='Не указано') -%}
+<div class="field{% if errors.get(name) %} field--invalid{% endif %}">
+  <label for="e-{{ name }}">{{ label }}</label>
+  <select class="input input--sm" id="e-{{ name }}" name="{{ name }}"{% if errors.get(name) %} aria-invalid="true" aria-describedby="e-{{ name }}-err"{% endif %}>
+    <option value="">{{ empty }}</option>
+    {% for value, text in options %}<option value="{{ value }}"{% if edit.get(name) == value %} selected{% endif %}>{{ text }}</option>{% endfor %}
+  </select>
+  {% if errors.get(name) %}<p class="error" id="e-{{ name }}-err">{{ icon('warning') }}<span>{{ errors[name] }}</span></p>{% endif %}
+</div>
+{%- endmacro %}
+
+{% block content %}
+<nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/admin">Админка</a></li><li><a href="/admin/moderation">Модерация</a></li><li>Вакансия {{ v.id }}</li></ol></nav>
+
+{% call page_head(pv.profession_title, 'Вакансия №' ~ v.id ~ ', добавлена ' ~ (v.created_at | dt)) %}
+<p class="adm-head__chips">
+  {{ vstatus(v) }}
+  {% if match %}{{ chip('Контакт в стоп-листе: ' ~ match.value, 'danger', 'shield-warning') }}{% endif %}
+  {% set open_c = complaints | selectattr('status', 'equalto', 'new') | list %}
+  {% if open_c %}{{ chip('Открытых жалоб: ' ~ (open_c | length), 'warn', 'flag') }}{% endif %}
+</p>
+{% endcall %}
+
+{% if v.moderation_note %}<p class="notice{% if v.moderation_status == 'rejected' %} notice--warn{% endif %}">{{ icon('info') }}<span>Пометка: {{ v.moderation_note }}</span></p>{% endif %}
+
+<div class="adm-split">
+  <div class="adm-split__main">
+    <section class="panel" aria-labelledby="h-prev">
+      <h2 id="h-prev">Как увидит посетитель</h2>
+      <p class="hint">Карточка в ленте и страница вакансии. Данные взяты из базы как есть.</p>
+      <div class="adm-preview">
+        {{ vcard(pv, 'h3') }}
+      </div>
+      <dl class="facts adm-facts">
+        {% if pv.employer %}<div><dt>Работодатель</dt><dd>{{ pv.employer }}</dd></div>{% endif %}
+        {% if pv.location %}<div><dt>Где</dt><dd>{{ pv.location }}</dd></div>{% endif %}
+        {% if pv.schedule %}<div><dt>График</dt><dd>{{ pv.schedule }}</dd></div>{% endif %}
+        {% if pv.work_format_label %}<div><dt>Формат</dt><dd>{{ pv.work_format_label }}</dd></div>{% endif %}
+        {% if pv.employment_label %}<div><dt>Занятость</dt><dd>{{ pv.employment_label }}</dd></div>{% endif %}
+        {% if pv.experience %}<div><dt>Опыт</dt><dd>{{ pv.experience | ucfirst }}</dd></div>{% endif %}
+        {% if pv.age_min %}<div><dt>Возраст</dt><dd>От {{ pv.age_min }} лет</dd></div>{% endif %}
+        {% if pv.requirements %}<div><dt>Требования</dt><dd>{{ pv.requirements }}</dd></div>{% endif %}
+        <div><dt>Контакты</dt><dd>
+          {% for p in pv.phones %}<span class="mono">{{ phone_pretty(p) }}</span> {% endfor %}
+          {% if pv.telegram %}<span class="mono">{{ pv.telegram }}</span> {% endif %}
+          {% if pv.max_contact %}<span class="mono">MAX {{ pv.max_contact }}</span> {% endif %}
+          {% if pv.email %}<span class="mono">{{ pv.email }}</span>{% endif %}
+          {% if not pv.has_contact %}<span class="muted">не указаны</span>{% endif %}
+        </dd></div>
+        <div><dt>Источник</dt><dd>{{ pv.source_label }}{% if v.source %}, {{ v.source }}{% endif %}{% if pv.original_url %} <a href="{{ pv.original_url }}" target="_blank" rel="noopener nofollow ugc">оригинал {{ icon('arrow-square-out') }}</a>{% endif %}</dd></div>
+        {% if owner %}<div><dt>Автор в системе</dt><dd>{{ owner.name or 'Без имени' }}, {{ owner.email }}</dd></div>{% endif %}
+      </dl>
+      {% if pv.summary %}<div class="prose"><p>{{ pv.summary }}</p></div>{% endif %}
+    </section>
+
+    {% if complaints %}
+    <section class="panel" aria-labelledby="h-comp">
+      <h2 id="h-comp">Жалобы на вакансию</h2>
+      <ul class="adm-list">
+        {% for c in complaints %}
+        <li><a href="/admin/complaints/{{ c.id }}">№{{ c.id }}</a> {{ chip(c.code_label, 'warn') }} <span class="muted">{{ c.created_at | dt }}{% if c.status != 'new' %}, закрыта{% endif %}</span><span class="adm-list__err">{{ c.reason }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <section class="panel" aria-labelledby="h-edit">
+      <details class="adm-details"{% if errors %} open{% endif %}>
+        <summary id="h-edit">{{ icon('file-text') }}Править поля</summary>
+        <form class="adm-form" method="post" action="/admin/vacancies/{{ v.id }}/edit" novalidate>
+          {{ csrf() }}
+          <div class="adm-grid adm-grid--2">
+            {{ f_text('profession', 'Профессия', 80) }}
+            {{ f_select('category', 'Сфера', choices.categories, 'Выберите') }}
+          </div>
+          <div class="adm-grid adm-grid--3">
+            {{ f_select('work_format', 'Где работать', choices.work_formats) }}
+            {{ f_select('employment', 'Занятость', choices.employments) }}
+            {{ f_text('schedule', 'График', 60) }}
+          </div>
+          <div class="adm-grid adm-grid--4">
+            {{ f_text('pay_min', 'Оплата от, ₽', 9, inputmode='numeric') }}
+            {{ f_text('pay_max', 'Оплата до, ₽', 9, inputmode='numeric') }}
+            {{ f_select('pay_period', 'За что', choices.periods) }}
+            {{ f_text('age_min', 'Возраст от', 3, inputmode='numeric') }}
+          </div>
+          <div class="adm-grid adm-grid--2">
+            {{ f_text('city', 'Город', 60) }}
+            {{ f_text('district', 'Район или улица', 60) }}
+          </div>
+          {{ f_text('employer', 'Работодатель', 120) }}
+          {{ f_text('requirements', 'Требования', 400) }}
+          <div class="field{% if errors.get('summary') %} field--invalid{% endif %}">
+            <label for="e-summary">Описание</label>
+            <textarea class="input" id="e-summary" name="summary" rows="4" maxlength="1000"{% if errors.get('summary') %} aria-invalid="true"{% endif %}>{{ edit.get('summary', '') }}</textarea>
+            {% if errors.get('summary') %}<p class="error">{{ icon('warning') }}<span>{{ errors['summary'] }}</span></p>{% endif %}
+          </div>
+          <div class="adm-grid adm-grid--3">
+            {{ f_text('phone', 'Телефон', 30, type='tel') }}
+            {{ f_text('telegram', 'Telegram', 64) }}
+            {{ f_text('email', 'Почта', 120, type='email') }}
+          </div>
+          <div class="adm-checks">
+            <label class="check"><input type="checkbox" name="pay_daily" value="1"{% if edit.get('pay_daily') %} checked{% endif %}>Выплата каждый день</label>
+            <label class="check"><input type="checkbox" name="no_experience" value="1"{% if edit.get('no_experience') %} checked{% endif %}>Опыт не нужен</label>
+          </div>
+          <div class="adm-actions"><button class="btn btn--primary" type="submit">Сохранить изменения</button></div>
+        </form>
+      </details>
+    </section>
+  </div>
+
+  <aside class="adm-split__side" aria-label="Решение по вакансии">
+    {% if v.moderation_status == 'pending' %}
+    <section class="panel adm-decide" aria-labelledby="h-dec">
+      <h2 id="h-dec">Решение</h2>
+      <form method="post" action="/admin/vacancies/{{ v.id }}/approve">
+        {{ csrf() }}
+        <button class="btn btn--primary btn--block" type="submit">{{ icon('check') }}Одобрить и опубликовать</button>
+      </form>
+      <p class="hint">Срок жизни вакансии ({{ ttl_days }} дней) начнётся с одобрения.</p>
+    </section>
+    {% endif %}
+
+    {% if v.moderation_status != 'rejected' %}
+    <section class="panel" aria-labelledby="h-rej">
+      <h2 id="h-rej">Отклонить с причиной</h2>
+      <form class="adm-form" method="post" action="/admin/vacancies/{{ v.id }}/reject" data-reject>
+        {{ csrf() }}
+        <div class="field">
+          <label for="r-code">Шаблон причины</label>
+          <select class="input input--sm" id="r-code" name="reason_code" data-reason-select>
+            <option value="">Выберите шаблон</option>
+            {% for key, label, text in reject_templates %}<option value="{{ key }}" data-text="{{ text }}">{{ label }}</option>{% endfor %}
+            <option value="other">Другая причина</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="r-text">Текст для автора</label>
+          <textarea class="input" id="r-text" name="reason" rows="3" maxlength="500" data-reason-text></textarea>
+          <p class="hint">{% if notify %}Письмо уйдёт на {{ notify }}.{% else %}Адреса автора нет: письмо не отправится.{% endif %}</p>
+        </div>
+        <button class="btn btn--danger btn--block" type="submit" data-confirm="Отклонить вакансию?">{{ icon('x-circle') }}Отклонить</button>
+      </form>
+    </section>
+    {% endif %}
+
+    <section class="panel" aria-labelledby="h-vis">
+      <h2 id="h-vis">Видимость</h2>
+      {% if v.status == 'hidden' and v.moderation_status == 'approved' %}
+      <form method="post" action="/admin/vacancies/{{ v.id }}/restore">
+        {{ csrf() }}
+        <button class="btn btn--ghost btn--block" type="submit">Вернуть в выдачу</button>
+      </form>
+      {% elif v.status == 'active' %}
+      <form class="adm-form" method="post" action="/admin/vacancies/{{ v.id }}/hide">
+        {{ csrf() }}
+        <div class="field">
+          <label for="h-reason">Причина (для журнала)</label>
+          <input class="input input--sm" id="h-reason" name="reason" maxlength="200" autocomplete="off">
+        </div>
+        <button class="btn btn--ghost btn--block" type="submit" data-confirm="Скрыть вакансию из выдачи?">Скрыть из выдачи</button>
+      </form>
+      {% else %}
+      <p class="muted">Вакансия не в выдаче: статус «{{ v.status }}», проверка «{{ v.moderation_status }}».</p>
+      {% endif %}
+      <p class="hint">Страница вакансии: {% if v.status == 'active' and v.moderation_status == 'approved' %}<a href="/vacancy/{{ v.id }}" target="_blank" rel="noopener">открыть на сайте</a>{% else %}не открывается посетителям{% endif %}.</p>
+    </section>
+  </aside>
+</div>
+{% endblock %}

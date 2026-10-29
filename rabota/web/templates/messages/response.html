@@ -1,0 +1,86 @@
+{% extends 'messages/layout.html' %}
+{% from 'messages/_parts.html' import csrf, status as status_badge, alert, info, crumbs %}
+{% from '_macros.html' import icon, logo_tile %}
+{% block msg_body %}
+<div class="wrap msg-page">
+  <header class="page-head">
+    {{ crumbs([('Отклики' if is_employer else 'Мои отклики', '/responses'), ('Отклик', '')]) }}
+    <div class="rhead">
+      {{ logo_tile((r.seeker_name if is_employer else r.employer_name) or r.vacancy_title, 'lg') }}
+      <div class="rhead__text">
+        <h1 class="h1 h1--page">{% if is_employer %}{{ r.seeker_name }}{% else %}{{ r.vacancy_title | ucfirst }}{% endif %}</h1>
+        <p class="muted">
+          {% if is_employer %}Отклик на вакансию
+            {% if r.vacancy_alive %}<a href="/vacancy/{{ r.vacancy_id }}">{{ r.vacancy_title }}</a>{% else %}{{ r.vacancy_title }}{% endif %}
+          {% else %}{{ r.employer_name }}{% if r.vacancy_city %}, {{ r.vacancy_city }}{% endif %}{% endif %}
+          · <time datetime="{{ r.created_at }}">{{ r.when_full }}</time>
+        </p>
+        <p>{{ status_badge(r.status, r.status_label) }}</p>
+      </div>
+    </div>
+  </header>
+
+  {% if sent %}<p class="notice" role="status">{{ icon('check-circle') }}<span>Отклик отправлен. Работодатель получит уведомление, ответ придёт в переписку на сайте.</span></p>{% endif %}
+  {{ alert(error) }}
+  {% if r.status == 'withdrawn' %}<p class="notice notice--muted" role="status">{{ icon('info') }}<span>{% if is_employer %}Соискатель отозвал отклик.{% else %}Вы отозвали этот отклик. Откликнуться на эту вакансию повторно нельзя.{% endif %}</span></p>{% endif %}
+  {% if not is_employer and not r.vacancy_alive %}<p class="notice notice--muted" role="status">{{ icon('info') }}<span>Вакансию сняли с сайта. Переписка с работодателем осталась.</span></p>{% endif %}
+
+  <div class="rpage">
+    <div class="rpage__main">
+      {% if is_employer %}
+      <section class="panel" aria-labelledby="r-contacts">
+        <h2 id="r-contacts">Контакты</h2>
+        {% if r.phone_pretty %}
+        <p><a class="contact-box__phone" href="tel:{{ r.phone_href }}">{{ r.phone_pretty }}</a></p>
+        <p class="hint">Соискатель разрешил показать телефон. Почта скрыта: пишите в переписке на сайте.</p>
+        {% else %}
+        <p class="muted">Соискатель не показал телефон. Напишите ему в переписке на сайте.</p>
+        {% endif %}
+      </section>
+      {% endif %}
+
+      <section class="panel" aria-labelledby="r-cover">
+        <h2 id="r-cover">{% if is_employer %}Сопроводительное сообщение{% else %}Ваше сообщение{% endif %}</h2>
+        {% if r.cover_letter %}<p class="plain-text">{{ r.cover_letter }}</p>{% else %}<p class="muted">Без сопроводительного сообщения.</p>{% endif %}
+      </section>
+    </div>
+
+    <aside class="rpage__side" aria-label="Действия">
+      {% if r.conversation_id %}
+      <section class="panel" aria-labelledby="r-chat">
+        <h2 id="r-chat">Переписка</h2>
+        {% if r.unread %}<p class="notice" role="status">{{ icon('chat-circle-dots') }}<span>Новых сообщений: {{ r.unread }}</span></p>{% endif %}
+        <a class="btn btn--primary btn--block" href="/messages/{{ r.conversation_id }}">{{ icon('chat-circle-dots') }}{% if is_employer %}Написать{% else %}Открыть переписку{% endif %}</a>
+      </section>
+      {% endif %}
+
+      {% if is_employer and r.status != 'withdrawn' %}
+      <section class="panel" aria-labelledby="r-status">
+        <h2 id="r-status">Статус отклика</h2>
+        <form class="status-form" method="post" action="/responses/{{ r.id }}/status" data-busy-form>
+          {{ csrf(csrf_token) }}
+          {% for key, label in set_statuses %}
+          <button class="btn {% if r.status == key %}btn--primary{% else %}btn--ghost{% endif %}" type="submit" name="status" value="{{ key }}"{% if r.status == key %} aria-current="true"{% endif %}>{{ label }}</button>
+          {% endfor %}
+        </form>
+        <p class="hint">Соискатель увидит статус в своём списке откликов.</p>
+      </section>
+      {% endif %}
+
+      {% if not is_employer and r.status != 'withdrawn' %}
+      <section class="panel" aria-labelledby="r-withdraw">
+        <h2 id="r-withdraw" class="visually-hidden">Отзыв отклика</h2>
+        <details class="complain">
+          <summary>{{ icon('x-circle') }}Отозвать отклик</summary>
+          <form method="post" action="/responses/{{ r.id }}/withdraw" data-busy-form>
+            {{ csrf(csrf_token) }}
+            <p class="hint">Работодатель перестанет рассматривать отклик, переписка закроется. Повторно откликнуться на эту вакансию будет нельзя.</p>
+            <button class="btn btn--danger" type="submit">Отозвать отклик</button>
+          </form>
+        </details>
+      </section>
+      {% endif %}
+    </aside>
+  </div>
+</div>
+{% endblock %}

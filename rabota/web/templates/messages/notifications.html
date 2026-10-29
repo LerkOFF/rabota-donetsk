@@ -1,0 +1,29 @@
+{% extends 'messages/layout.html' %}
+{% from 'messages/_parts.html' import csrf, info, crumbs %}
+{% from '_macros.html' import icon %}
+{% block msg_body %}
+<div class="wrap msg-page">
+  <header class="page-head">
+    {{ crumbs([('Настройки аккаунта', '/account'), ('Уведомления', '')]) }}
+    <h1 class="h1 h1--page">Уведомления по почте</h1>
+    <p class="lead">Письмо приходит, когда появляется что-то новое. В письме только ссылка на сайт: имена, контакты и тексты сообщений в почту не попадают.</p>
+  </header>
+  {% if saved %}{{ info('Настройки сохранены.') }}{% endif %}
+  <form class="panel notify-form" method="post" action="/notifications">
+    <h2>Присылать письма</h2>
+    {{ csrf(csrf_token) }}
+    {% if is_employer %}
+    <label class="check" for="n-resp">
+      <input id="n-resp" type="checkbox" name="responses" value="1"{% if prefs.responses %} checked{% endif %}>
+      <span>О новых откликах на мои вакансии</span>
+    </label>
+    {% endif %}
+    <label class="check" for="n-msg">
+      <input id="n-msg" type="checkbox" name="messages" value="1"{% if prefs.messages %} checked{% endif %}>
+      <span>О новых сообщениях в переписке</span>
+    </label>
+    <p class="hint">Письма о входе, подтверждении почты и смене пароля приходят всегда: они нужны для безопасности аккаунта.</p>
+    <div><button class="btn btn--primary" type="submit">Сохранить</button></div>
+  </form>
+</div>
+{% endblock %}

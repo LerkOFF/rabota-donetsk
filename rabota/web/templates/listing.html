@@ -1,27 +1,31 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import icon, vcard, pager %}
+{% from '_macros.html' import icon, vcard, pager, crumbs %}
 {% block content %}
 <div class="wrap">
   <header class="page-head">
-    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li><a href="/vacancies">Вакансии</a></li></ol></nav>
+    {{ crumbs(seo.breadcrumbs) }}
     <h1 class="h1 h1--page">{{ heading }}</h1>
-    <p class="muted">{{ count_label(page.total, 'вакансия', 'вакансии', 'вакансий') }}. Оплата, график и телефон в каждой карточке.</p>
+    <div class="prose landing-intro">{% for text in intro %}<p{% if loop.first %} class="landing-intro__lead"{% endif %}>{{ text }}</p>{% endfor %}</div>
   </header>
   <div class="listing">
     <div class="vlist">
       {% for v in items %}{{ vcard(v) }}{% endfor %}
     </div>
-    {{ pager(page, path, '') }}
+    {{ pager(page, list_path, '') }}
 
-    <section class="section section--tight" aria-labelledby="more">
+    {% if groups %}
+    <section class="section section--tight link-groups" aria-labelledby="more">
       <h2 class="h2 section__title" id="more">Смотрите также</h2>
-      <ul class="chip-row" aria-label="Профессии">
-        {% for name, n in professions %}<li><a class="chip" href="/profession/{{ name | quote }}">{{ name | ucfirst }} <span class="chip__n">{{ n }}</span></a></li>{% endfor %}
-      </ul>
-      <ul class="chip-row chip-row--spaced" aria-label="Районы">
-        {% for name, n in districts %}<li><a class="chip" href="/district/{{ name | quote }}">{{ icon('map-pin') }}{{ district_label(name) }} <span class="chip__n">{{ n }}</span></a></li>{% endfor %}
-      </ul>
+      {% for g in groups %}
+      <div class="link-group">
+        <h3 class="link-group__title" id="lg-{{ loop.index }}">{{ g.title }}</h3>
+        <ul class="chip-row" aria-labelledby="lg-{{ loop.index }}">
+          {% for it in g['items'] %}<li><a class="chip" href="{{ it.href }}">{% if it.icon %}{{ icon('map-pin') }}{% endif %}{{ it.label }} <span class="chip__n">{{ it.n }}</span></a></li>{% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
     </section>
+    {% endif %}
   </div>
 </div>
 {% endblock %}

@@ -305,6 +305,7 @@ def also_published_in(conn: sqlite3.Connection, vacancy_id: int) -> list[dict[st
 def is_listable(v: dict[str, Any]) -> bool:
     return (
         v["kind"] == "vacancy" and v["status"] == "active" and v["duplicate_of"] is None and not v["suspicious"]
+        and (v.get("moderation_status") or "approved") == "approved"
     )
 
 
@@ -372,17 +373,106 @@ def stats(conn: sqlite3.Connection, now: datetime | None = None) -> dict[str, in
     }
 
 
-def sitemap_entries(conn: sqlite3.Connection) -> dict[str, list[Any]]:
+def _grouped(conn: sqlite3.Connection, column: str, min_count: int) -> list[tuple[str, int, str | None]]:
+    """Значение поля, число вакансий, дата последней публикации. Регистр и ё не создают лишних строк."""
+    rows = conn.execute(
+        f"SELECT MIN({column}) AS v, COUNT(*) AS n, MAX(COALESCE(published_at, created_at)) AS ts FROM vacancies "
+        f"WHERE {VISIBLE_SQL} AND {column} IS NOT NULL AND {column} != '' GROUP BY rfold({column}) "
+        f"HAVING COUNT(*) >= ? ORDER BY n DESC, v",
+        (min_count,),
+    ).fetchall()
+    return [(r["v"], r["n"], r["ts"]) for r in rows]
+
+
+def sitemap_entries(conn: sqlite3.Connection, min_count: int = 3) -> dict[str, list[Any]]:
+    """Всё, что должно попасть в карту сайта. Профессии, районы и города: только с числом вакансий не меньше min_count
+    (тонкие страницы закрыты noindex). Компании: с профилем и хотя бы одной открытой вакансией.
+    Для каждой строки: значение (или id), дата последней публикации."""
     vacancies = conn.execute(
         f"SELECT id, COALESCE(published_at, created_at) AS ts FROM vacancies WHERE {VISIBLE_SQL} "
-        f"ORDER BY {ORDER_SQL} LIMIT 45000"
+        f"ORDER BY {ORDER_SQL} LIMIT 200000"
     ).fetchall()
+    companies = conn.execute(
+        f"SELECT company_id AS id, MAX(COALESCE(published_at, created_at)) AS ts FROM vacancies "
+        f"WHERE {VISIBLE_SQL} AND company_id IN (SELECT id FROM companies) GROUP BY company_id ORDER BY company_id"
+    ).fetchall()
+    latest_ts = conn.execute(
+        f"SELECT MAX(COALESCE(published_at, created_at)) FROM vacancies WHERE {VISIBLE_SQL}"
+    ).fetchone()[0]
     return {
         "vacancies": [(r["id"], r["ts"]) for r in vacancies],
-        "professions": [name for name, _ in _counts(conn, "profession")],
-        "districts": [name for name, _ in _counts(conn, "district")],
-        "cities": [name for name, _ in _counts(conn, "city")],
+        "professions": [(v, ts) for v, _, ts in _grouped(conn, "profession", min_count)],
+        "districts": [(v, ts) for v, _, ts in _grouped(conn, "district", min_count)],
+        "cities": [(v, ts) for v, _, ts in _grouped(conn, "city", min_count)],
+        "companies": [(r["id"], r["ts"]) for r in companies],
+        "latest": latest_ts,
     }
+
+
+def indexable_counts(conn: sqlite3.Connection, min_count: int = 3) -> dict[str, list[tuple[str, int]]]:
+    """Профессии, районы и города с достаточной выдачей: на них ведут ссылки перелинковки."""
+    return {
+        "professions": [(v, n) for v, n, _ in _grouped(conn, "profession", min_count)],
+        "districts": [(v, n) for v, n, _ in _grouped(conn, "district", min_count)],
+        "cities": [(v, n) for v, n, _ in _grouped(conn, "city", min_count)],
+    }
+
+
+def listing_facts(conn: sqlite3.Connection, f: Filters) -> dict[str, Any]:
+    """Цифры для вводного текста страницы-посадки: оплата по периодам, районы, доли без опыта и с выплатой в день.
+    Всё считается по тем же вакансиям, что видны на странице."""
+    where, args, _, _ = _where(f)
+    pay_rows = conn.execute(
+        f"SELECT pay_period AS period, COUNT(*) AS n, MIN(COALESCE(pay_min, pay_max)) AS lo, "
+        f"MAX(COALESCE(pay_max, pay_min)) AS hi FROM vacancies WHERE {where} "
+        f"AND (pay_min IS NOT NULL OR pay_max IS NOT NULL) AND pay_period IS NOT NULL AND pay_period != '' "
+        f"GROUP BY pay_period ORDER BY n DESC, pay_period",
+        args,
+    ).fetchall()
+
+    def top(column: str, limit: int) -> list[tuple[str, int]]:
+        rows = conn.execute(
+            f"SELECT {column} AS v, COUNT(*) AS n FROM vacancies WHERE {where} AND {column} IS NOT NULL "
+            f"AND {column} != '' GROUP BY {column} ORDER BY n DESC, v LIMIT {int(limit)}",
+            args,
+        ).fetchall()
+        return [(r["v"], r["n"]) for r in rows]
+
+    def count(extra: str) -> int:
+        return int(conn.execute(f"SELECT COUNT(*) FROM vacancies WHERE {where} AND {extra}", args).fetchone()[0])
+
+    return {
+        "pay": [dict(r) for r in pay_rows if r["lo"] and r["hi"]],
+        "districts": top("district", 5),
+        "cities": top("city", 5),
+        "professions": top("profession", 8),
+        "categories": top("category", 3),
+        "no_experience": count("(rfold(experience) LIKE 'не нужен%' OR rfold(experience) LIKE 'без опыт%')"),
+        "daily": count("pay_daily = 1"),
+        "direct": count("origin = 'direct'"),
+        "side_job": count("employment IN ('подработка', 'на сегодня')"),
+    }
+
+
+def related_professions(conn: sqlite3.Connection, category: str, exclude: str, min_count: int = 3) -> list[tuple[str, int]]:
+    """Другие профессии той же сферы: для перелинковки между страницами профессий."""
+    if not category:
+        return []
+    rows = conn.execute(
+        f"SELECT MIN(profession) AS v, COUNT(*) AS n FROM vacancies WHERE {VISIBLE_SQL} AND category = ? "
+        "AND profession IS NOT NULL AND profession != '' AND rfold(profession) != ? GROUP BY rfold(profession) "
+        "HAVING COUNT(*) >= ? ORDER BY n DESC, v LIMIT 12",
+        (category, fold(exclude), min_count),
+    ).fetchall()
+    return [(r["v"], r["n"]) for r in rows]
+
+
+def canonical_name(conn: sqlite3.Connection, column: str, name: str) -> str | None:
+    """Как значение записано в базе (регистр и ё как в данных), по произвольному написанию из адреса."""
+    row = conn.execute(
+        f"SELECT MIN({column}) FROM vacancies WHERE {VISIBLE_SQL} AND rfold({column}) = ?", (fold(name),)
+    ).fetchone()
+    return row[0] if row and row[0] else None
 
 
 def get_company(conn: sqlite3.Connection, company_id: int) -> dict[str, Any] | None:
@@ -407,10 +497,14 @@ def search_hints(conn: sqlite3.Connection, limit: int = 40) -> dict[str, list[st
     return {"professions": professions, "cities": cities, "districts": districts}
 
 
-def add_complaint(conn: sqlite3.Connection, vacancy_id: int, reason: str) -> int:
-    cur = conn.execute("INSERT INTO complaints(vacancy_id, reason) VALUES (?, ?)", (vacancy_id, reason))
-    conn.commit()
-    return int(cur.lastrowid)
+def add_complaint(
+    conn: sqlite3.Connection, vacancy_id: int, reason: str, *, code: str = "", reporter_email: str | None = None,
+    reporter_key: str | None = None,
+) -> int:
+    """Жалоба на вакансию. Почта заявителя и отпечаток нужны админке: ответ по почте и автоскрытие при жалобах разных людей."""
+    from rabota.admin import complaints
+
+    return complaints.add(conn, vacancy_id, reason, code=code, reporter_email=reporter_email, reporter_key=reporter_key)
 
 
 def add_site_vacancy(conn: sqlite3.Connection, v: Vacancy, premoderate: bool = True) -> int:
@@ -424,4 +518,8 @@ def add_site_vacancy(conn: sqlite3.Connection, v: Vacancy, premoderate: bool = T
     phones = (v.contacts or {}).get("phones") or []
     key_src = f"{v.profession.lower()}|{(phones or [''])[0]}|{v.city or ''}"
     v.dedupe_key = hashlib.sha1(key_src.encode()).hexdigest()[:16]
-    return save_vacancy(conn, v)
+    vacancy_id = save_vacancy(conn, v)
+    if premoderate:  # ждёт решения в админке: до одобрения в выдаче и карте сайта не появляется
+        conn.execute("UPDATE vacancies SET moderation_status = 'pending' WHERE id = ?", (vacancy_id,))
+        conn.commit()
+    return vacancy_id

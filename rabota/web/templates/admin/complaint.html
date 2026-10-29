@@ -1,0 +1,116 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon, vcard %}
+{% from 'admin/_macros.html' import page_head, chip, csrf, vstatus %}
+{% block content %}
+<nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/admin">Админка</a></li><li><a href="/admin/complaints">Жалобы</a></li><li>Жалоба {{ c.id }}</li></ol></nav>
+
+{% call page_head('Жалоба №' ~ c.id, c.code_label ~ ', ' ~ (c.created_at | dt)) %}
+<p class="adm-head__chips">
+  {% if c.status == 'new' %}{{ chip('Открыта', 'warn', 'clock') }}{% else %}{{ chip(c.resolution_label or 'Закрыта', 'mute', 'check') }}{% endif %}
+  {% if c.same_vacancy_open > 1 %}{{ chip('Открытых жалоб на эту вакансию: ' ~ c.same_vacancy_open, 'warn', 'flag') }}{% endif %}
+</p>
+{% endcall %}
+
+<div class="adm-split">
+  <div class="adm-split__main">
+    <section class="panel" aria-labelledby="h-text">
+      <h2 id="h-text">Что написал заявитель</h2>
+      <p class="adm-quote">{{ c.reason }}</p>
+      <dl class="facts adm-facts">
+        <div><dt>Почта для ответа</dt><dd>{% if c.reporter_email %}{{ c.reporter_email }}{% else %}<span class="muted">не указана</span>{% endif %}</dd></div>
+        <div><dt>Ответ отправлен</dt><dd>{% if c.reply_sent_at %}{{ c.reply_sent_at | dt }}{% else %}<span class="muted">нет</span>{% endif %}</dd></div>
+        {% if c.status != 'new' %}
+        <div><dt>Закрыта</dt><dd>{{ c.resolved_at | dt }}{% if c.admin_note %}, заметка: {{ c.admin_note }}{% endif %}</dd></div>
+        {% endif %}
+      </dl>
+    </section>
+
+    <section class="panel" aria-labelledby="h-vac">
+      <h2 id="h-vac">Вакансия</h2>
+      {% if v %}
+      <p class="adm-head__chips">{{ vstatus(v) }} <a href="/admin/vacancies/{{ v.id }}">Открыть карточку модерации</a></p>
+      <div class="adm-preview">{{ vcard(pv, 'h3') }}</div>
+      {% if v.moderation_note %}<p class="hint">Пометка: {{ v.moderation_note }}</p>{% endif %}
+      {% else %}
+      <p class="muted">Вакансия уже удалена из базы.</p>
+      {% endif %}
+    </section>
+
+    {% if others %}
+    <section class="panel" aria-labelledby="h-oth">
+      <h2 id="h-oth">Другие жалобы на эту вакансию</h2>
+      <ul class="adm-list">
+        {% for o in others %}
+        <li><a href="/admin/complaints/{{ o.id }}">№{{ o.id }}</a> {{ chip(o.code_label, 'warn') }} <span class="muted">{{ o.created_at | dt }}{% if o.status != 'new' %}, закрыта{% endif %}</span><span class="adm-list__err">{{ o.reason }}</span></li>
+        {% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+
+  <aside class="adm-split__side" aria-label="Действия по жалобе">
+    {% if c.status == 'new' and v %}
+    <section class="panel" aria-labelledby="h-act">
+      <h2 id="h-act">Скрыть вакансию</h2>
+      <form class="adm-form" method="post" action="/admin/complaints/{{ c.id }}/hide">
+        {{ csrf() }}
+        <div class="field"><label for="a-note">Заметка (для журнала)</label><input class="input input--sm" id="a-note" name="note" maxlength="300" autocomplete="off"></div>
+        <button class="btn btn--primary btn--block" type="submit" data-confirm="Скрыть вакансию и закрыть жалобы на неё?">{{ icon('lock-key') }}Скрыть вакансию</button>
+        <p class="hint">Закроет все открытые жалобы на эту вакансию.</p>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="h-stop">
+      <h2 id="h-stop">В стоп-лист и скрыть</h2>
+      <form class="adm-form" method="post" action="/admin/complaints/{{ c.id }}/stoplist">
+        {{ csrf() }}
+        {% if candidates %}
+        <fieldset class="fieldset">
+          <legend>Занести из вакансии</legend>
+          {% for cand in candidates %}
+          <label class="check"><input type="checkbox" name="stop" value="{{ cand.kind }}|{{ cand.value }}"{% if cand.kind in ('phone', 'nick') %} checked{% endif %}><span>{{ {'phone': 'Телефон', 'nick': 'Ник', 'employer': 'Работодатель'}[cand.kind] }}: <span class="mono">{{ cand.value }}</span></span></label>
+          {% endfor %}
+        </fieldset>
+        {% endif %}
+        <div class="adm-grid adm-grid--2">
+          <div class="field"><label for="s-kind">Или добавить своё</label>
+            <select class="input input--sm" id="s-kind" name="extra_kind">{% for k, label in stop_kinds %}<option value="{{ k }}"{% if k == 'keyword' %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+          <div class="field"><label for="s-val">Значение</label><input class="input input--sm" id="s-val" name="extra_value" maxlength="120" autocomplete="off"></div>
+        </div>
+        <div class="field"><label for="s-note">Заметка</label><input class="input input--sm" id="s-note" name="note" maxlength="300" autocomplete="off"></div>
+        <button class="btn btn--danger btn--block" type="submit" data-confirm="Занести выбранное в стоп-лист и скрыть вакансию?">{{ icon('shield-warning') }}В стоп-лист</button>
+        <p class="hint">Скроются и другие опубликованные вакансии с тем же контактом, сборщики такие не примут.</p>
+      </form>
+    </section>
+    {% endif %}
+
+    {% if c.status == 'new' %}
+    <section class="panel" aria-labelledby="h-dis">
+      <h2 id="h-dis">Отклонить жалобу</h2>
+      <form class="adm-form" method="post" action="/admin/complaints/{{ c.id }}/dismiss">
+        {{ csrf() }}
+        <div class="field"><label for="d-note">Почему (для журнала)</label><input class="input input--sm" id="d-note" name="note" maxlength="300" autocomplete="off"></div>
+        {% if v and v.status == 'hidden' and v.moderation_status == 'approved' %}
+        <label class="check"><input type="checkbox" name="restore" value="1"{% if v.moderation_note and v.moderation_note.startswith('Скрыто автоматически') %} checked{% endif %}>Вернуть вакансию в выдачу</label>
+        {% endif %}
+        <button class="btn btn--ghost btn--block" type="submit">Отклонить жалобу</button>
+      </form>
+    </section>
+    {% endif %}
+
+    <section class="panel" aria-labelledby="h-rep">
+      <h2 id="h-rep">Ответить заявителю</h2>
+      {% if c.reporter_email %}
+      <form class="adm-form" method="post" action="/admin/complaints/{{ c.id }}/reply">
+        {{ csrf() }}
+        <div class="field"><label for="p-text">Письмо на {{ c.reporter_email }}</label>
+          <textarea class="input" id="p-text" name="text" rows="4" maxlength="2000" data-reply-text>{{ '' }}</textarea></div>
+        <button class="btn btn--soft btn--block" type="submit">{{ icon('envelope-simple') }}Отправить ответ</button>
+      </form>
+      {% else %}
+      <p class="muted">Заявитель не оставил почту, ответить нельзя.</p>
+      {% endif %}
+    </section>
+  </aside>
+</div>
+{% endblock %}

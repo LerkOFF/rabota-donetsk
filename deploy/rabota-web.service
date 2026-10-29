@@ -1,0 +1,63 @@
+# Сайт: uvicorn на 127.0.0.1:8000, снаружи его закрывает nginx. Подставьте <заглушки>:
+#   <USER>         системный пользователь проекта (rabota), не root
+#   <PROJECT_DIR>  папка проекта (/var/www/rabota); в ней .env, .venv, data/ и media/
+# Один процесс: сервер маленький (1 vCPU), лимиты частоты и счётчики живут в памяти процесса, база SQLite.
+# Установка: scripts/bootstrap-server.sh, подробности в docs/DEPLOY.md.
+[Unit]
+Description=Работа Донецк: сайт (uvicorn)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=<USER>
+Group=<USER>
+WorkingDirectory=<PROJECT_DIR>
+Environment=PYTHONUNBUFFERED=1
+Environment=LOG_FORMAT=json
+EnvironmentFile=<PROJECT_DIR>/.env
+ExecStart=<PROJECT_DIR>/.venv/bin/uvicorn rabota.web.app:app \
+  --host 127.0.0.1 --port 8000 --workers 1 \
+  --proxy-headers --forwarded-allow-ips 127.0.0.1 \
+  --no-access-log --log-config <PROJECT_DIR>/deploy/uvicorn-log.json \
+  --timeout-keep-alive 20
+Restart=always
+RestartSec=3
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+# Ресурсы: на сервере живут и другие сайты
+MemoryHigh=300M
+MemoryMax=350M
+TasksMax=128
+LimitNOFILE=4096
+
+# Песочница: система только для чтения, запись в data/ и media/
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectProc=invisible
+ProcSubset=pid
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+RestrictNamespaces=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+SystemCallArchitectures=native
+CapabilityBoundingSet=
+AmbientCapabilities=
+# файлы в media/ читает nginx (пользователь www-data), поэтому права 644; data/ закрыта правами каталога (700)
+UMask=0022
+ReadWritePaths=<PROJECT_DIR>/data
+ReadWritePaths=-<PROJECT_DIR>/media
+
+[Install]
+WantedBy=multi-user.target

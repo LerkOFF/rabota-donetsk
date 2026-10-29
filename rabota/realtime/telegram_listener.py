@@ -155,7 +155,7 @@ class TelegramSettings:
         if not session.is_absolute():
             session = root / session
         try:
-            proxy = parse_proxy(env.get("TG_PROXY", ""))
+            proxy = parse_proxy(env.get("TELEGRAM_PROXY") or env.get("TG_PROXY", ""))
         except ValueError as exc:
             raise TelegramNotConfigured(str(exc)) from None
         channels_file = Path((env.get("TG_CHANNELS_FILE") or "").strip() or root / DEFAULT_CHANNELS_FILE)

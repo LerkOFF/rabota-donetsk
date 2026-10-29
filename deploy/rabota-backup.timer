@@ -1,0 +1,12 @@
+# Ежедневная резервная копия ночью.
+[Unit]
+Description=Работа Донецк: ежедневная резервная копия базы
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=10min
+Persistent=true
+Unit=rabota-backup.service
+
+[Install]
+WantedBy=timers.target

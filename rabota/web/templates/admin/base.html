@@ -1,0 +1,67 @@
+{% from '_macros.html' import icon %}
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ seo.title }}</title>
+  <meta name="description" content="{{ seo.description }}">
+  <meta name="robots" content="noindex, nofollow">
+  <link rel="canonical" href="{{ seo.canonical }}">
+  <meta name="theme-color" content="#f6f8fc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="preload" href="/static/fonts/onest-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="{{ asset('tokens.css') }}">
+  <link rel="stylesheet" href="{{ asset('site.css') }}">
+  <link rel="stylesheet" href="{{ asset('admin.css') }}">
+  <script src="{{ asset('theme-init.js') }}"></script>
+</head>
+<body class="adm">
+  <a class="skip-link" href="#main">К содержимому</a>
+  <header class="adm-top">
+    <a class="adm-brand" href="/admin" aria-label="Админка, сводка">
+      <svg class="adm-brand__mark" viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <rect width="32" height="32" rx="8" fill="var(--c-accent)"></rect>
+        <path d="M4 25 12.5 9.5c1-1.8 2.9-1.8 3.9 0L19 14l2.2-3.3c.9-1.4 2.7-1.4 3.6 0L29 25z" fill="var(--c-on-accent)"></path>
+      </svg>
+      <span translate="no">Работа Донецк<span class="adm-brand__role">админка</span></span>
+    </a>
+    <div class="adm-top__right">
+      <a class="adm-top__site" href="/">{{ icon('arrow-square-out') }}<span>На сайт</span></a>
+      <button class="icon-btn theme-toggle" type="button" data-theme-toggle aria-pressed="false" aria-label="Включить тёмную тему">
+        {{ icon('moon', 'i-moon') }}{{ icon('sun', 'i-sun') }}
+      </button>
+      <span class="adm-top__who" title="{{ me.email }}">{{ me.email }}</span>
+      <form method="post" action="/logout" class="adm-top__out">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="btn btn--ghost btn--sm" type="submit">{{ icon('sign-out') }}<span>Выйти</span></button>
+      </form>
+    </div>
+  </header>
+
+  <div class="adm-shell">
+    <nav class="adm-nav" aria-label="Разделы админки">
+      <ul>
+        {% for key, label, href, ico in menu %}
+        {% set n = nav.get(key, 0) if key != 'dashboard' else 0 %}
+        <li>
+          <a href="{{ href }}"{% if key == section %} aria-current="page"{% endif %}>
+            {{ icon(ico) }}<span class="adm-nav__label">{{ label }}</span>
+            {% if key == 'requests' and nav.requests_overdue %}<span class="count count--danger" title="Просрочено">{{ nav.requests_overdue }}</span>
+            {% elif n %}<span class="count">{{ n }}</span>{% endif %}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+    </nav>
+
+    <main id="main" class="adm-main" tabindex="-1">
+      {% if flash %}<p class="notice adm-flash" role="status">{{ icon('check-circle') }}<span>{{ flash }}</span></p>{% endif %}
+      {% if error %}<div class="notice notice--warn adm-flash" role="alert" id="adm-error" tabindex="-1">{{ icon('warning') }}<span>{{ error }}</span></div>{% endif %}
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+  <script src="{{ asset('admin.js') }}" defer></script>
+</body>
+</html>

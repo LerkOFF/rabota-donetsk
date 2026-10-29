@@ -1,0 +1,49 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, tabs, chip, pager, empty %}
+{% block content %}
+{{ page_head('Жалобы', 'Жалобы посетителей на вакансии. Опасные (мошенничество) идут первыми. Порог автоскрытия: ' ~ (threshold ~ ' ' ~ plural(threshold, 'жалоба', 'жалобы', 'жалоб') ~ ' от разных людей' if threshold else 'выключено') ~ '.') }}
+
+<nav class="adm-tabs adm-tabs--sections" aria-label="Раздел жалоб">
+  <ul>
+    <li><a href="/admin/complaints" aria-current="page">На вакансии <span class="count count--on">{{ counts.open }}</span></a></li>
+    <li><a href="/admin/reports">На сообщения и людей {% if counts.reports_open %}<span class="count">{{ counts.reports_open }}</span>{% endif %}</a></li>
+  </ul>
+</nav>
+{{ tabs([('open', 'Открытые', counts.open), ('closed', 'Закрытые', counts.closed), ('all', 'Все', None)], view, '/admin/complaints', 'Состояние жалоб') }}
+
+{% if page.items %}
+<div class="adm-tablewrap">
+<table class="atable">
+  <caption class="visually-hidden">Жалобы на вакансии</caption>
+  <thead><tr><th scope="col">№</th><th scope="col">Причина</th><th scope="col">Вакансия</th><th scope="col">Заявитель</th><th scope="col">Когда</th><th scope="col">Состояние</th><th scope="col"><span class="visually-hidden">Действия</span></th></tr></thead>
+  <tbody>
+  {% for c in page.items %}
+  <tr>
+    <td data-label="№" class="mono">{{ c.id }}</td>
+    <td data-label="Причина">{{ chip(c.code_label, 'danger' if c.code == 'fraud' else 'warn') }}<span class="atable__sub clamp">{{ c.reason }}</span></td>
+    <td data-label="Вакансия">
+      {% if c.profession %}<a class="atable__main" href="/admin/vacancies/{{ c.vacancy_id }}">{{ c.profession | ucfirst }}</a>{% else %}<span class="muted">вакансия удалена</span>{% endif %}
+      <span class="atable__sub">№{{ c.vacancy_id }}{% if c.same_vacancy_open > 1 %}, жалоб открыто: {{ c.same_vacancy_open }}{% endif %}</span>
+    </td>
+    <td data-label="Заявитель">{% if c.reporter_email %}{{ c.reporter_email }}{% else %}<span class="muted">без адреса</span>{% endif %}</td>
+    <td data-label="Когда">{{ c.created_at | dt }}</td>
+    <td data-label="Состояние">
+      {% if c.status == 'new' %}{{ chip('Открыта', 'warn', 'clock') }}{% else %}{{ chip(c.resolution_label or 'Закрыта', 'mute', 'check') }}{% endif %}
+      {% if c.vacancy_status == 'hidden' %}{{ chip('Вакансия скрыта', 'mute', 'lock-key') }}{% endif %}
+    </td>
+    <td data-label="Действия" class="atable__act"><a class="btn btn--ghost btn--sm" href="/admin/complaints/{{ c.id }}">Разобрать</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{{ pager(page, '/admin/complaints', 'view=' ~ view) }}
+{% else %}
+  {% if view == 'open' %}
+  {% call empty('Открытых жалоб нет', 'Когда посетитель пожалуется на вакансию, жалоба появится здесь.') %}{% endcall %}
+  {% else %}
+  {% call empty('Здесь пока пусто', 'Закрытых жалоб ещё нет.', 'info') %}{% endcall %}
+  {% endif %}
+{% endif %}
+{% endblock %}

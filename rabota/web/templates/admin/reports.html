@@ -1,0 +1,46 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, tabs, chip, pager, empty, csrf %}
+{% block content %}
+{{ page_head('Жалобы на сообщения и людей', 'Жалобы из переписки и профилей. Показано только то, на что пожаловались.') }}
+
+<nav class="adm-tabs adm-tabs--sections" aria-label="Раздел жалоб">
+  <ul>
+    <li><a href="/admin/complaints">На вакансии {% if counts.open %}<span class="count">{{ counts.open }}</span>{% endif %}</a></li>
+    <li><a href="/admin/reports" aria-current="page">На сообщения и людей <span class="count count--on">{{ counts.reports_open }}</span></a></li>
+  </ul>
+</nav>
+{{ tabs([('open', 'Открытые', counts.reports_open), ('closed', 'Закрытые', None)], view, '/admin/reports', 'Состояние жалоб') }}
+
+{% if page.items %}
+<div class="adm-tablewrap">
+<table class="atable">
+  <caption class="visually-hidden">Жалобы на сообщения, пользователей и резюме</caption>
+  <thead><tr><th scope="col">№</th><th scope="col">На что</th><th scope="col">Причина</th><th scope="col">Заявитель</th><th scope="col">Когда</th><th scope="col"><span class="visually-hidden">Действия</span></th></tr></thead>
+  <tbody>
+  {% for r in page.items %}
+  <tr>
+    <td data-label="№" class="mono">{{ r.id }}</td>
+    <td data-label="На что">{{ chip(r.type_label, 'info') }}<span class="atable__sub clamp">{{ r.target_text }}</span></td>
+    <td data-label="Причина">{{ r.reason }}</td>
+    <td data-label="Заявитель">{{ r.reporter_email or 'аккаунт удалён' }}</td>
+    <td data-label="Когда">{{ r.created_at | dt }}{% if r.status != 'new' %}<span class="atable__sub">{{ 'заблокирован' if r.resolution == 'blocked' else 'закрыта' }}</span>{% endif %}</td>
+    <td data-label="Действия" class="atable__act">
+      {% if r.status == 'new' %}
+      <form method="post" action="/admin/reports/{{ r.id }}/dismiss">{{ csrf() }}<button class="btn btn--ghost btn--sm" type="submit">Отклонить</button></form>
+      <form method="post" action="/admin/reports/{{ r.id }}/resolve">{{ csrf() }}<button class="btn btn--soft btn--sm" type="submit">Обработана</button></form>
+      {% if r.target_user_id %}
+      <form method="post" action="/admin/reports/{{ r.id }}/block">{{ csrf() }}<button class="btn btn--danger btn--sm" type="submit" data-confirm="Заблокировать пользователя? Он потеряет доступ к аккаунту.">{{ icon('lock-key') }}Заблокировать</button></form>
+      {% endif %}
+      {% endif %}
+    </td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{{ pager(page, '/admin/reports', 'view=' ~ view) }}
+{% else %}
+{% call empty('Открытых жалоб нет' if view == 'open' else 'Здесь пока пусто', 'Жалобы на сообщения и пользователей появятся здесь.') %}{% endcall %}
+{% endif %}
+{% endblock %}

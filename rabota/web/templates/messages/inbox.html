@@ -1,0 +1,48 @@
+{% extends 'messages/layout.html' %}
+{% from 'messages/_parts.html' import crumbs %}
+{% from '_macros.html' import icon, logo_tile, pager, empty_state %}
+{% block msg_body %}
+<div class="wrap msg-page">
+  <header class="page-head">
+    {{ crumbs([('Сообщения', '')]) }}
+    <h1 class="h1 h1--page">Сообщения</h1>
+    <p class="lead">Переписка по вашим откликам. Здесь же можно ответить на вопросы по вакансии.</p>
+  </header>
+
+  <nav aria-label="Фильтр сообщений">
+    <ul class="chip-row">
+      <li><a class="chip{% if not unread_only %} chip--active{% endif %}" href="/messages"{% if not unread_only %} aria-current="true"{% endif %}>Все</a></li>
+      <li><a class="chip{% if unread_only %} chip--active{% endif %}" href="/messages?unread=1"{% if unread_only %} aria-current="true"{% endif %}>Непрочитанные <span class="chip__n">{{ unread_total }}</span></a></li>
+    </ul>
+  </nav>
+
+  {% if items %}
+  <ul class="tlist">
+    {% for t in items %}
+    <li class="trow{% if t.unread %} trow--unread{% endif %}" data-unread-count="{{ t.unread }}">
+      {{ logo_tile(t.counterpart_name) }}
+      <div class="trow__body">
+        <div class="trow__head">
+          <h2 class="trow__name"><a class="trow__link" href="/messages/{{ t.id }}">{{ t.counterpart_name }}</a></h2>
+          <time class="trow__time" datetime="{{ t.last_message_at or t.created_at }}">{{ t.when }}</time>
+        </div>
+        <p class="trow__title">{{ t.title | ucfirst }}</p>
+        <p class="trow__preview">{% if t.mine_last %}<span class="muted">Вы: </span>{% endif %}{{ t.preview }}</p>
+      </div>
+      {% if t.unread %}<span class="count" aria-label="Непрочитанных сообщений: {{ t.unread }}">{{ t.unread }}</span>{% endif %}
+    </li>
+    {% endfor %}
+  </ul>
+  {{ pager(page, '/messages', query) }}
+  {% elif unread_only %}
+  {% call empty_state('check-circle', 'Нет непрочитанных сообщений', 'Все сообщения прочитаны. Новые появятся здесь, а мы напишем вам на почту.') %}
+  <a class="btn btn--primary" href="/messages">Все сообщения</a>
+  {% endcall %}
+  {% else %}
+  {% call empty_state('chat-circle-dots', 'Сообщений пока нет', 'Переписка начинается с отклика на вакансию работодателя: откликнитесь, и работодатель сможет вам ответить.') %}
+  <a class="btn btn--primary" href="/vacancies?direct=1">Вакансии от работодателей</a>
+  <a class="btn btn--ghost" href="/responses">Мои отклики</a>
+  {% endcall %}
+  {% endif %}
+</div>
+{% endblock %}

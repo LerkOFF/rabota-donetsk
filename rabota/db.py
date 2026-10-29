@@ -148,6 +148,12 @@ def _migrate(conn: sqlite3.Connection) -> None:
         if col not in cols:
             conn.execute(f"ALTER TABLE vacancies ADD COLUMN {col} {ddl}")
     conn.commit()
+    from rabota.admin.schema import migrate as admin_migrate  # журнал действий, стоп-лист, запросы по ПДн
+
+    admin_migrate(conn)
+    from rabota.messaging.schema import migrate as messaging_migrate  # отклики, переписка, уведомления
+
+    messaging_migrate(conn)
 
 
 def save_raw(conn: sqlite3.Connection, post: RawPost) -> bool:

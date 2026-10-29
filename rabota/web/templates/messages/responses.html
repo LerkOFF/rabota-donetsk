@@ -1,0 +1,74 @@
+{% extends 'messages/layout.html' %}
+{% from 'messages/_parts.html' import status as status_badge, info, crumbs %}
+{% from '_macros.html' import icon, logo_tile, pager, empty_state %}
+{% block msg_body %}
+<div class="wrap msg-page">
+  <header class="page-head">
+    {{ crumbs([('Отклики' if is_employer else 'Мои отклики', '')]) }}
+    <h1 class="h1 h1--page">{% if is_employer %}Отклики на вакансии{% else %}Мои отклики{% endif %}</h1>
+    <p class="lead">{% if is_employer %}Кандидаты, которые откликнулись на ваши вакансии. Новые отклики вверху.{% else %}Вакансии, на которые вы откликнулись, и ответы работодателей.{% endif %}</p>
+  </header>
+
+  {% if flash == 'withdrawn' %}{{ info('Отклик отозван. Работодатель увидит, что вы больше не рассматриваете вакансию.') }}{% endif %}
+
+  {% if counts.all %}
+  <nav class="filters-bar" aria-label="Фильтр по статусу">
+    <ul class="chip-row chip-row--scroll">
+      {% for key, label in filters %}
+      <li><a class="chip{% if status == key %} chip--active{% endif %}" href="/responses{% if key or vacancy_id %}?{% if key %}status={{ key }}{% endif %}{% if key and vacancy_id %}&amp;{% endif %}{% if vacancy_id %}vacancy={{ vacancy_id }}{% endif %}{% endif %}"{% if status == key %} aria-current="true"{% endif %}>{{ label }} <span class="chip__n">{{ counts['all' if not key else key] }}</span></a></li>
+      {% endfor %}
+    </ul>
+    {% if is_employer and vacancies | length > 1 %}
+    <form class="vac-filter" method="get" action="/responses">
+      {% if status %}<input type="hidden" name="status" value="{{ status }}">{% endif %}
+      <label class="visually-hidden" for="rf-vac">Вакансия</label>
+      <select class="input input--sm" id="rf-vac" name="vacancy">
+        <option value="">Все вакансии</option>
+        {% for vv in vacancies %}<option value="{{ vv.id }}"{% if vacancy_id == vv.id %} selected{% endif %}>{{ vv.profession | ucfirst }}</option>{% endfor %}
+      </select>
+      <button class="btn btn--ghost btn--sm" type="submit">Показать</button>
+    </form>
+    {% endif %}
+  </nav>
+  {% endif %}
+
+  {% if items %}
+  <ul class="rlist">
+    {% for r in items %}
+    <li class="rcard{% if r.unread %} rcard--unread{% endif %}" data-response-id="{{ r.id }}">
+      {{ logo_tile((r.seeker_name if is_employer else r.employer_name) or r.vacancy_title) }}
+      <div class="rcard__body">
+        <div class="rcard__head">
+          <h2 class="rcard__title"><a class="rcard__link" href="/responses/{{ r.id }}">{% if is_employer %}{{ r.seeker_name }}{% else %}{{ r.vacancy_title | ucfirst }}{% endif %}</a></h2>
+          {{ status_badge(r.status, r.status_label) }}
+        </div>
+        <p class="rcard__sub">
+          {% if is_employer %}Вакансия: {{ r.vacancy_title }}{% if r.vacancy_city %}, {{ r.vacancy_city }}{% endif %}{% else %}{{ r.employer_name }}{% if r.vacancy_city %}, {{ r.vacancy_city }}{% endif %}{% endif %}
+        </p>
+        {% if r.excerpt %}<p class="rcard__excerpt">{{ r.excerpt }}</p>{% else %}<p class="rcard__excerpt muted">Без сопроводительного сообщения</p>{% endif %}
+        <p class="rcard__foot">
+          <time datetime="{{ r.created_at }}">{{ r.when }}</time>
+          {% if r.unread %}<span class="count" aria-label="Непрочитанных сообщений: {{ r.unread }}">{{ icon('chat-circle-dots') }}{{ r.unread }}</span>{% endif %}
+        </p>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {{ pager(page, '/responses', query) }}
+  {% elif counts.all %}
+  {% call empty_state('funnel', 'Нет откликов с таким статусом', 'Попробуйте выбрать другой статус или показать все отклики.') %}
+  <a class="btn btn--primary" href="/responses">Показать все отклики</a>
+  {% endcall %}
+  {% elif is_employer %}
+  {% call empty_state('paper-plane-tilt', 'Откликов пока нет', 'Как только соискатель откликнется на вашу вакансию, отклик появится здесь, а мы напишем вам на почту.') %}
+  <a class="btn btn--primary" href="/razmestit">Разместить вакансию</a>
+  <a class="btn btn--ghost" href="/employers">Как это работает</a>
+  {% endcall %}
+  {% else %}
+  {% call empty_state('paper-plane-tilt', 'Вы пока не откликались', 'Откликнуться можно на вакансии с отметкой «От работодателя». Остальные вакансии собраны из открытых источников: по ним можно позвонить или открыть оригинал.') %}
+  <a class="btn btn--primary" href="/vacancies?direct=1">Вакансии от работодателей</a>
+  <a class="btn btn--ghost" href="/vacancies">Все вакансии</a>
+  {% endcall %}
+  {% endif %}
+</div>
+{% endblock %}

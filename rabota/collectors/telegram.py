@@ -17,6 +17,7 @@ from typing import Any
 import httpx
 from selectolax.lexbor import LexborHTMLParser, LexborNode
 
+from rabota import config
 from rabota.config import USER_AGENT
 from rabota.models import RawPost
 
@@ -200,6 +201,7 @@ def fetch(limit: int = 10, client: httpx.Client | None = None) -> list[RawPost]:
             headers={"User-Agent": USER_AGENT, "Accept-Language": "ru,en;q=0.8"},
             timeout=TIMEOUT,
             follow_redirects=True,
+            proxy=config.telegram_proxy() or None,  # t.me с сервера может быть закрыт: ходим через прокси из .env
         )
     pacer = _Pacer()
     result: list[RawPost] = []

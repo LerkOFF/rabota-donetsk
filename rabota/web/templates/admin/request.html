@@ -1,0 +1,69 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, chip, csrf %}
+{% block content %}
+<nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/admin">Админка</a></li><li><a href="/admin/requests">Запросы по ПДн</a></li><li>Обращение {{ r.id }}</li></ol></nav>
+
+{% call page_head('Обращение №' ~ r.id, r.kind_label ~ ', получено ' ~ (r.created_at | dt)) %}
+<p class="adm-head__chips">
+  {{ chip(r.status_label, 'ok' if r.status == 'done' else ('danger' if r.overdue else 'warn')) }}
+  {% if r.overdue %}{{ chip('Просрочено', 'danger', 'warning') }}{% elif r.due_soon %}{{ chip('Остался день', 'warn', 'clock') }}{% endif %}
+  {% if r.executed %}{{ chip('Исполнено', 'ok', 'check-circle') }}{% endif %}
+</p>
+{% endcall %}
+
+<div class="adm-split">
+  <div class="adm-split__main">
+    <section class="panel" aria-labelledby="h-r">
+      <h2 id="h-r">Обращение</h2>
+      <dl class="facts adm-facts">
+        <div><dt>От кого</dt><dd>{{ r.requester_name or 'Без имени' }}</dd></div>
+        <div><dt>Контакт для ответа</dt><dd>{{ r.requester_contact }}</dd></div>
+        <div><dt>Как пришло</dt><dd>{{ r.channel_label }}</dd></div>
+        <div><dt>Срок ответа</dt><dd>{{ r.due_at | dt }}{% if r.days_left is not none and r.status != 'done' %} ({% if r.days_left < 0 %}просрочено на {{ -r.days_left }} {{ plural(-r.days_left, 'день', 'дня', 'дней') }}{% else %}осталось дней: {{ r.days_left }}{% endif %}){% endif %}</dd></div>
+        {% if r.subject %}<div><dt>О чём</dt><dd>{{ r.subject }}</dd></div>{% endif %}
+        {% if r.answered_at %}<div><dt>Ответили</dt><dd>{{ r.answered_at | dt }}</dd></div>{% endif %}
+        {% if r.executed_at %}<div><dt>Исполнено</dt><dd>{{ r.executed_at | dt }}</dd></div>{% endif %}
+      </dl>
+      <p class="adm-quote">{{ r.body }}</p>
+    </section>
+
+    <section class="panel" aria-labelledby="h-dec">
+      <h2 id="h-dec">Решение и ответ</h2>
+      <form class="adm-form" method="post" action="/admin/requests/{{ r.id }}/update">
+        {{ csrf() }}
+        <div class="adm-grid adm-grid--2">
+          <div class="field"><label for="u-status">Статус</label>
+            <select class="input input--sm" id="u-status" name="status">{% for k, label in statuses %}<option value="{{ k }}"{% if r.status == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select>
+            <p class="hint">«Ждём уточнение» останавливает срок.</p></div>
+          <div class="field"><label for="u-code">Решение</label>
+            <select class="input input--sm" id="u-code" name="decision_code">{% for k, label in decisions %}<option value="{{ k }}"{% if r.decision_code == k %} selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+        </div>
+        <div class="field"><label for="u-dec">Что ответили и что сделали</label><textarea class="input" id="u-dec" name="decision" rows="3" maxlength="1500">{{ r.decision }}</textarea>
+          <p class="hint">Обязательно для статуса «Завершено». Не вносите сюда паспортные данные и переписку.</p></div>
+        <div class="field"><label for="u-note">Внутренняя заметка</label><textarea class="input" id="u-note" name="admin_note" rows="2" maxlength="1500">{{ r.admin_note }}</textarea></div>
+        <div class="adm-actions"><button class="btn btn--primary" type="submit">Сохранить</button></div>
+      </form>
+    </section>
+  </div>
+
+  <aside class="adm-split__side" aria-label="Действия">
+    <section class="panel" aria-labelledby="h-erase">
+      <h2 id="h-erase">Удалить данные по контакту</h2>
+      <p class="hint">Скроет все вакансии с этим контактом, уберёт его из вакансий и исходных постов, занесёт в стоп-лист (хешем), чтобы сборщики не вернули.</p>
+      <form class="adm-form" method="post" action="/admin/requests/{{ r.id }}/erase">
+        {{ csrf() }}
+        {% set ef = erase_form or {} %}
+        <div class="field"><label for="x-kind">Что удаляем</label>
+          <select class="input input--sm" id="x-kind" name="kind">
+            <option value="phone"{% if (ef.get('kind') or guess_kind) == 'phone' %} selected{% endif %}>Номер телефона</option>
+            <option value="nick"{% if (ef.get('kind') or guess_kind) == 'nick' %} selected{% endif %}>Ник Telegram или MAX</option>
+          </select></div>
+        <div class="field"><label for="x-val">Значение</label><input class="input input--sm" id="x-val" name="value" value="{{ ef.get('value') or guess_value }}" maxlength="80" autocomplete="off" required></div>
+        <button class="btn btn--danger btn--block" type="submit" data-confirm="Скрыть все вакансии с этим контактом и убрать контакт из базы? Это нельзя отменить.">{{ icon('trash') }}Удалить данные</button>
+        {% if r.executed %}<p class="hint">Уже исполнено {{ r.executed_at | dt }}. Можно повторить для другого контакта.</p>{% endif %}
+      </form>
+    </section>
+  </aside>
+</div>
+{% endblock %}

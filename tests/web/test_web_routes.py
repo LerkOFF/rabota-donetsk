@@ -216,10 +216,10 @@ def test_vacancy_missing_and_garbage_ids(client):
     assert client.get("/vacancy/abc").status_code in (404, 422)
 
 
-def test_vacancy_closed_is_shown_with_notice_and_noindex(client, add):
+def test_vacancy_closed_is_gone_with_notice_and_noindex(client, add):
     vid = add(status="closed")
     r = client.get(f"/vacancy/{vid}")
-    assert r.status_code == 200
+    assert r.status_code == 410
     assert "Вакансия закрыта" in r.text and "noindex" in r.text
     assert "application/ld+json" not in r.text
 
@@ -266,7 +266,7 @@ def test_json_ld_cannot_break_out_of_script(client, add):
 def test_meta_and_open_graph(client, add):
     vid = full(add)
     html = client.get(f"/vacancy/{vid}").text
-    assert re.search(r"<title>Бухгалтер, Донецк, Куйбышевский район: от", html)
+    assert re.search(r"<title>Бухгалтер, Донецк: от", html)
     assert f'<link rel="canonical" href="https://example.test/vacancy/{vid}">' in html
     for prop in ("og:title", "og:description", "og:url", "og:image", "og:type", "og:locale", "og:site_name"):
         assert f'property="{prop}"' in html
@@ -354,7 +354,8 @@ def test_profession_page(client, add):
     r = client.get("/profession/" + quote("Бариста"))
     assert r.status_code == 200
     assert titles(r.text) == ["Бариста", "Бариста"]
-    assert "<h1" in r.text and "2\u00a0вакансии" in r.text
+    assert "<h1" in r.text and "2\u00a0актуальные вакансии" in r.text
+    assert 'name="robots" content="noindex, follow"' in r.text  # меньше трёх вакансий: страница тонкая
     assert 'rel="canonical" href="https://example.test/profession/' in r.text
 
 
@@ -576,6 +577,8 @@ def test_robots_and_favicon(client):
 
 def test_sitemap(client, add):
     vid = add(profession="бариста", district="Ворошиловский")
+    for i in range(2):  # раздел попадает в карту сайта, когда в нём три вакансии и больше
+        add(profession="бариста", district="Ворошиловский", ago=60 + i)
     hidden = add(profession="военные", kind="military")
     closed = add(profession="закрыта", status="closed")
     dup = add(profession="дубль", duplicate_of=vid)
@@ -602,7 +605,8 @@ def test_home_has_website_json_ld_and_search_box(client):
 
 
 def test_filtered_feed_is_noindex_and_canonical_to_plain(client, add):
-    add()
+    for i in range(3):
+        add(ago=30 + i)
     plain = client.get("/vacancies").text
     assert "noindex" not in plain
     filtered = client.get("/vacancies?daily=1").text

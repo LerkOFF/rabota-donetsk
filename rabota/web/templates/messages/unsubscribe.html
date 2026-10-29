@@ -1,0 +1,26 @@
+{% extends 'messages/layout.html' %}
+{% from 'messages/_parts.html' import csrf %}
+{% from '_macros.html' import icon %}
+{% block msg_body %}
+<div class="wrap msg-page">
+  <div class="panel unsub">
+    {% if done %}
+    <span class="state__ico">{{ icon('check-circle') }}</span>
+    <h1 class="h2">Письма отключены</h1>
+    <p>Мы больше не будем присылать письма {{ kind_text }}. Включить их обратно можно в настройках уведомлений.</p>
+    <div class="state__actions">
+      <a class="btn btn--primary" href="{% if logged_in %}/notifications{% else %}/login?next=/notifications{% endif %}">Настройки уведомлений</a>
+      <a class="btn btn--ghost" href="/">На главную</a>
+    </div>
+    {% else %}
+    <span class="state__ico">{{ icon('bell') }}</span>
+    <h1 class="h2">Отключить письма</h1>
+    <p>Мы перестанем присылать письма {{ kind_text }}. Сообщения и отклики останутся на сайте.</p>
+    <form method="post" action="{{ action }}">
+      {{ csrf(csrf_token) }}
+      <button class="btn btn--primary" type="submit">Отключить письма</button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

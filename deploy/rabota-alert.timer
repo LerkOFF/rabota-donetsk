@@ -1,0 +1,12 @@
+# Раз в 5 минут проверяет здоровье приёма данных.
+[Unit]
+Description=Работа Донецк: проверка источников каждые 5 минут
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=5min
+AccuracySec=30s
+Unit=rabota-alert.service
+
+[Install]
+WantedBy=timers.target

@@ -1,9 +1,9 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import icon %}
+{% from '_macros.html' import icon, crumbs %}
 {% block content %}
 <div class="wrap about">
   <header class="page-head">
-    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>О сайте</li></ol></nav>
+    {{ crumbs(seo.breadcrumbs) }}
     <h1 class="h1 h1--page">О сайте</h1>
     <p class="lead">Работа Донецк собирает вакансии Донецка и ДНР из каналов, пабликов и сайтов и показывает их коротко и одинаково.</p>
   </header>

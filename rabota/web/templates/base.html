@@ -18,17 +18,21 @@
   <meta property="og:title" content="{{ seo.title }}">
   <meta property="og:description" content="{{ seo.description }}">
   <meta property="og:url" content="{{ seo.canonical }}">
-  <meta property="og:image" content="{{ site_url }}/static/og.png">
+  <meta property="og:image" content="{{ seo.og_image }}">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
   <meta property="og:image:alt" content="Работа Донецк: вакансии Донецка и ДНР">
   <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{ seo.title }}">
+  <meta name="twitter:description" content="{{ seo.description }}">
+  <meta name="twitter:image" content="{{ seo.og_image }}">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
   <link rel="preload" href="/static/fonts/onest-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{{ asset('tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('site.css') }}">
   <script src="{{ asset('theme-init.js') }}"></script>
-  {% if seo.jsonld %}<script type="application/ld+json">{{ seo.jsonld | tojson }}</script>{% endif %}
+  {% for block in seo.jsonld_html %}<script type="application/ld+json">{{ block }}</script>
+  {% endfor %}
 </head>
 <body>
   <a class="skip-link" href="#main">К содержимому</a>
@@ -176,5 +180,6 @@
   </footer>
   <div class="scrim" data-scrim hidden></div>
   <script src="{{ asset('app.js') }}" defer></script>
+  {% include '_analytics.html' %}
 </body>
 </html>

@@ -1,0 +1,27 @@
+# Проверка источников и уведомление в Telegram-бот при сбое. Без ALERT_TG_BOT_TOKEN в .env тихо ничего не делает.
+# Подставьте <USER> и <PROJECT_DIR>. Telegram идёт через TELEGRAM_PROXY, если он задан.
+[Unit]
+Description=Работа Донецк: уведомление о сбоях приёма данных
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=<USER>
+Group=<USER>
+WorkingDirectory=<PROJECT_DIR>
+Environment=LOG_FORMAT=json
+EnvironmentFile=<PROJECT_DIR>/.env
+ExecStart=<PROJECT_DIR>/.venv/bin/python -m rabota.ops.alerts
+Nice=10
+MemoryMax=200M
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+UMask=0077
+ReadWritePaths=<PROJECT_DIR>/data

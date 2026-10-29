@@ -107,17 +107,20 @@ def process(raw: RawPost) -> list[Vacancy]:
 
 def process_db(conn: sqlite3.Connection, *, limit: int | None = None) -> dict[str, Any]:
     """Разобрать сырые посты из базы, которых ещё нет в vacancies, и склеить дубли."""
+    from rabota.admin.stoplist import filter_vacancies
     from rabota.db import load_raw, save_vacancy
 
     known = {(r["source"], r["external_id"]) for r in conn.execute("SELECT source, external_id FROM vacancies")}
-    stats: dict[str, Any] = {"posts": 0, "vacancies": 0, "kinds": {}}
+    stats: dict[str, Any] = {"posts": 0, "vacancies": 0, "stoplisted": 0, "kinds": {}}
     for raw in load_raw(conn, limit=limit):
         if (raw.source, raw.external_id) in known:
             continue
         stats["posts"] += 1
         result = analyze(raw)
         stats["kinds"][result.kind] = stats["kinds"].get(result.kind, 0) + 1
-        for vac in result.vacancies:
+        kept, dropped = filter_vacancies(conn, result.vacancies)  # стоп-лист: такие вакансии не публикуются
+        stats["stoplisted"] += dropped
+        for vac in kept:
             save_vacancy(conn, vac)
             stats["vacancies"] += 1
     stats["duplicates"] = dedupe(conn)

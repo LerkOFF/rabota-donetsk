@@ -1,0 +1,58 @@
+{% from '_macros.html' import icon %}
+
+{# Поле CSRF внутри формы #}
+{% macro csrf() -%}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{%- endmacro %}
+
+{# Постраничный переход. query: уже закодированные параметры без page #}
+{% macro pager(page, base, query='') -%}
+{% if page.pages > 1 %}
+<nav class="adm-pager" aria-label="Страницы">
+  {% set q = (query ~ '&') if query else '' %}
+  {% if page.has_prev %}<a class="btn btn--ghost btn--sm" href="{{ base }}?{{ q }}page={{ page.page - 1 }}" rel="prev">{{ icon('caret-left') }}Назад</a>{% else %}<span></span>{% endif %}
+  <span class="adm-pager__info">Страница {{ page.page }} из {{ page.pages }}, всего {{ page.total }}</span>
+  {% if page.has_next %}<a class="btn btn--ghost btn--sm" href="{{ base }}?{{ q }}page={{ page.page + 1 }}" rel="next">Дальше{{ icon('caret-right') }}</a>{% else %}<span></span>{% endif %}
+</nav>
+{% endif %}
+{%- endmacro %}
+
+{# Вкладки-фильтры со счётчиками. items: (ключ, подпись, число или None) #}
+{% macro tabs(items, current, base, label='Фильтр списка') -%}
+<nav class="adm-tabs" aria-label="{{ label }}">
+  <ul>
+    {% for key, text, n in items %}
+    <li><a href="{{ base }}?view={{ key }}"{% if key == current %} aria-current="page"{% endif %}>{{ text }}{% if n is not none %} <span class="count{% if key == current %} count--on{% endif %}">{{ n }}</span>{% endif %}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
+{%- endmacro %}
+
+{# Метка состояния: kind = ok, warn, danger, mute, info #}
+{% macro chip(text, kind='mute', ico='') -%}
+<span class="chip-s chip-s--{{ kind }}">{% if ico %}{{ icon(ico) }}{% endif %}{{ text }}</span>
+{%- endmacro %}
+
+{% macro vstatus(v) -%}
+{% if v.moderation_status == 'pending' %}{{ chip('На проверке', 'warn', 'clock') }}
+{% elif v.moderation_status == 'rejected' %}{{ chip('Отклонена', 'danger', 'x-circle') }}
+{% elif v.status == 'hidden' %}{{ chip('Скрыта', 'mute', 'lock-key') }}
+{% elif v.status == 'active' %}{{ chip('В выдаче', 'ok', 'check-circle') }}
+{% elif v.status == 'expired' %}{{ chip('Истекла', 'mute', 'clock') }}
+{% else %}{{ chip(v.status, 'mute') }}{% endif %}
+{%- endmacro %}
+
+{% macro empty(title, text, ico='check-circle') -%}
+<div class="adm-empty">
+  <span class="state__ico">{{ icon(ico) }}</span>
+  <h2>{{ title }}</h2>
+  <p>{{ text }}</p>
+  {{ caller() if caller is defined else '' }}
+</div>
+{%- endmacro %}
+
+{% macro page_head(title, lead='') -%}
+<header class="adm-head">
+  <h1>{{ title }}</h1>
+  {% if lead %}<p class="adm-head__lead">{{ lead }}</p>{% endif %}
+  {{ caller() if caller is defined else '' }}
+</header>
+{%- endmacro %}
