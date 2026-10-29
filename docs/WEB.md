@@ -50,4 +50,4 @@ DB_PATH=data/demo.db .venv/bin/uvicorn rabota.web.app:app --port 8000
 
 ## Проверки
 
-`.venv/bin/pytest` (маршруты, запросы, оформление) и `.venv/bin/pytest -m e2e` (Chromium: мобильная и десктопная ширина, темы, формы, доступность).
+`.venv/bin/pytest` (маршруты, запросы, оформление) и `.venv/bin/pytest -m e2e` (Chromium: мобильная и десктопная ширина, темы, формы, доступность, размеры целей нажатия, окно согласия на аналитику).

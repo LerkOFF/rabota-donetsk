@@ -9,7 +9,7 @@
   </header>
   <div class="listing">
     <div class="vlist">
-      {% for v in items %}{{ vcard(v) }}{% endfor %}
+      {% for v in items %}{{ vcard(v, 'h2') }}{% endfor %}
     </div>
     {{ pager(page, list_path, '') }}
 

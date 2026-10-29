@@ -51,9 +51,16 @@
     });
   }
 
+  /* Пока окно видно, оно закрывает низ страницы: сообщаем высоту стилям, чтобы фокус с клавиатуры не уходил под него */
+  function reserve() {
+    var h = banner && !banner.hidden ? banner.offsetHeight : 0;
+    document.documentElement.style.setProperty("--consent-h", h ? h + "px" : "0px");
+  }
   function show(visible) {
     if (banner) banner.hidden = !visible;
+    reserve();
   }
+  window.addEventListener("resize", reserve);
   function choose(analytics) {
     var was = read();
     write(analytics);

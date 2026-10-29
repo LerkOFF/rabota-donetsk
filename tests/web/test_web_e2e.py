@@ -143,7 +143,7 @@ def test_header_is_one_line(make_page, width):
     page = make_page({"width": width, "height": 800}, mobile=width < 800)
     visit(page, "/")
     assert page.locator(".site-header").bounding_box()["height"] <= 72
-    assert page.locator(".logo").bounding_box()["height"] <= 40
+    assert page.locator(".logo").bounding_box()["height"] <= 48  # логотип занимает целую цель нажатия 44 px, но не две строки
 
 
 @pytest.mark.parametrize("width", [360, 1280])

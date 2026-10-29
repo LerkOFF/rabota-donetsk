@@ -10,11 +10,11 @@
 .auth__head p { color: var(--c-ink-2); }
 .auth__form { display: grid; gap: var(--sp-4); }
 .auth__alt { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); justify-content: space-between; font-size: var(--fs-sm); color: var(--c-ink-2); }
-.auth__alt a { font-weight: var(--fw-semibold); }
+.auth__alt a { display: inline-flex; align-items: center; min-height: var(--tap-min); font-weight: var(--fw-semibold); }
 .auth__input { position: relative; display: grid; }
 .auth__input .input { padding-right: 5.5rem; }
 .auth__toggle {
-  position: absolute; right: var(--sp-2); top: 50%; translate: 0 -50%; min-height: 2.5rem; padding: 0 var(--sp-3);
+  position: absolute; right: var(--sp-2); top: 50%; translate: 0 -50%; min-height: var(--tap-min); padding: 0 var(--sp-3);
   background: transparent; border: 0; border-radius: var(--r-ctl); color: var(--c-accent-ink); font-weight: var(--fw-semibold); font-size: var(--fs-sm); cursor: pointer;
 }
 .auth__toggle:hover { background: var(--c-accent-soft); }

@@ -80,6 +80,7 @@
 .thread__head .logo-tile { width: 2.75rem; height: 2.75rem; }
 .thread__who { min-width: 0; }
 .thread__name { font-size: var(--fs-md); font-weight: var(--fw-bold); line-height: var(--lh-snug); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread__sub a, .apply__title a { display: inline-block; padding-block: var(--sp-3); margin-block: calc(var(--sp-3) * -1); }
 .thread__sub { color: var(--c-ink-2); font-size: var(--fs-sm); display: flex; flex-wrap: wrap; gap: 0 var(--sp-3); }
 .thread__state { color: var(--c-ink); font-weight: var(--fw-semibold); }
 .thread__menu .icon-btn { list-style: none; }
@@ -102,7 +103,7 @@
 .msg__read { display: inline-flex; align-items: center; gap: 0.2rem; }
 .msg__read .icon { width: 1em; height: 1em; }
 .msg__report { font-size: var(--fs-xs); }
-.msg__report > summary { display: inline-flex; align-items: center; gap: var(--sp-1); min-height: 2.25rem; padding: 0 var(--sp-2); color: var(--c-ink-2); cursor: pointer; border-radius: var(--r-ctl); }
+.msg__report > summary { display: inline-flex; align-items: center; gap: var(--sp-1); min-height: var(--tap-min); padding: 0 var(--sp-2); color: var(--c-ink-2); cursor: pointer; border-radius: var(--r-ctl); }
 .msg__report > summary:hover { color: var(--c-danger); background: var(--c-danger-soft); }
 .msg__report > summary .icon { width: 1em; height: 1em; }
 .msg__report[open] { justify-self: stretch; width: min(100%, 24rem); }

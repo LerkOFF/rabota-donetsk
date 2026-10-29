@@ -173,7 +173,7 @@
         <button class="btn btn--ghost btn--block" type="submit" data-confirm="Скрыть вакансию из выдачи?">Скрыть из выдачи</button>
       </form>
       {% else %}
-      <p class="muted">Вакансия не в выдаче: статус «{{ v.status }}», проверка «{{ v.moderation_status }}».</p>
+      <p class="muted">Вакансия не в выдаче: {% if v.moderation_status == 'pending' %}ждёт проверки{% elif v.moderation_status == 'rejected' %}отклонена{% elif v.status == 'expired' %}срок жизни истёк{% elif v.status == 'closed' %}закрыта работодателем{% else %}скрыта{% endif %}.</p>
       {% endif %}
       <p class="hint">Страница вакансии: {% if v.status == 'active' and v.moderation_status == 'approved' %}<a href="/vacancy/{{ v.id }}" target="_blank" rel="noopener">открыть на сайте</a>{% else %}не открывается посетителям{% endif %}.</p>
     </section>

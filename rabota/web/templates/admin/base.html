@@ -35,7 +35,7 @@
       <span class="adm-top__who" title="{{ me.email }}">{{ me.email }}</span>
       <form method="post" action="/logout" class="adm-top__out">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
-        <button class="btn btn--ghost btn--sm" type="submit">{{ icon('sign-out') }}<span>Выйти</span></button>
+        <button class="btn btn--ghost btn--sm" type="submit" aria-label="Выйти">{{ icon('sign-out') }}<span>Выйти</span></button>
       </form>
     </div>
   </header>

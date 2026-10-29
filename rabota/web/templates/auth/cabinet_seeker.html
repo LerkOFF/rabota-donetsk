@@ -4,11 +4,11 @@
   <header class="page-head">
     <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>Кабинет соискателя</li></ol></nav>
     <h1 class="h1 h1--page">Кабинет соискателя</h1>
-    <p class="lead">Здравствуйте, {{ me.name }}! Здесь появятся ваше резюме, отклики и переписка с работодателями.</p>
+    <p class="lead">Здравствуйте, {{ me.name }}! Здесь ваши отклики и переписка с работодателями.</p>
   </header>
   {% include 'messages/_cabinet.html' %}
   <div class="cabinet-stub">
-    <p class="muted">Раздел в разработке. Пока можно изменить имя, телефон, пароль и почту.</p>
+    <p class="muted">Имя, телефон, пароль и почту можно изменить в настройках аккаунта.</p>
     <div class="state__actions">
       <a class="btn btn--primary" href="/account">Настройки аккаунта</a>
       <a class="btn btn--ghost" href="/vacancies">Смотреть вакансии</a>
