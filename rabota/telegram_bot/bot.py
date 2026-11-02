@@ -1,4 +1,4 @@
-"""Команды бота: /start (с кодом привязки и без), /list, /stop (с подтверждением), /help.
+"""Команды бота: /start (с кодом подписки, привязки аккаунта или входа на сайт и без кода), /list, /stop (с подтверждением), /help.
 
 `plan(conn, update, ...)` разбирает одно обновление и возвращает список ответов, ничего не отправляя: так логика
 проверяется без сети. `process` отправляет ответы через клиент Bot API. Бот работает только в личных чатах.
@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
 
+from rabota.accounts import telegram as account_tg
 from rabota.alerts import service
 from rabota.telegram_bot.api import BotApi, BotApiError
 
@@ -106,7 +107,9 @@ def plan(conn: sqlite3.Connection, update: dict[str, Any], *, site_url: str, now
     chat_id = int(message["chat"]["id"])
     command, arg = _command(message.get("text") or "")
     if command == "/start":
-        return _start(conn, chat_id, arg, site_url, now)
+        sender = message.get("from") or {}
+        tg_user_id = int(sender.get("id") or chat_id)  # в личном чате id человека совпадает с id чата
+        return _start(conn, chat_id, arg, site_url, now, tg_user_id=tg_user_id, tg_username=sender.get("username") or "")
     if command == "/list":
         return [Reply(chat_id, list_text(service.subs_for_chat(conn, chat_id), site_url))]
     if command == "/stop":
@@ -125,9 +128,60 @@ def plan(conn: sqlite3.Connection, update: dict[str, Any], *, site_url: str, now
     return [Reply(chat_id, "Я отвечаю только на команды: /list, /stop, /help. Подписаться на вакансии можно на сайте.")]
 
 
-def _start(conn: sqlite3.Connection, chat_id: int, code: str, site_url: str, now: datetime) -> list[Reply]:
+def _site_host(site_url: str) -> str:
+    return site_url.split("//", 1)[-1]
+
+
+def account_link_reply(status: str, user: dict[str, Any] | None, site_url: str) -> str:
+    """Ответ на /start link_<код>: привязка Telegram к аккаунту из профиля."""
+    profile = f"<a href=\"{site_url}/account\">{_e(_site_host(site_url))}/account</a>"
+    if status == "ok" and user is not None:
+        return (
+            f"Готово! Telegram привязан к аккаунту «{_e(user['name'])}». "
+            "Теперь на странице входа можно нажать «Войти через Telegram»."
+        )
+    if status == "taken":
+        return (
+            "Этот Telegram уже привязан к другому аккаунту на сайте. "
+            f"Отвяжите его там в профиле или привяжите другой Telegram: {profile}."
+        )
+    if status == "other":
+        return f"К этому аккаунту уже привязан другой Telegram. Сначала отвяжите его в профиле на сайте: {profile}."
+    if status == "blocked":
+        return "Аккаунт заблокирован, привязать Telegram нельзя. Если это ошибка, напишите нам."
+    return f"Эта ссылка уже не действует: код использован или устарел. Нажмите «Привязать Telegram» в профиле ещё раз: {profile}."
+
+
+def account_login_reply(status: str, site_url: str) -> str:
+    """Ответ на /start login_<код>: подтверждение входа на сайт."""
+    profile = f"<a href=\"{site_url}/account\">{_e(_site_host(site_url))}/account</a>"
+    if status == "ok":
+        return "Вход подтверждён. Вернитесь на сайт: страница откроется сама."
+    if status == "done":
+        return "Этот вход уже подтверждён. Вернитесь на сайт."
+    if status == "unlinked":
+        return (
+            "Сначала привяжите Telegram в профиле на сайте: "
+            f"{profile}. Аккаунт создаётся только по почте, Telegram привязывается к нему в профиле."
+        )
+    if status == "blocked":
+        return "Вход в этот аккаунт недоступен: аккаунт заблокирован. Если это ошибка, напишите нам."
+    return "Эта ссылка уже не действует. Вернитесь на страницу входа и нажмите «Войти через Telegram» ещё раз."
+
+
+def _start(
+    conn: sqlite3.Connection, chat_id: int, code: str, site_url: str, now: datetime, *, tg_user_id: int = 0,
+    tg_username: str = "",
+) -> list[Reply]:
     if not code:
         return [Reply(chat_id, welcome(site_url))]
+    kind, value = account_tg.split_start(code)
+    if kind == "link":
+        status, user = account_tg.bind_by_code(conn, value, tg_user_id or chat_id, tg_username, now)
+        return [Reply(chat_id, account_link_reply(status, user, site_url))]
+    if kind == "login":
+        status, _ = account_tg.confirm_login(conn, value, tg_user_id or chat_id, now)
+        return [Reply(chat_id, account_login_reply(status, site_url))]
     status, sub = service.bind_telegram(conn, code, chat_id, now)
     if status == "ok" and sub is not None:
         return [Reply(chat_id, link_ok(sub))]

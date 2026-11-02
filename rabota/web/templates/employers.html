@@ -11,9 +11,9 @@
         <div class="state__actions">
           <a class="btn btn--pay btn--lg" href="/razmestit">Разместить вакансию</a>
           {% if user %}
-          <a class="btn btn--outline-brand btn--lg" href="/cabinet">Перейти в кабинет</a>
+          <a class="btn btn--outline-brand btn--lg" href="/account">Открыть профиль</a>
           {% else %}
-          <a class="btn btn--outline-brand btn--lg" href="/register">Создать кабинет</a>
+          <a class="btn btn--outline-brand btn--lg" href="/register">Создать аккаунт</a>
           {% endif %}
         </div>
         <p class="hero__fine">Сейчас в ленте {{ count_label(stats.total, 'вакансия', 'вакансии', 'вакансий') }}, за сутки добавлено {{ stats.fresh }}.</p>
@@ -63,7 +63,7 @@
       <li class="adv__item">
         <span class="adv__ico">{{ icon('chat-circle-dots') }}</span>
         <h3 class="h3">Отклики и чат</h3>
-        <p>Соискатели откликаются на сайте, а вы отвечаете в личном кабинете без звонков и пропущенных.</p>
+        <p>Соискатели откликаются на сайте, а вы отвечаете в своём профиле без звонков и пропущенных.</p>
       </li>
       <li class="adv__item adv__item--wide">
         <span class="adv__ico">{{ icon('users') }}</span>
@@ -80,7 +80,7 @@
     <ol class="steps">
       <li><span class="steps__n" aria-hidden="true">1</span><div><h3 class="h3">Зарегистрируйтесь</h3><p>Почта и пароль, без документов. Можно и без регистрации, через форму.</p></div></li>
       <li><span class="steps__n" aria-hidden="true">2</span><div><h3 class="h3">Опишите работу</h3><p>Профессия, оплата, график, район. Две минуты, сложные поля не нужны.</p></div></li>
-      <li><span class="steps__n" aria-hidden="true">3</span><div><h3 class="h3">Получайте отклики</h3><p>После проверки вакансия попадёт в ленту, а отклики придут в кабинет.</p></div></li>
+      <li><span class="steps__n" aria-hidden="true">3</span><div><h3 class="h3">Получайте отклики</h3><p>После проверки вакансия попадёт в ленту, а отклики придут в ваш профиль и на почту.</p></div></li>
     </ol>
   </div>
 </section>

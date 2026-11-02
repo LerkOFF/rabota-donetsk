@@ -20,7 +20,7 @@ VIEWS = {
     "stale": "Давно не обновлялись",
 }
 FLASH = {
-    "resume_hidden": "Резюме скрыто, владелец увидит причину в кабинете.",
+    "resume_hidden": "Резюме скрыто, владелец увидит причину в разделе «Мои резюме».",
     "resume_restored": "Резюме возвращено владельцу.",
 }
 MAX_NOTE = 300
@@ -112,7 +112,7 @@ def get(conn: sqlite3.Connection, resume_id: int, now: datetime) -> dict[str, An
 def hide(conn: sqlite3.Connection, resume_id: int, note: str, admin: dict[str, Any], ip: str, now: datetime) -> bool:
     text = clean_line(note, MAX_NOTE)
     if not text:
-        raise ValueError("Напишите причину: владелец увидит её в кабинете.")
+        raise ValueError("Напишите причину: владелец увидит её в разделе «Мои резюме».")
     cur = conn.execute(
         "UPDATE resumes SET admin_hidden = 1, admin_note = ?, admin_hidden_at = ? WHERE id = ?", (text, iso(now), resume_id))
     conn.commit()

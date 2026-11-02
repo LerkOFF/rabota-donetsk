@@ -33,7 +33,7 @@ from rabota.accounts.ratelimit import RateLimiter
 
 SESSION_COOKIE = "rabota_session"
 CSRF_COOKIE = csrf.CSRF_COOKIE
-DEFAULT_AFTER_LOGIN = "/cabinet"
+DEFAULT_AFTER_LOGIN = "/account"
 
 
 @dataclass

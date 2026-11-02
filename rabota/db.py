@@ -169,6 +169,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
     from rabota.alerts.schema import migrate as alerts_migrate  # подписки на вакансии, рассылка, автопостинг
 
     alerts_migrate(conn)
+    from rabota.accounts.tg_schema import (
+        migrate as tg_accounts_migrate,  # привязка Telegram и вход через бота
+    )
+
+    tg_accounts_migrate(conn)
     from rabota.resumes.schema import migrate as resumes_migrate  # резюме, просмотры, резюме в отклике
 
     resumes_migrate(conn)

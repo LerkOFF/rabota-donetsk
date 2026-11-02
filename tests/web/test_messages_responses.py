@@ -1,4 +1,4 @@
-"""Страницы откликов: список, карточка, статусы, отзыв, кабинет."""
+"""Страницы откликов: список, карточка, статусы, отзыв, счётчики в профиле."""
 import pytest
 
 from tests.accounts.harness import build_env, env_impl
@@ -156,19 +156,19 @@ def test_legacy_cabinet_addresses_redirect(env):
     assert w.seeker.client.get("/cabinet/messages", follow_redirects=False).headers["location"] == "/messages"
 
 
-def test_cabinets_show_counters_and_links(env):
+def test_profile_shows_counters_and_links(env):
     w = make_world(env)
     rid = apply_as_seeker(w)
-    boss_cab = w.boss.client.get("/cabinet/employer").text
+    boss_cab = w.boss.client.get("/account").text
     assert 'data-new-responses="1"' in boss_cab and 'href="/responses"' in boss_cab and "Мария Петрова" in boss_cab
-    seeker_cab = w.seeker.client.get("/cabinet/seeker").text
+    seeker_cab = w.seeker.client.get("/account").text
     assert 'data-my-responses="1"' in seeker_cab and 'href="/messages"' in seeker_cab
     w.boss.client.get(f"/responses/{rid}")
-    assert 'data-new-responses="0"' in w.boss.client.get("/cabinet/employer").text
+    assert 'data-new-responses="0"' in w.boss.client.get("/account").text
     submit(w.boss, f"/responses/{rid}/status", {"status": "invited"})
     tid = env.query("SELECT id FROM conversations")[0]["id"]
     submit(w.boss, f"/messages/{tid}", {"body": "Приходите завтра"})
-    assert 'data-unread="1"' in w.seeker.client.get("/cabinet/seeker").text
+    assert 'data-unread="1"' in w.seeker.client.get("/account").text
 
 
 def test_admin_has_no_access(env):

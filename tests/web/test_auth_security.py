@@ -113,20 +113,20 @@ def test_oversized_form_is_rejected(env):
 @pytest.mark.parametrize("value,expected", [
     ("/account", "/account"),
     ("/cabinet/vacancies?page=2", "/cabinet/vacancies?page=2"),
-    ("//evil.test", "/cabinet"),
-    ("//evil.test/path", "/cabinet"),
-    ("/\\evil.test", "/cabinet"),
-    ("/\\\\evil.test", "/cabinet"),
-    ("https://evil.test", "/cabinet"),
-    ("http://evil.test/", "/cabinet"),
-    ("javascript:alert(1)", "/cabinet"),
-    ("evil.test", "/cabinet"),
-    ("", "/cabinet"),
-    (None, "/cabinet"),
-    ("/ok\r\nSet-Cookie: x=1", "/cabinet"),
-    ("/ok\x00", "/cabinet"),
-    ("/" + "a" * 600, "/cabinet"),
-    ("/path\\..\\evil", "/cabinet"),
+    ("//evil.test", "/account"),
+    ("//evil.test/path", "/account"),
+    ("/\\evil.test", "/account"),
+    ("/\\\\evil.test", "/account"),
+    ("https://evil.test", "/account"),
+    ("http://evil.test/", "/account"),
+    ("javascript:alert(1)", "/account"),
+    ("evil.test", "/account"),
+    ("", "/account"),
+    (None, "/account"),
+    ("/ok\r\nSet-Cookie: x=1", "/account"),
+    ("/ok\x00", "/account"),
+    ("/" + "a" * 600, "/account"),
+    ("/path\\..\\evil", "/account"),
 ])
 def test_safe_next(value, expected):
     assert safe_next(value) == expected
@@ -142,7 +142,7 @@ def test_login_follows_safe_next(env):
 def test_login_ignores_open_redirect(env, evil):
     make_user(env)
     r = login(env, next=evil)
-    assert r.status_code == 303 and r.headers["location"] == "/cabinet"
+    assert r.status_code == 303 and r.headers["location"] == "/account"
 
 
 def test_next_survives_failed_login_in_form(env):
@@ -165,7 +165,7 @@ def test_guest_redirect_keeps_page_in_next(env):
 
 # ------------------------------------------------------------------ заголовки
 
-@pytest.mark.parametrize("path", ["/login", "/register", "/forgot", "/verify/resend", "/verify/x", "/reset/x", "/cabinet", "/account"])
+@pytest.mark.parametrize("path", ["/login", "/register", "/forgot", "/verify/resend", "/verify/x", "/reset/x", "/cabinet", "/cabinet/seeker", "/account"])
 def test_account_pages_are_not_cacheable(env, path):
     r = env.client.get(path, follow_redirects=False)
     assert r.headers["cache-control"] == "no-store"

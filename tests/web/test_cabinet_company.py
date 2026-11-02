@@ -1,4 +1,4 @@
-"""Карточка компании в кабинете работодателя и размещение вакансии вошедшим работодателем."""
+"""Карточка компании работодателя и размещение вакансии вошедшим работодателем."""
 from __future__ import annotations
 
 import re
@@ -94,12 +94,12 @@ def test_form_is_prefilled_from_company(boss):
     submit(env, "/cabinet/company", {"name": "Кофейня Зерно", "phone": "+7 949 111-22-33", "contact_email": "hr@zerno.example", "city": "Донецк"})
     html = env.client.get("/razmestit").text
     assert 'value="Кофейня Зерно"' in html and 'value="+79491112233"' in html and 'value="hr@zerno.example"' in html
-    assert "в вашем кабинете" in html
+    assert "в разделе «Мои вакансии»" in html
 
 
 def test_guest_form_is_unchanged(env):
     html = env.client.get("/razmestit").text
-    assert 'name="website"' in html and "в вашем кабинете" not in html
+    assert 'name="website"' in html and "в разделе «Мои вакансии»" not in html
 
 
 def test_employer_post_is_bound_to_owner_and_company(boss):

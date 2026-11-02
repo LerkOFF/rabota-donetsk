@@ -1,4 +1,4 @@
-"""Размещение вакансии за минуту: гость вводит почту, подтверждает кодом, кабинет создаётся сам."""
+"""Размещение вакансии за минуту: гость вводит почту, подтверждает кодом, аккаунт создаётся сам."""
 from __future__ import annotations
 
 import re
@@ -104,7 +104,7 @@ def test_right_code_creates_employer_company_vacancy_and_session(env, p):
     assert v["owner_user_id"] == user["id"] and v["company_id"] == company["id"] and v["origin"] == "direct"
     assert (v["moderation_status"], v["status"]) == ("pending", "hidden")
     ready = env.client.get(r.headers["location"])
-    assert ready.status_code == 200 and "Вакансия принята" in ready.text and "Мы создали ваш кабинет" in ready.text
+    assert ready.status_code == 200 and "Вакансия принята" in ready.text and "Мы создали ваш аккаунт" in ready.text
     assert "Бариста" in env.client.get("/cabinet/vacancies").text  # сессия открыта
 
 
@@ -351,5 +351,5 @@ def test_raise_requires_csrf_and_owner(env, p):
 
 
 def post_raise_other(env, vid):
-    data = {"csrf_token": csrf(env.client, "/cabinet/employer")}
+    data = {"csrf_token": csrf(env.client, "/account")}
     return env.client.post(f"/razmestit/gotovo/{vid}/podnyat", data=data, follow_redirects=False).status_code

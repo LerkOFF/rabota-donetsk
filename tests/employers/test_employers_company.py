@@ -26,7 +26,7 @@ def build(tmp_path) -> Env:
     clock = Clock()
     mail = MemoryMailer()
     app = create_app(tmp_path / "auth.db", site_url=SITE, now=clock, auth_options={
-        "mailer": mail, "secret": SECRET, "clock": clock, "cabinet_stubs": True,
+        "mailer": mail, "secret": SECRET, "clock": clock,
         "limiter": RateLimiter(None, clock=lambda: (clock.current - START).total_seconds())})
     return Env(app, TestClient(app, base_url="http://testserver"), mail, clock, tmp_path / "auth.db", app.state.accounts)
 

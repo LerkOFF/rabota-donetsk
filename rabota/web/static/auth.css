@@ -49,7 +49,8 @@
 .acct__panel h2 { font-size: var(--fs-lg); font-weight: var(--fw-bold); margin: 0; }
 .acct__panel--danger { border-color: var(--c-danger); }
 .acct__panel--danger h2 { color: var(--c-danger); }
-.cabinet-stub { display: grid; gap: var(--sp-4); justify-items: start; padding-bottom: var(--sp-12); }
+.acct__overview { display: grid; gap: var(--sp-5); min-width: 0; }
+.acct__overview > .cab-msg, .acct__overview > .rs-cab { margin-bottom: 0; }
 @media (min-width: 62rem) {
   .acct__grid { grid-template-columns: 1fr 1fr; }
 }
@@ -59,3 +60,26 @@
 .input--code::placeholder { letter-spacing: normal; }
 .auth__sent { font-size: var(--fs-sm); color: var(--c-ink-2); overflow-wrap: anywhere; }
 .auth__sent strong { color: var(--c-ink); }
+
+/* Telegram: кнопка входа, страница ожидания, блок в профиле */
+.btn--tg { background: var(--c-brand-2); color: var(--c-on-brand); border-color: transparent; gap: var(--sp-2); }
+.btn--tg:hover { background: var(--c-brand); color: var(--c-on-brand); }
+.btn--tg .icon { width: 1.35rem; height: 1.35rem; flex: none; }
+.auth__or { display: flex; align-items: center; gap: var(--sp-3); color: var(--c-ink-2); font-size: var(--fs-sm); }
+.auth__or::before, .auth__or::after { content: ""; flex: 1; height: 1px; background: var(--c-line); }
+.tg-login .auth__head { justify-items: start; }
+.tg-login__ico { margin-bottom: var(--sp-1); }
+.tg-login--blocked .tg-login__ico, .tg-login--unavailable .tg-login__ico { background: var(--c-danger-soft); color: var(--c-danger); }
+.tg-login__live p { color: var(--c-ink-2); }
+.tg-login__live strong { color: var(--c-ink); }
+.tg-login__wait { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); color: var(--c-ink-2); }
+.tg-login__wait[hidden] { display: none; }
+.tg-login__dot { width: 0.6rem; height: 0.6rem; border-radius: var(--r-pill); background: var(--c-accent); flex: none; animation: tg-pulse 1.4s var(--ease) infinite; }
+@keyframes tg-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.25; } }
+@media (prefers-reduced-motion: reduce) { .tg-login__dot { animation: none; } }
+.tg-acct__state { display: flex; align-items: center; gap: var(--sp-2); font-weight: var(--fw-semibold); }
+.tg-acct__state .icon { width: 1.4rem; height: 1.4rem; color: var(--c-accent-ink); flex: none; }
+.tg-acct__confirm { display: grid; gap: var(--sp-3); }
+.tg-acct__confirm > summary { list-style: none; width: fit-content; }
+.tg-acct__confirm > summary::-webkit-details-marker { display: none; }
+.tg-acct__confirm[open] > summary { margin-bottom: var(--sp-3); }

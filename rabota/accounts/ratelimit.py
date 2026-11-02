@@ -26,6 +26,12 @@ DEFAULT_LIMITS: dict[str, tuple[int, int]] = {
     "change_email_user": (5, 3600),
     "password_user": (10, 900),
     "delete_user": (5, 900),
+    # Telegram: запуск входа, опрос статуса (раз в пару секунд, пока открыта страница), неудачные попытки забрать вход
+    "tg_login_start_ip": (10, 900),
+    "tg_login_poll_ip": (400, 600),
+    "tg_login_fail_ip": (20, 900),
+    "tg_link_user": (10, 3600),
+    "tg_unlink_user": (10, 900),
 }
 
 _MAX_KEYS = 50_000

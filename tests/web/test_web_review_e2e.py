@@ -187,10 +187,10 @@ def test_touch_targets_vacancy_page_on_phone(open_page, db_file):
 
 @pytest.mark.parametrize(
     ("path", "role"),
-    [("/cabinet", "seeker"), ("/cabinet", "employer"), ("/account", "seeker"), ("/responses", "seeker"), ("/responses", "employer"),
+    [("/account", "seeker"), ("/account", "employer"), ("/responses", "seeker"), ("/responses", "employer"),
      ("/responses/1", "seeker"), ("/responses/1", "employer"), ("/messages", "seeker"), ("/messages/1", "seeker"),
      ("/notifications", "seeker"), ("/vacancy/%(vid)s/apply", "seeker"),
-     ("/cabinet/vacancies", "employer"), ("/cabinet/employer", "employer"), ("/cabinet/seeker", "seeker"), ("/cabinet/company", "employer"),
+     ("/cabinet/vacancies", "employer"), ("/cabinet/company", "employer"),
      ("/cabinet/vacancies/%(vid)s/edit", "employer"), ("/cabinet/vacancies/%(vid)s/delete", "employer"), ("/razmestit", "employer")],
 )
 def test_touch_targets_account_pages_on_phone(open_page, db_file, path, role):
@@ -265,9 +265,9 @@ def test_admin_vacancy_page_uses_russian_statuses(open_page, db_file):
     assert "hidden" not in text and "pending" not in text
 
 
-def test_cabinet_has_no_placeholder_copy(open_page):
+def test_profile_has_no_placeholder_copy(open_page):
     for role in ("seeker", "employer"):
-        page = open_page("/cabinet", 360, role=role)
+        page = open_page("/account", 360, role=role)
         assert "в разработке" not in page.inner_text("body")
 
 
@@ -306,8 +306,8 @@ def test_saved_theme_is_applied_before_first_paint(browser, base_url, saved):
     ctx.close()
 
 
-CABINET_PAGES = [("/cabinet/vacancies", "employer"), ("/cabinet/vacancies?state=rejected", "employer"), ("/cabinet/employer", "employer"),
-                 ("/cabinet/seeker", "seeker"), ("/cabinet/company", "employer"), ("/cabinet/vacancies/%(vid)s/edit", "employer"),
+CABINET_PAGES = [("/cabinet/vacancies", "employer"), ("/cabinet/vacancies?state=rejected", "employer"),
+                 ("/account", "seeker"), ("/account", "employer"), ("/cabinet/company", "employer"), ("/cabinet/vacancies/%(vid)s/edit", "employer"),
                  ("/cabinet/vacancies/%(vid)s/delete", "employer")]
 
 
@@ -344,7 +344,7 @@ def test_cabinet_controls_have_names(open_page, db_file, path, role):
 
 def test_employer_posts_edits_and_sees_status_in_browser(open_page, db_file):
     page = open_page("/razmestit", 390, role="employer")
-    assert "в вашем кабинете" in page.inner_text("body")
+    assert "в разделе «Мои вакансии»" in page.inner_text("body")
     page.fill("#p-profession", "Кондитер")
     page.fill("#p-summary", "Печь торты и десерты для кофейни на проспекте.")
     page.fill("#p-phone", "+7 949 555-44-33")

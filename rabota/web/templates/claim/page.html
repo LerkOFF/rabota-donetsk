@@ -10,7 +10,7 @@
   <header class="page-head">
     {{ crumbs([(c.name, '/company/' ~ c.id), ('Заявка на карточку', '')]) }}
     <h1 class="h1 h1--page">Это моя компания</h1>
-    <p class="lead">Заявка на карточку «{{ c.name }}». Мы собрали её из открытых вакансий. Когда вы подтвердите, что компания ваша, карточка станет проверенной, а вакансии появятся в вашем кабинете.</p>
+    <p class="lead">Заявка на карточку «{{ c.name }}». Мы собрали её из открытых вакансий. Когда вы подтвердите, что компания ваша, карточка станет проверенной, а вакансии появятся в разделе «Мои вакансии».</p>
   </header>
 
   {{ info(flash) }}
@@ -21,8 +21,8 @@
       {% if is_owner %}
       <section class="panel claim__state claim__state--ok" aria-labelledby="st-h">
         <h2 id="st-h">{{ icon('seal-check') }}Эта карточка уже ваша</h2>
-        <p>Описание, логотип и вакансии настраиваются в кабинете.</p>
-        <div class="claim__actions"><a class="btn btn--primary" href="/cabinet/company">Открыть кабинет</a><a class="btn btn--ghost" href="/company/{{ c.id }}">Страница компании</a></div>
+        <p>Описание и логотип настраиваются в разделе «Компания», вакансии в разделе «Мои вакансии».</p>
+        <div class="claim__actions"><a class="btn btn--primary" href="/cabinet/company">Открыть карточку компании</a><a class="btn btn--ghost" href="/company/{{ c.id }}">Страница компании</a></div>
       </section>
 
       {% elif not me %}

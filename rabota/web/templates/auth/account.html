@@ -1,10 +1,11 @@
 {% extends 'auth/layout.html' %}
 {% from 'auth/_forms.html' import csrf, field, summary, info, alert %}
+{% from '_macros.html' import icon %}
 {% block auth_body %}
 <div class="wrap acct">
   <header class="page-head">
-    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>Настройки аккаунта</li></ol></nav>
-    <h1 class="h1 h1--page">Настройки аккаунта</h1>
+    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>Профиль</li></ol></nav>
+    <h1 class="h1 h1--page">Профиль</h1>
     <div class="acct__who">
       <p>{{ me.name }}, {{ me.email }}. {{ me.role_label }}.</p>
       <form method="post" action="/logout">
@@ -17,9 +18,11 @@
   {{ info(flash) }}
   {{ alert(page_error) }}
 
+  {% include 'auth/_overview.html' %}
+
   <div class="acct__grid">
     <section class="panel acct__panel" aria-labelledby="a-profile-h">
-      <h2 id="a-profile-h">Профиль</h2>
+      <h2 id="a-profile-h">Личные данные</h2>
       {{ summary(errors.get('profile', {}), 'p') }}
       <form class="auth__form" method="post" action="/account/profile" novalidate>
         {{ csrf(csrf_token) }}
@@ -51,6 +54,41 @@
         {{ field('password', 'Пароль для подтверждения', type='password', error=errors.get('email', {}).get('password', ''), autocomplete='current-password', maxlength=128, pid='m') }}
         <button class="btn btn--primary" type="submit">Отправить письмо</button>
       </form>
+    </section>
+
+    <section class="panel acct__panel tg-acct" aria-labelledby="a-tg-h" data-tg-account{% if tg.link_url %} data-tg-status-url="/account/telegram/status"{% endif %}>
+      <h2 id="a-tg-h">Telegram</h2>
+      {% if tg.linked %}
+      <p class="tg-acct__state">{{ icon('check-circle') }}<span>Привязан{% if tg.username %}: @{{ tg.username }}{% endif %}.</span></p>
+      <p class="hint">На странице входа доступна кнопка «Войти через Telegram». Новый аккаунт через Telegram не создаётся.</p>
+      {{ summary(errors.get('telegram', {}), 't') }}
+      {% if tg.can_unlink %}
+      <details class="tg-acct__confirm">
+        <summary class="btn btn--ghost">Отвязать Telegram</summary>
+        <form class="auth__form" method="post" action="/account/telegram/unlink">
+          {{ csrf(csrf_token) }}
+          <input type="hidden" name="confirm" value="1">
+          <p class="hint">После отвязки войти через Telegram будет нельзя, вход по почте и паролю останется.</p>
+          <button class="btn btn--danger" type="submit">Да, отвязать</button>
+        </form>
+      </details>
+      {% else %}
+      <p class="hint">Отвязать Telegram нельзя: без него вы не сможете войти. Сначала задайте пароль и подтвердите почту.</p>
+      {% endif %}
+      {% elif tg.link_url %}
+      <p class="hint">Откройте бота, нажмите <strong>Start</strong>, и Telegram привяжется к этому аккаунту. Ссылка одноразовая и действует {{ tg.ttl_minutes }} минут.</p>
+      <a class="btn btn--tg btn--lg" href="{{ tg.link_url }}" target="_blank" rel="noopener noreferrer">{{ icon('telegram-logo') }}<span>Открыть Telegram</span></a>
+      <p class="tg-login__wait" role="status" aria-live="polite"><span class="tg-login__dot" aria-hidden="true"></span>Ждём, пока вы нажмёте Start</p>
+      <a class="btn btn--ghost" href="/account" data-tg-check>Проверить привязку</a>
+      {% elif tg.available %}
+      <p class="hint">Привяжите Telegram, и на странице входа появится кнопка «Войти через Telegram». Аккаунт при этом остаётся прежним, а новый через Telegram создать нельзя.</p>
+      <form method="post" action="/account/telegram/link">
+        {{ csrf(csrf_token) }}
+        <button class="btn btn--primary" type="submit">Привязать Telegram</button>
+      </form>
+      {% else %}
+      <p class="hint">Привязка Telegram сейчас недоступна. Вход по почте и паролю работает как обычно.</p>
+      {% endif %}
     </section>
 
     {% if me.role in ('job_seeker', 'employer') %}

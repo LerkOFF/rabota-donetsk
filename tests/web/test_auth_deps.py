@@ -1,4 +1,4 @@
-"""Зависимости доступа, request.state.user, кабинеты по ролям, подключение к приложению."""
+"""Зависимости доступа, request.state.user, старые адреса кабинета и профиль по ролям, подключение к приложению."""
 from types import SimpleNamespace
 from typing import Annotated, Any
 
@@ -177,51 +177,84 @@ def test_get_current_user_without_middleware_reads_cookie(tmp_path):
     assert c.get("/who").json() == {"email": "ivan@example.test"}
 
 
-# ------------------------------------------------------------------ кабинет
+# ------------------------------------------------------------------ старые адреса кабинета
 
-def test_cabinet_requires_login(env):
-    r = env.client.get("/cabinet", follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/login?next=/cabinet"
+LEGACY = ("/cabinet", "/cabinet/seeker", "/cabinet/employer")
 
 
-def test_cabinet_redirects_seeker_and_shows_stub(env):
+@pytest.mark.parametrize("path", LEGACY)
+def test_legacy_cabinet_redirects_guest_permanently(env, path):
+    r = env.client.get(path, follow_redirects=False)
+    assert r.status_code == 301 and r.headers["location"] == "/account"
+    # дальше гостя ведёт обычный вход
+    r = env.client.get(r.headers["location"], follow_redirects=False)
+    assert r.status_code == 303 and r.headers["location"] == "/login?next=/account"
+
+
+@pytest.mark.parametrize("path", LEGACY)
+def test_legacy_cabinet_redirects_every_role(env, path):
     login_as(env, name="Анна")
-    r = env.client.get("/cabinet", follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/cabinet/seeker"
-    page = env.client.get("/cabinet/seeker")
-    assert page.status_code == 200 and "Кабинет соискателя" in page.text and "Анна" in page.text
-    assert 'href="/account"' in page.text
-
-
-def test_cabinet_redirects_employer_and_shows_stub(env):
-    login_as(env, "boss@example.test", role="employer", name="Борис")
-    assert env.client.get("/cabinet", follow_redirects=False).headers["location"] == "/cabinet/employer"
-    page = env.client.get("/cabinet/employer")
-    assert page.status_code == 200 and "Кабинет работодателя" in page.text and "Борис" in page.text
-
-
-def test_cabinet_pages_forbidden_for_other_role(env):
-    login_as(env)
-    assert env.client.get("/cabinet/employer").status_code == 403
+    assert env.client.get(path, follow_redirects=False).headers["location"] == "/account"
     env.client.cookies.clear()
-    login_as(env, "boss@example.test", role="employer")
-    assert env.client.get("/cabinet/seeker").status_code == 403
+    login_as(env, "boss@example.test", role="employer", name="Борис")
+    r = env.client.get(path, follow_redirects=False)
+    assert r.status_code == 301 and r.headers["location"] == "/account"
+    assert env.client.get(path, follow_redirects=True).status_code == 200
 
 
-def test_admin_cabinet_goes_to_account(env):
+def test_legacy_cabinet_redirect_for_admin_and_head(env):
     conn = env.db()
     service.create_admin(conn, "admin@example.test", "admin-pass-phrase-5", env.clock())
     conn.close()
     login(env, "admin@example.test", "admin-pass-phrase-5")
-    assert env.client.get("/cabinet", follow_redirects=False).headers["location"] == "/account"
+    assert env.client.get("/cabinet", follow_redirects=False).status_code == 301
+    head = env.client.head("/cabinet/seeker", follow_redirects=False)
+    assert head.status_code == 301 and head.headers["location"] == "/account"
+    # POST на старый адрес не принимается: перенаправление только для чтения страницы
+    assert env.client.post("/cabinet", follow_redirects=False).status_code in (403, 404, 405)
 
 
-def test_cabinet_stubs_can_be_turned_off(tmp_path):
-    e = build_env(tmp_path, cabinet_stubs=False)
-    with e.client:
-        login_as(e)
-        assert e.client.get("/cabinet/seeker").status_code == 404
-        assert e.client.get("/cabinet", follow_redirects=False).status_code == 303
+def test_legacy_redirect_does_not_swallow_employer_sections(env):
+    login_as(env, "boss@example.test", role="employer", name="Борис")
+    for path in ("/cabinet/vacancies", "/cabinet/company"):
+        r = env.client.get(path, follow_redirects=False)
+        assert r.status_code == 200, path
+
+
+def test_seeker_resumes_section_is_not_redirected(env):
+    login_as(env)
+    assert env.client.get("/cabinet/resumes", follow_redirects=False).status_code == 200
+
+
+# ------------------------------------------------------------------ профиль вместо кабинета
+
+def test_profile_has_role_overview_seeker(env):
+    login_as(env, name="Анна")
+    page = env.client.get("/account")
+    assert page.status_code == 200 and "data-account-overview=\"job_seeker\"" in page.text
+    assert "data-cabinet-messaging" in page.text and "data-cabinet-resumes" in page.text
+    assert 'href="/vacancies?direct=1"' in page.text
+    assert "Кабинет" not in page.text and "кабинет" not in page.text
+
+
+def test_profile_has_role_overview_employer(env):
+    login_as(env, "boss@example.test", role="employer", name="Борис")
+    page = env.client.get("/account")
+    assert page.status_code == 200 and "data-account-overview=\"employer\"" in page.text
+    for href in ("/cabinet/vacancies", "/cabinet/company", "/employers/resumes", "/razmestit"):
+        assert f'href="{href}"' in page.text, href
+    assert "data-cabinet-messaging" in page.text
+    assert "Кабинет" not in page.text and "кабинет" not in page.text
+
+
+def test_profile_of_admin_has_no_overview(env):
+    conn = env.db()
+    service.create_admin(conn, "admin@example.test", "admin-pass-phrase-5", env.clock())
+    conn.close()
+    login(env, "admin@example.test", "admin-pass-phrase-5")
+    page = env.client.get("/account")
+    assert page.status_code == 200 and "data-account-overview" not in page.text
+    assert "Кабинет" not in page.text
 
 
 # ------------------------------------------------------------------ шапка и шаблоны

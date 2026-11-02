@@ -49,7 +49,7 @@ def test_login_after_verification(env):
     register(env)
     env.client.get(link_in(env.mailer.last()))
     r = login(env)
-    assert r.status_code == 303 and r.headers["location"] == "/cabinet"
+    assert r.status_code == 303 and r.headers["location"] == "/account"
     assert session_cookie_header(r)
     assert env.query("SELECT COUNT(*) AS n FROM sessions")[0]["n"] == 1
     assert env.user("ivan@example.test")["last_login_at"]
@@ -200,7 +200,7 @@ def test_garbage_session_cookie_is_ignored_and_cleared(env):
 def test_login_page_redirects_logged_in_user(env):
     login_as(env)
     r = env.client.get("/login", follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/cabinet"
+    assert r.status_code == 303 and r.headers["location"] == "/account"
     assert env.client.get("/register", follow_redirects=False).status_code == 303
 
 

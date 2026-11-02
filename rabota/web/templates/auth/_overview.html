@@ -1,0 +1,72 @@
+{# Обзор в начале профиля: у соискателя резюме, отклики и переписка, у работодателя вакансии, отклики и компания. Нужны me и функции cabinet_resumes, cabinet_messaging, employer_overview (есть не везде) #}
+{% from '_macros.html' import icon, empty_state %}
+{% if me.role in ('job_seeker', 'employer') %}
+<link rel="stylesheet" href="{{ asset('cabinet.css') }}">
+<div class="acct__overview" data-account-overview="{{ me.role }}">
+  {% if me.role == 'employer' %}
+  {% set ov = employer_overview(me) if employer_overview is defined else {'ok': False} %}
+  {% if ov.ok %}
+  <section class="cab__section" aria-labelledby="a-vac-h">
+    <div class="cab__section-head">
+      <h2 id="a-vac-h" class="h3">Вакансии</h2>
+      <a class="cab__more" href="/cabinet/vacancies">Мои вакансии{{ icon('arrow-right') }}</a>
+    </div>
+    {% if ov.counts.all %}
+    <ul class="kpis">
+      <li><a class="kpi kpi--published" href="/cabinet/vacancies?state=published"><span class="kpi__n">{{ ov.counts.published }}</span><span class="kpi__l">Опубликовано</span></a></li>
+      <li><a class="kpi{% if ov.counts.pending %} kpi--wait{% endif %}" href="/cabinet/vacancies?state=pending"><span class="kpi__n">{{ ov.counts.pending }}</span><span class="kpi__l">На проверке</span></a></li>
+      <li><a class="kpi{% if ov.counts.rejected %} kpi--bad{% endif %}" href="/cabinet/vacancies?state=rejected"><span class="kpi__n">{{ ov.counts.rejected }}</span><span class="kpi__l">Отклонено</span></a></li>
+      <li><a class="kpi" href="/cabinet/vacancies?state=closed"><span class="kpi__n">{{ ov.counts.closed + ov.counts.expired }}</span><span class="kpi__l">Закрыто и истекло</span></a></li>
+    </ul>
+    {% if ov.attention %}
+    <ul class="attn" aria-label="Что требует внимания">
+      {% for a in ov.attention %}
+      <li class="attn__item attn__item--{{ a.kind }}"><span class="attn__ico">{{ icon(a.icon) }}</span><span class="attn__text">{{ a.text }}</span><a class="btn btn--ghost btn--sm" href="{{ a.href }}">{{ a.action }}</a></li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+    <div class="state__actions"><a class="btn btn--primary btn--sm" href="/razmestit">{{ icon('plus') }}Разместить вакансию</a></div>
+    {% else %}
+    {% call empty_state('briefcase', 'Разместите первую вакансию', 'Это бесплатно. После короткой проверки вакансию увидят соискатели, а отклики придут на сайт и на почту.') %}
+    <a class="btn btn--primary" href="/razmestit">{{ icon('plus') }}Разместить вакансию</a>
+    <a class="btn btn--ghost" href="/employers">Как это работает</a>
+    {% endcall %}
+    {% endif %}
+  </section>
+  {% endif %}
+  {% endif %}
+
+  {% include 'messages/_cabinet.html' %}
+
+  {% if me.role == 'job_seeker' %}
+  {% include 'resumes/_cabinet.html' %}
+  <ul class="quick" aria-label="Быстрые ссылки">
+    <li><a class="quick__item quick__item--main" href="/vacancies?direct=1">{{ icon('magnifying-glass') }}<span><strong>Найти вакансию</strong><span class="muted">Только от работодателей: откликнуться можно на сайте</span></span></a></li>
+    <li><a class="quick__item" href="/vacancies">{{ icon('briefcase') }}<span><strong>Все вакансии</strong><span class="muted">Из каналов и сайтов, с телефоном и ссылкой на оригинал</span></span></a></li>
+  </ul>
+  {% else %}
+  <section class="panel cab__company" aria-labelledby="a-res-h">
+    <h2 id="a-res-h" class="h3">Поиск резюме</h2>
+    <p>Соискатели Донецка, которые открыли резюме работодателям: фильтры по профессии, району, зарплате, опыту и графику. Контакты открываются по кнопке, пригласить можно в один шаг.</p>
+    <div class="state__actions"><a class="btn btn--primary btn--sm" href="/employers/resumes">{{ icon('magnifying-glass') }}Искать резюме</a></div>
+  </section>
+
+  {% set ov = employer_overview(me) if employer_overview is defined else {'ok': False} %}
+  {% if ov.ok %}
+  <section class="panel cab__company" aria-labelledby="a-co-h">
+    <h2 id="a-co-h" class="h3">Компания</h2>
+    {% if ov.company and ov.company.description %}
+    <p><strong>{{ ov.company.name }}</strong>, {{ ov.company.city or 'Донецк' }}. Карточка заполнена, её видят соискатели.</p>
+    <div class="state__actions">
+      <a class="btn btn--ghost btn--sm" href="/cabinet/company">Изменить карточку</a>
+      <a class="btn btn--ghost btn--sm" href="/company/{{ ov.company.id }}">Страница компании</a>
+    </div>
+    {% else %}
+    <p>Заполните карточку компании: название, описание и сайт. Так соискатели больше доверяют вакансиям, а телефон и почта подставятся в новые вакансии сами.</p>
+    <div class="state__actions"><a class="btn btn--primary btn--sm" href="/cabinet/company">Заполнить карточку компании</a></div>
+    {% endif %}
+  </section>
+  {% endif %}
+  {% endif %}
+</div>
+{% endif %}

@@ -225,7 +225,7 @@ async def apply_form(request: Request, vacancy_id: str, user: Verified) -> Respo
         raise HTTPException(404)
     if user["role"] != "job_seeker":
         return _view(request, "apply_denied.html", {"v": card}, "Откликнуться могут соискатели",
-                     "Откликаться на вакансии могут соискатели. Работодатели получают отклики в своём кабинете.", 403)
+                     "Откликаться на вакансии могут соискатели. Работодатели получают отклики в разделе «Отклики».", 403)
     return _apply_page(request, user, card, already=state, resumes=resumes)
 
 

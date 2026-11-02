@@ -1,4 +1,4 @@
-"""Кабинет соискателя: /cabinet/resumes, форма, правка, скрытие, обновление, удаление, лимит, права."""
+"""Резюме соискателя: /cabinet/resumes, форма, правка, скрытие, обновление, удаление, лимит, права."""
 import re
 
 import pytest
@@ -286,17 +286,17 @@ def test_account_page_mentions_resumes_in_deletion_notice(seeker):
     assert "резюме" in seeker.client.get("/account").text
 
 
-def test_cabinet_seeker_has_resume_block(seeker):
-    page = seeker.client.get("/cabinet/seeker").text
+def test_profile_has_resume_block(seeker):
+    page = seeker.client.get("/account").text
     assert "data-cabinet-resumes" in page and 'href="/cabinet/resumes"' in page and "Составить резюме" in page
     create_id(seeker, pay_min="", skills="кофе")
-    page = seeker.client.get("/cabinet/seeker").text
+    page = seeker.client.get("/account").text
     assert "data-resume-count=\"1\"" in page and "Резюме из 3" in page
 
 
-def test_cabinet_employer_links_to_search(env):
+def test_profile_of_employer_links_to_search(env):
     login_as(env, "boss@example.test", role="employer")
-    assert 'href="/employers/resumes"' in env.client.get("/cabinet/employer").text
+    assert 'href="/employers/resumes"' in env.client.get("/account").text
 
 
 def test_second_visitor_helper_keeps_cookies_apart(env):

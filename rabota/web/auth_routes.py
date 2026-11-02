@@ -7,7 +7,8 @@
 Маршруты: /register, /register/code (+ /resend), /login, POST /logout, /verify/<токен>, /verify/resend, /forgot,
 /forgot/code (+ /resend), /reset/<токен>,
 /account (+ /account/profile, /account/password, /account/email, /account/delete), /email/confirm/<токен>,
-/cabinet (перенаправление по роли), /cabinet/seeker и /cabinet/employer (сводки).
+вход через Telegram и привязка Telegram в профиле: rabota.web.tg_auth_routes (/login/telegram, /account/telegram/...),
+старые адреса /cabinet, /cabinet/seeker и /cabinet/employer: постоянный редирект на /account.
 """
 from __future__ import annotations
 
@@ -39,7 +40,6 @@ from rabota.accounts.deps import (
     csrf_token,
     get_current_user,
     is_https,
-    require_role,
     require_verified,
     rotate_csrf,
     safe_next,
@@ -75,8 +75,6 @@ GENERIC_LOGIN_ERROR = "Неверная почта или пароль."
 router = APIRouter()
 
 Verified = Annotated[dict[str, Any], Depends(require_verified)]
-Seeker = Annotated[dict[str, Any], Depends(require_role("job_seeker"))]
-Employer = Annotated[dict[str, Any], Depends(require_role("employer"))]
 
 
 # ------------------------------------------------------------------ вспомогательное
@@ -132,7 +130,7 @@ def render(request: Request, name: str, context: dict[str, Any] | None = None, s
     ctx["seo"].setdefault("title", "Аккаунт: Работа Донецк")
     ctx["seo"].setdefault(
         "description",
-        "Личный кабинет сайта Работа Донецк: вход, подтверждение почты, настройки аккаунта, отклики на вакансии "
+        "Аккаунт на сайте Работа Донецк: вход, подтверждение почты, профиль, отклики на вакансии "
         "и переписка с работодателями.")
     ctx["seo"]["noindex"] = True
     app_render = _find_app_render(request.app)
@@ -289,7 +287,7 @@ def _registration_closed(request: Request, status: int) -> Response:
     extra = str(_admin_setting(request, "registration_closed_note") or "").strip()
     return notice(
         request, "Регистрация откроется позже",
-        ["Мы готовим сервис к открытию личных кабинетов. Смотреть вакансии и звонить работодателям можно уже сейчас.",
+        ["Мы готовим сервис к открытию аккаунтов. Смотреть вакансии и звонить работодателям можно уже сейчас.",
          *([extra] if extra else [])],
         [("К вакансиям", "/vacancies", "primary"), ("На главную", "/", "ghost")],
         status=status, icon_name="clock",
@@ -300,7 +298,7 @@ def _registration_closed(request: Request, status: int) -> Response:
 def register_form(request: Request) -> Response:
     user = get_current_user(request)
     if user:
-        return _redirect("/cabinet")
+        return _redirect("/account")
     if not _registration_open(request):
         return _registration_closed(request, 200)
     return render(request, "auth/register.html", {
@@ -512,8 +510,11 @@ async def verify(request: Request, token: str) -> Response:
 def _login_page(
     request: Request, *, email: str = "", error: str = "", nxt: str = "", unverified: bool = False, status: int = 200
 ) -> Response:
+    from rabota.web.tg_auth_routes import login_button
+
     return render(request, "auth/login.html", {
         "form": {"email": email}, "error": error, "next": nxt, "unverified": unverified, "info": "",
+        "tg_login": login_button(_acc(request)),
         "seo": {"title": "Вход: Работа Донецк", "description": "Вход в аккаунт на сайте Работа Донецк."},
     }, status)
 
@@ -522,7 +523,7 @@ def _login_page(
 def login_form(request: Request) -> Response:
     nxt = safe_next(request.query_params.get("next"), "")
     if get_current_user(request):
-        return _redirect(nxt or "/cabinet")
+        return _redirect(nxt or "/account")
     return _login_page(request, nxt=nxt)
 
 
@@ -568,7 +569,7 @@ async def login_submit(request: Request) -> Response:
             error="Почта ещё не подтверждена. Введите код из письма, и вход заработает.",
         )
     acc.limiter.reset("login_email", email)
-    response = _redirect(nxt or "/cabinet")
+    response = _redirect(nxt or "/account")
     assert expires is not None
     set_session_cookie(response, request, raw, expires)
     rotate_csrf(request)
@@ -775,16 +776,22 @@ FLASH = {
     "profile": "Профиль сохранён.",
     "password": "Пароль изменён. На других устройствах вход закрыт.",
     "email_sent": "Письмо отправлено на новый адрес. Почта изменится, когда вы откроете ссылку из письма.",
+    "tg_linked": "Telegram привязан. Теперь на странице входа можно нажать «Войти через Telegram».",
+    "tg_unlinked": "Telegram отвязан. Войти можно по почте и паролю.",
 }
 
 
 def _account_page(
     request: Request, user: dict[str, Any], errors: dict[str, dict[str, str]] | None = None,
     forms: dict[str, dict[str, str]] | None = None, flash: str = "", page_error: str = "", status: int = 200,
+    tg_link_code: str = "",
 ) -> Response:
+    from rabota.web.tg_auth_routes import account_context
+
     return render(request, "auth/account.html", {
         "me": user, "errors": errors or {}, "forms": forms or {}, "flash": flash, "page_error": page_error,
-        "seo": {"title": "Настройки аккаунта: Работа Донецк"},
+        "tg": account_context(_acc(request), user, tg_link_code),
+        "seo": {"title": "Профиль: Работа Донецк"},
     }, status)
 
 
@@ -919,7 +926,7 @@ async def email_confirm(request: Request, token: str) -> Response:
         return notice(
             request, "Ссылка не подошла",
             ["Ссылка устарела, уже использована, или этот адрес успели занять. Запросите смену почты ещё раз."],
-            [("Настройки аккаунта", "/account", "primary")], status=400, icon_name="warning",
+            [("Профиль", "/account", "primary")], status=400, icon_name="warning",
         )
     user, old_email = result
     mail = render_mail("email_changed", old_email, name=user["name"], new_email=user["email"], site_url=acc.site_url)
@@ -977,45 +984,18 @@ def account_deleted(request: Request) -> Response:
     )
 
 
-# ------------------------------------------------------------------ кабинет (сводки)
+# ------------------------------------------------------------------ старые адреса кабинета
 
-@router.get("/cabinet")
-def cabinet(request: Request, user: Verified) -> Response:
-    target = {"job_seeker": "/cabinet/seeker", "employer": "/cabinet/employer"}.get(user["role"], "/account")
-    return _redirect(target)
+LEGACY_CABINET_PATHS = ("/cabinet", "/cabinet/seeker", "/cabinet/employer")
 
 
-stub_router = APIRouter()  # сводки кабинетов; параметр install(cabinet_stubs=False) отключает их, если есть свои
+def _legacy_cabinet(request: Request) -> Response:
+    """Страницы кабинета слиты с профилем: старые ссылки, закладки и письма ведут в /account (301, только GET и HEAD)."""
+    return RedirectResponse("/account", status_code=301)
 
 
-@stub_router.get("/cabinet/seeker")
-def cabinet_seeker(request: Request, user: Seeker) -> Response:
-    return render(request, "auth/cabinet_seeker.html", {
-        "me": user,
-        "seo": {"title": "Кабинет соискателя", "description": "Ваши отклики на вакансии, переписка с работодателями "
-                                                               "и быстрые ссылки на сайте Работа Донецк."},
-    })
-
-
-@stub_router.get("/cabinet/employer")
-async def cabinet_employer(request: Request, user: Employer) -> Response:
-    from rabota import cabinet as cabinet_service
-
-    acc = _acc(request)
-
-    def work() -> dict[str, Any]:
-        conn = acc.db()
-        try:
-            return cabinet_service.employer_summary(conn, user["id"], acc.now())
-        finally:
-            conn.close()
-
-    summary = await run_in_threadpool(work)
-    return render(request, "auth/cabinet_employer.html", {
-        "me": user, "summary": summary,
-        "seo": {"title": "Кабинет работодателя", "description": "Ваши вакансии по статусам, новые отклики, сообщения "
-                                                                 "и карточка компании на сайте Работа Донецк."},
-    })
+for _legacy_path in LEGACY_CABINET_PATHS:
+    router.add_api_route(_legacy_path, _legacy_cabinet, methods=["GET", "HEAD"], include_in_schema=False)
 
 
 # ------------------------------------------------------------------ подключение
@@ -1064,14 +1044,12 @@ def install(
     rate_limits: dict[str, tuple[int, int]] | None = None,
     limiter: RateLimiter | None = None,
     templates: Jinja2Templates | None = None,
-    cabinet_stubs: bool = True,
     trust_proxy: bool | None = None,
 ) -> Accounts:
     """Подключить аккаунты к приложению: маршруты, middleware сессии и CSRF, шаблоны.
 
     db_path: база (по умолчанию DB_PATH из настроек); mailer: по умолчанию по MAIL_BACKEND;
-    templates: окружение шаблонов приложения (иначе берётся app.state.templates, иначе своё с теми же функциями);
-    cabinet_stubs=False отключает сводки /cabinet/seeker и /cabinet/employer, когда есть свои кабинеты.
+    templates: окружение шаблонов приложения (иначе берётся app.state.templates, иначе своё с теми же функциями).
     """
     path = Path(db_path) if db_path else config.DB_PATH
     service.ensure_schema(path)
@@ -1146,7 +1124,8 @@ def install(
             response.headers["Cache-Control"] = "no-store"
         return response
 
+    from rabota.web.tg_auth_routes import router as tg_router
+
     app.include_router(router)
-    if cabinet_stubs:
-        app.include_router(stub_router)
+    app.include_router(tg_router)
     return acc

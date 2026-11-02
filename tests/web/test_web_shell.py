@@ -97,7 +97,7 @@ def test_employer_header_menu_and_post_button(make_client):
 
 def test_admin_and_nameless_user_header(make_client):
     head = header_of(make_client("admin").get("/").text)
-    assert 'href="/cabinet"' in head and 'href="/account"' in head
+    assert 'href="/account"' in head and "Кабинет" not in head and 'href="/cabinet' not in head
     assert "root@example.test" in head  # без имени подпись берётся из почты
     assert "hpost" not in head
 
@@ -121,7 +121,7 @@ def test_current_user_helper():
     assert current_user(Req) is None
     Req.state.user = {"id": 1, "email": "a@b.c", "name": "Иван", "role": "employer"}
     u = current_user(Req)
-    assert u["is_employer"] and u["initial"] == "И" and [m["key"] for m in u["menu"]][:2] == ["cabinet", "vacancies"]
+    assert u["is_employer"] and u["initial"] == "И" and [m["key"] for m in u["menu"]][:2] == ["vacancies", "responses"]
     Req.state.user = {"id": 1, "email": "a@b.c", "name": "", "role": "job_seeker"}
     assert current_user(Req)["label"] == "a@b.c"
 
@@ -332,9 +332,9 @@ def test_home_has_all_blocks(client, add):
     assert 'href="/razmestit"' in html and 'href="/register"' in html and 'href="/employers"' in html
 
 
-def test_home_for_logged_in_user_links_to_cabinet(make_client):
+def test_home_for_logged_in_user_links_to_profile(make_client):
     html = make_client("job_seeker").get("/").text
-    assert 'href="/cabinet"' in html and "Создать резюме" not in html.split("Ищете работу?", 1)[1].split("</section>", 1)[0]
+    assert 'href="/account"' in html and 'href="/cabinet"' not in html and "Создать резюме" not in html.split("Ищете работу?", 1)[1].split("</section>", 1)[0]
 
 
 # ------------------------------------------------------------------ страница вакансии
@@ -399,7 +399,8 @@ def test_employers_landing(client, add):
 
 def test_employers_landing_for_logged_in_employer(make_client):
     html = make_client("employer").get("/employers").text
-    assert 'href="/cabinet"' in html and "Создать кабинет" not in html
+    assert 'href="/account"' in html and 'href="/cabinet"' not in html
+    assert "Создать кабинет" not in html and "Перейти в кабинет" not in html
 
 
 def test_company_page_stub_for_unknown_id(client):
@@ -451,3 +452,23 @@ def test_sitemap_has_legal_documents(client):
 def test_footer_links_to_cookies_and_register_consent_links_to_document(client):
     assert 'href="/legal/cookies"' in client.get("/about").text
     assert 'href="/legal/consent"' in client.get("/register").text
+
+
+@pytest.mark.parametrize("role", ["job_seeker", "employer", "admin"])
+def test_no_cabinet_item_in_menu_header_and_footer(make_client, role):
+    """Пункта «Кабинет» нет ни у одной роли: ни в шапке, ни в меню пользователя, ни в подвале; ссылок на удалённые адреса нет."""
+    html = make_client(role).get("/").text
+    head = header_of(html)
+    for text in (head, html):
+        assert "Кабинет" not in text and "Войти в кабинет" not in text
+        for dead in ('href="/cabinet"', 'href="/cabinet/seeker"', 'href="/cabinet/employer"'):
+            assert dead not in text, dead
+    assert 'href="/account"' in head
+    if role == "employer":
+        assert 'href="/cabinet/vacancies"' in head and 'href="/cabinet/company"' in head
+
+
+def test_footer_login_link_for_guest(client):
+    html = client.get("/").text
+    footer = html.split("<footer", 1)[1]
+    assert "Войти в кабинет" not in footer and 'href="/login">Войти</a>' in footer

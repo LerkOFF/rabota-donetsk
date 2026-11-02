@@ -10,7 +10,7 @@
   <header class="page-head">
     {{ crumbs(seo.breadcrumbs) }}
     <h1 class="h1 h1--page">Разместить вакансию</h1>
-    <p class="lead">Бесплатно и за минуту: профессия, район, оплата, график, телефон и пара предложений о работе.{% if not is_employer %} Почту подтвердим кодом, а кабинет работодателя создадим сами.{% endif %}</p>
+    <p class="lead">Бесплатно и за минуту: профессия, район, оплата, график, телефон и пара предложений о работе.{% if not is_employer %} Почту подтвердим кодом, а аккаунт работодателя создадим сами.{% endif %}</p>
     {% if not is_employer %}
     <ol class="pstep" aria-label="Шаги размещения">
       <li class="pstep__item pstep__item--now" aria-current="step"><span class="pstep__n">1</span>Вакансия</li>
@@ -29,7 +29,7 @@
   </div>
   {% endif %}
 
-  {% if is_employer %}<p class="notice" role="note">{{ icon('briefcase') }}<span>Вакансия появится в вашем кабинете: там видно, на какой она стадии проверки, сколько откликов и как её поднять или закрыть.</span></p>{% endif %}
+  {% if is_employer %}<p class="notice" role="note">{{ icon('briefcase') }}<span>Вакансия появится в разделе «Мои вакансии»: там видно, на какой она стадии проверки, сколько откликов и как её поднять или закрыть.</span></p>{% endif %}
 
   <form class="form-grid post-form" method="post" action="{{ form_action }}" novalidate>
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -94,7 +94,7 @@
     {% if not is_employer %}
     <section class="form-section" aria-labelledby="s-confirm">
       <h2 id="s-confirm">Подтверждение</h2>
-      {{ text_field('account_email', 'Ваша почта', required=True, hint='Пришлём код для публикации. На сайте она не показывается. По ней же вы войдёте в кабинет.', placeholder='mail@example.ru', maxlength=254, type='email', inputmode='email', autocomplete='email') }}
+      {{ text_field('account_email', 'Ваша почта', required=True, hint='Пришлём код для публикации. На сайте она не показывается. По ней же вы войдёте на сайт.', placeholder='mail@example.ru', maxlength=254, type='email', inputmode='email', autocomplete='email') }}
       <div class="field{% if errors.get('consent') %} field--invalid{% endif %}">
         <label class="check check--top"><input type="checkbox" name="consent" value="1" id="p-consent" required{% if form.get('consent') %} checked{% endif %}{% if errors.get('consent') %} aria-invalid="true" aria-describedby="err-consent"{% endif %}>
           <span>Я согласен на <a href="/legal/consent" target="_blank" rel="noopener">обработку персональных данных</a> и принимаю <a href="/legal/terms" target="_blank" rel="noopener">пользовательское соглашение</a></span></label>

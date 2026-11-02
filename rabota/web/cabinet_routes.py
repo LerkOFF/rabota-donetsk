@@ -1,4 +1,4 @@
-"""Кабинет работодателя: /cabinet/vacancies (список, правка, закрытие, поднятие, удаление) и /cabinet/company.
+"""Разделы работодателя: /cabinet/vacancies (список, правка, закрытие, поднятие, удаление) и /cabinet/company.
 
 Подключение: rabota.web.cabinet_routes.install(app, premoderate=...) после аккаунтов. Роль employer (администратору и
 соискателю 403), все страницы закрыты от индексации и не кэшируются, все POST проверяют CSRF-токен и Origin,
@@ -44,7 +44,7 @@ ERRORS = {
     "not_allowed": "Так сделать нельзя: вакансия на проверке, отклонена или скрыта модератором.",
     "rate": "Слишком много действий подряд. Подождите немного и повторите.",
 }
-CABINET_DESCRIPTION = "Личный кабинет работодателя на сайте Работа Донецк: ваши вакансии, отклики и карточка компании."
+CABINET_DESCRIPTION = "Ваши вакансии, отклики и карточка компании работодателя на сайте Работа Донецк."
 
 
 # ------------------------------------------------------------------ вспомогательное
@@ -269,15 +269,31 @@ async def company_save(request: Request, user: Employer) -> Response:
     return _go("/cabinet/company?saved=1")
 
 
-def install(app: FastAPI, *, premoderate: bool = True) -> None:
-    """Маршруты кабинета работодателя. Вызывается после install аккаунтов."""
+def employer_overview(db_path: Any, user: dict[str, Any] | None, now: Any) -> dict[str, Any]:
+    """Сводка работодателя для страницы профиля: вакансии по статусам, что требует внимания, карточка компании."""
+    if not user or user.get("role") != "employer":
+        return {"ok": False}
+    from rabota.accounts import service as accounts
+
+    conn = accounts.open_db(db_path)
+    try:
+        return {"ok": True, **cabinet.employer_summary(conn, user["id"], now)}
+    finally:
+        conn.close()
+
+
+def install(app: FastAPI, *, premoderate: bool = True, templates: Any | None = None) -> None:
+    """Маршруты разделов работодателя. Вызывается после install аккаунтов; templates нужны для сводки в профиле."""
     acc = getattr(app.state, "accounts", None)
     if acc is None:
         raise RuntimeError("Сначала подключите аккаунты (auth_routes.install)")
     for bucket, limit in LIMITS.items():
         acc.limiter.limits.setdefault(bucket, limit)
     app.state.premoderate = premoderate
+    env = getattr(templates, "env", None)
+    if env is not None:
+        env.globals["employer_overview"] = lambda user: employer_overview(acc.db_path, user, acc.now())
     app.include_router(router)
 
 
-__all__ = ["install", "router"]
+__all__ = ["employer_overview", "install", "router"]

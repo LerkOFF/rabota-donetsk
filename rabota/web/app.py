@@ -55,16 +55,14 @@ COMPLAINT_CODES = {text: code for code, text in complaint_service.PUBLIC_REASONS
 DEFAULT_RATE_LIMITS = {"complaint": (6, 3600), "post": (4, 3600)}
 
 # Пункты меню вошедшего пользователя: ключ, подпись, адрес, значок, показывать в шапке отдельной ссылкой.
-# Роли как в таблице users: job_seeker, employer, admin. Адреса кабинетов меняются здесь, в одном месте.
+# Роли как в таблице users: job_seeker, employer, admin. Адреса разделов меняются здесь, в одном месте.
 MenuItem = tuple[str, str, str, str, bool]
 SEEKER_MENU: tuple[MenuItem, ...] = (
-    ("cabinet", "Кабинет", "/cabinet/seeker", "house-line", False),
     ("responses", "Отклики", "/responses", "paper-plane-tilt", True),
     ("messages", "Сообщения", "/messages", "chat-circle-dots", True),
     ("profile", "Профиль", "/account", "user-circle", False),
 )
 EMPLOYER_MENU: tuple[MenuItem, ...] = (
-    ("cabinet", "Кабинет", "/cabinet/employer", "house-line", False),
     ("vacancies", "Мои вакансии", "/cabinet/vacancies", "briefcase", True),
     ("responses", "Отклики", "/responses", "paper-plane-tilt", True),
     ("messages", "Сообщения", "/messages", "chat-circle-dots", True),
@@ -72,7 +70,6 @@ EMPLOYER_MENU: tuple[MenuItem, ...] = (
     ("profile", "Профиль", "/account", "user-circle", False),
 )
 ADMIN_MENU: tuple[MenuItem, ...] = (
-    ("cabinet", "Кабинет", "/cabinet", "gear-six", False),
     ("profile", "Профиль", "/account", "user-circle", False),
 )
 ROLE_MENUS = {"job_seeker": SEEKER_MENU, "employer": EMPLOYER_MENU, "admin": ADMIN_MENU}
@@ -637,7 +634,7 @@ def create_app(
     messages_routes.install(app, templates=templates)  # отклики, переписка, уведомления
     from rabota.web import cabinet_routes
 
-    cabinet_routes.install(app, premoderate=premoderate)  # вакансии и компания работодателя
+    cabinet_routes.install(app, premoderate=premoderate, templates=templates)  # вакансии и компания работодателя
     from rabota.web import claim_routes
 
     claim_routes.install(app)  # заявка «Это моя компания», архив вакансий компании, мои заявки (раньше заглушки размещения)
@@ -664,9 +661,9 @@ EMPLOYER_FAQ: tuple[tuple[str, str], ...] = (
     ("Когда вакансия появится на сайте",
      "После короткой проверки, обычно в течение нескольких часов. Проверяем, что это настоящая вакансия и нет просьбы платить за работу."),
     ("Как соискатели свяжутся со мной",
-     "Откликом на сайте или по телефону и в Telegram, если вы их указали. Контакты можно не публиковать и принимать отклики только в кабинете."),
+     "Откликом на сайте или по телефону и в Telegram, если вы их указали. Контакты можно не публиковать и принимать отклики только на сайте."),
     ("Что делать, если вакансия закрыта",
-     "Закройте её в кабинете или нажмите «Пожаловаться» на странице вакансии и выберите «Вакансия не актуальна»."),
+     "Закройте её в разделе «Мои вакансии» или нажмите «Пожаловаться» на странице вакансии и выберите «Вакансия не актуальна»."),
 )
 
 DEFAULT_DESCRIPTION = (

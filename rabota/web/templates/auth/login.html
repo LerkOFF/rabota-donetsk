@@ -1,5 +1,6 @@
 {% extends 'auth/layout.html' %}
 {% from 'auth/_forms.html' import csrf, field, alert %}
+{% from '_macros.html' import icon %}
 {% block auth_body %}
 <div class="wrap auth">
   <div class="auth__card">
@@ -16,6 +17,15 @@
       {{ field('password', 'Пароль', type='password', autocomplete='current-password', maxlength=128, pid='l', toggle=True) }}
       <button class="btn btn--primary btn--lg btn--block" type="submit">Войти</button>
     </form>
+    {% if tg_login %}
+    <div class="auth__or" role="separator"><span>или</span></div>
+    <form class="auth__form" method="post" action="/login/telegram">
+      {{ csrf(csrf_token) }}
+      <input type="hidden" name="next" value="{{ next or '' }}">
+      <button class="btn btn--tg btn--lg btn--block" type="submit">{{ icon('telegram-logo') }}<span>Войти через Telegram</span></button>
+      <p class="hint">Работает для аккаунта, к которому Telegram уже привязан в профиле. Новый аккаунт создаётся только по почте.</p>
+    </form>
+    {% endif %}
     {% if unverified %}
     <form class="auth__inline" method="post" action="/verify/resend">
       {{ csrf(csrf_token) }}

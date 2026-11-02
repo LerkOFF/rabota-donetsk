@@ -12,7 +12,7 @@
 | `rabota/messaging/notify.py` | письма и подписанные ссылки отписки |
 | `rabota/messaging/erase.py` | что происходит с перепиской при удалении аккаунта |
 | `rabota/web/messages_routes.py` | страницы и POST-обработчики |
-| `rabota/web/templates/messages/` | шаблоны страниц, блок отклика на странице вакансии, блок кабинета |
+| `rabota/web/templates/messages/` | шаблоны страниц, блок отклика на странице вакансии, блок откликов и сообщений в профиле |
 | `rabota/web/templates/email/new_response.txt`, `new_message.txt` | тексты писем |
 | `rabota/web/static/messages.css`, `messages.js` | стили и небольшой скрипт (счётчик знаков, Ctrl+Enter, защита от двойной отправки) |
 

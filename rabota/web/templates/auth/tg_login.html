@@ -1,0 +1,58 @@
+{% extends 'auth/layout.html' %}
+{% from 'auth/_forms.html' import csrf %}
+{% from '_macros.html' import icon %}
+{# Вход через Telegram: ожидание, подтверждено, не привязан, заблокирован, время вышло, бот недоступен #}
+{% block auth_body %}
+<div class="wrap auth">
+  <div class="auth__card tg-login tg-login--{{ state }}" data-tg-login
+       {% if state in ('waiting', 'unlinked') %}data-tg-status-url="/login/telegram/status"{% endif %}>
+    <header class="auth__head">
+      <span class="state__ico tg-login__ico" aria-hidden="true">{{ icon(icon_name) }}</span>
+      <h1>{{ heading }}</h1>
+    </header>
+
+    <div class="tg-login__live" role="status" aria-live="polite">
+    {% if state == 'waiting' %}
+      <p>Откройте бота, нажмите <strong>Start</strong> и вернитесь сюда: страница войдёт в аккаунт сама. Ссылка действует {{ ttl_minutes }} минут и подходит только для этого браузера.</p>
+    {% elif state == 'confirmed' %}
+      <p>Telegram подтвердил вход. Открываем аккаунт.</p>
+    {% elif state == 'unlinked' %}
+      <p>Этот Telegram не привязан ни к одному аккаунту. Сначала войдите по почте и паролю, откройте профиль и нажмите «Привязать Telegram». Аккаунт создаётся только по почте.</p>
+    {% elif state == 'blocked' %}
+      <p>{{ blocked_text }}</p>
+    {% elif state == 'expired' %}
+      <p>Ссылка входа действовала {{ ttl_minutes }} минут и уже не работает. Начните вход заново.</p>
+    {% else %}
+      <p>{{ unavailable_text }}</p>
+    {% endif %}
+    </div>
+
+    {% if state in ('waiting', 'unlinked') and tg_link %}
+    <a class="btn btn--tg btn--lg btn--block" href="{{ tg_link }}" target="_blank" rel="noopener noreferrer">{{ icon('telegram-logo') }}<span>Открыть Telegram</span></a>
+    {% endif %}
+
+    {% if state == 'waiting' %}
+    <form class="auth__form" method="post" action="/login/telegram/complete" data-tg-complete>
+      {{ csrf(csrf_token) }}
+      <input type="hidden" name="next" value="{{ next or '' }}">
+      <button class="btn btn--primary btn--lg btn--block" type="submit">Я нажал Start</button>
+      <p class="tg-login__wait" data-tg-wait hidden><span class="tg-login__dot" aria-hidden="true"></span>Ждём подтверждения в Telegram</p>
+    </form>
+    {% elif state == 'confirmed' %}
+    <form class="auth__form" method="post" action="/login/telegram/complete" data-tg-complete>
+      {{ csrf(csrf_token) }}
+      <input type="hidden" name="next" value="{{ next or '' }}">
+      <button class="btn btn--primary btn--lg btn--block" type="submit">Продолжить</button>
+    </form>
+    {% elif state in ('expired', 'unlinked') %}
+    <form class="auth__form" method="post" action="/login/telegram">
+      {{ csrf(csrf_token) }}
+      <input type="hidden" name="next" value="{{ next or '' }}">
+      <button class="btn btn--ghost btn--lg btn--block" type="submit">Начать заново</button>
+    </form>
+    {% endif %}
+
+    <p class="auth__alt"><a href="/login{% if next %}?next={{ next|urlencode }}{% endif %}">Войти по почте и паролю</a> <a href="/forgot">Забыли пароль?</a></p>
+  </div>
+</div>
+{% endblock %}

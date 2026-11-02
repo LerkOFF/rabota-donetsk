@@ -6,7 +6,7 @@
 {% block rs_body %}
 <div class="wrap cab rs-page">
   <header class="page-head cab__head">
-    {{ crumbs([('Кабинет работодателя', '/cabinet/employer'), ('Поиск резюме', '')]) }}
+    {{ crumbs([('Профиль', '/account'), ('Поиск резюме', '')]) }}
     <h1 class="h1 h1--page">Поиск резюме</h1>
     <p class="lead">Соискатели Донецка, которые открыли резюме работодателям. Контакты открываются по кнопке, сайт учитывает просмотры.</p>
   </header>
@@ -68,7 +68,7 @@
   <a class="btn btn--primary" href="/employers/resumes">Сбросить фильтры</a>
   {% endcall %}
   {% else %}
-  {% call empty_state('user-circle', 'Открытых резюме пока нет', 'Как только соискатели откроют резюме работодателям, они появятся здесь. А пока разместите вакансию: отклики придут в кабинет.') %}
+  {% call empty_state('user-circle', 'Открытых резюме пока нет', 'Как только соискатели откроют резюме работодателям, они появятся здесь. А пока разместите вакансию: отклики придут на сайт и на почту.') %}
   <a class="btn btn--primary" href="/razmestit">Разместить вакансию</a>
   <a class="btn btn--ghost" href="/responses">Отклики</a>
   {% endcall %}

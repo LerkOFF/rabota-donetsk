@@ -116,7 +116,7 @@
       <h2 class="h2">Ищете сотрудника?</h2>
       <ul class="ticks">
         <li>{{ icon('check-circle') }}Публикация бесплатная, вакансия появляется после короткой проверки</li>
-        <li>{{ icon('check-circle') }}Отклики и переписка с соискателями в личном кабинете</li>
+        <li>{{ icon('check-circle') }}Отклики и переписка с соискателями прямо на сайте</li>
         <li>{{ icon('check-circle') }}Вакансию увидят и те, кто ищет работу в каналах и пабликах</li>
       </ul>
       <div class="state__actions">
@@ -133,7 +133,7 @@
       </ul>
       <div class="state__actions">
         {% if user %}
-        <a class="btn btn--primary btn--lg" href="/cabinet">Перейти в кабинет</a>
+        <a class="btn btn--primary btn--lg" href="/account">Открыть профиль</a>
         {% else %}
         <a class="btn btn--primary btn--lg" href="/register">Создать аккаунт</a>
         <a class="btn btn--ghost btn--lg" href="/login">Войти</a>

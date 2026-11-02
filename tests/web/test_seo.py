@@ -119,9 +119,11 @@ POLICY: dict[str, str] = {
     "/alerts/unsubscribe/not-a-real-token": "noindex",
     "/login": "noindex", "/register": "noindex", "/forgot": "noindex", "/verify/resend": "noindex",
     "/register/code": "noindex", "/forgot/code": "noindex",
+    "/login/telegram": "noindex", "/login/telegram/status": "noindex", "/account/telegram/status": "noindex",
     "/verify/not-a-real-token": "noindex", "/reset/not-a-real-token": "noindex",
     "/email/confirm/not-a-real-token": "noindex",
     "/account": "noindex", "/account/deleted": "noindex",
+    # прежние страницы кабинета: постоянный редирект на /account, закрыты от индекса и на перенаправлении
     "/cabinet": "noindex", "/cabinet/seeker": "noindex", "/cabinet/employer": "noindex",
     "/cabinet/vacancies": "noindex", "/cabinet/company": "noindex",
     "/cabinet/vacancies/{owned}/edit": "noindex", "/cabinet/vacancies/{owned}/delete": "noindex",
@@ -447,7 +449,7 @@ def test_every_get_route_is_covered_and_has_full_seo(site):
             checked += 1
     assert checked >= 20, f"проверено только {checked} страниц"
     # закрытые разделы проверены вошедшими пользователями, а не только перенаправлением на вход
-    for must in ("/account", "/cabinet/seeker", "/cabinet/employer", "/admin", "/admin/pulse", "/messages", "/responses",
+    for must in ("/account", "/admin", "/admin/pulse", "/messages", "/responses",
                  "/cabinet/vacancies", "/cabinet/company", "/cabinet/vacancies/{owned}/edit", "/cabinet/vacancies/{owned}/delete",
                  "/cabinet/resumes", "/cabinet/resumes/new", "/cabinet/resumes/1/edit", "/cabinet/resumes/1/delete",
                  "/employers/resumes", "/employers/resumes/1", "/admin/resumes", "/admin/resumes/1",
@@ -458,7 +460,7 @@ def test_every_get_route_is_covered_and_has_full_seo(site):
 def test_account_pages_checked_for_logged_in_roles(site):
     _, clients = site
     seen: dict[str, dict[str, str]] = {}
-    for key in ("/account", "/cabinet/seeker", "/cabinet/employer", "/cabinet/vacancies", "/cabinet/company"):
+    for key in ("/account", "/cabinet/vacancies", "/cabinet/company"):
         pages = [
             e.client.get(key, follow_redirects=False) for e in clients.values()
         ]

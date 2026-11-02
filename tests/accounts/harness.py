@@ -60,13 +60,12 @@ class Env:
             conn.close()
 
 
-def build_env(tmp_path: Path, *, https: bool = False, rate_limits: dict | None = None, mailer: MemoryMailer | None = None,
-              cabinet_stubs: bool = True) -> Env:
+def build_env(tmp_path: Path, *, https: bool = False, rate_limits: dict | None = None, mailer: MemoryMailer | None = None) -> Env:
     db_path = tmp_path / "auth.db"
     mail = mailer or MemoryMailer()
     clock = Clock()
     app = create_app(db_path, site_url=SITE, auth_options={
-        "mailer": mail, "secret": SECRET, "clock": clock, "cabinet_stubs": cabinet_stubs,
+        "mailer": mail, "secret": SECRET, "clock": clock,
         # лимиты идут по тем же управляемым часам, что и сроки кодов
         "limiter": RateLimiter(rate_limits, clock=lambda: (clock.current - START).total_seconds())})
     acc = app.state.accounts

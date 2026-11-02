@@ -421,7 +421,7 @@ def approve(
         "code_hash = NULL WHERE id = ?", (clean_note, actor.get("id"), stamp, stamp, claim_id))
     mails: list[Mail] = [_decision_mail(user["email"], f"Карточка компании «{company['name']}» теперь ваша", [
         f"Заявку на карточку «{company['name']}» подтвердили.",
-        "Компания отмечена как проверенный работодатель, её вакансии появились в разделе «Мои вакансии» кабинета.",
+        "Компания отмечена как проверенный работодатель, её вакансии появились в разделе «Мои вакансии».",
         "Добавьте логотип и описание в разделе «Компания».",
     ], site_url)]
     losers = conn.execute(
@@ -450,7 +450,7 @@ def reject(conn: sqlite3.Connection, claim_id: int, actor: dict[str, Any], reaso
         raise ClaimError("state", "Заявка уже закрыта.")
     text = clean_line(reason, NOTE_LIMIT)
     if not text:
-        raise ClaimError("reason", "Напишите причину: заявитель увидит её в письме и в кабинете.")
+        raise ClaimError("reason", "Напишите причину: заявитель увидит её в письме и в профиле.")
     stamp = iso(now)
     conn.execute(
         "UPDATE company_claims SET status = 'rejected', admin_note = ?, decided_by = ?, decided_at = ?, updated_at = ?, "
