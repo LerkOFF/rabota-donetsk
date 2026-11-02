@@ -38,6 +38,7 @@ POLLERS: tuple[PollerSpec, ...] = (
     PollerSpec("trudvsem", "Работа России", 15 * 60, 100),
     PollerSpec("hh", "hh.ru", 30 * 60, 50),
     PollerSpec("mczn", "Мой ЦЗН", 30 * 60, 50),
+    PollerSpec("telegram", "Telegram (публичные страницы)", 10 * 60, 20),
     PollerSpec("max", "MAX (зеркало)", 20 * 60, 5),
     PollerSpec("avito", "Авито", 60 * 60, 20, allow_empty=True),
 )

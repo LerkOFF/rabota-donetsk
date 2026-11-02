@@ -195,7 +195,7 @@ def test_vk_interval_is_three_to_five_minutes():
 
 def test_pollers_table_matches_the_spec():
     got = {p.name: p.interval for p in pollers.POLLERS}
-    assert got == {"trudvsem": 900, "hh": 1800, "mczn": 1800, "max": 1200, "avito": 3600}
+    assert got == {"trudvsem": 900, "hh": 1800, "mczn": 1800, "telegram": 600, "max": 1200, "avito": 3600}
     assert [p.name for p in pollers.POLLERS if p.allow_empty] == ["avito"]
     assert pollers.POLLERS[0].key == "poll:trudvsem"
 
@@ -258,7 +258,7 @@ def test_poll_uses_collector_fetch_by_name(ing, monkeypatch):
     monkeypatch.setattr(pollers, "load_fetch", lambda name: (names.append(name), lambda limit: [])[1])
     for spec in pollers.POLLERS:
         pollers.poll_sync(spec, ing)
-    assert names == ["trudvsem", "hh", "mczn", "max", "avito"]
+    assert names == ["trudvsem", "hh", "mczn", "telegram", "max", "avito"]
 
 
 def test_load_fetch_returns_real_collectors():

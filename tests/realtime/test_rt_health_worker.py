@@ -172,12 +172,12 @@ def test_health_heartbeat_path_override(monkeypatch, tmp_path):
 
 def test_build_jobs_without_vk_and_with_everything(tmp_path, ingestor, monkeypatch):
     names = [j.name for j in worker.build_jobs(ingestor, {})]
-    assert names == ["heartbeat", "trudvsem", "hh", "mczn", "max", "avito", "expire"]
+    assert names == ["heartbeat", "trudvsem", "hh", "mczn", "telegram", "max", "avito", "expire"]
     monkeypatch.setenv("VK_ACCESS_TOKEN", "x")
     jobs = worker.build_jobs(ingestor, {})
     assert [j.name for j in jobs][:2] == ["heartbeat", "vk"]
     by = {j.name: j.interval for j in jobs}
-    assert by["trudvsem"] == 900 and by["hh"] == 1800 and by["mczn"] == 1800 and by["max"] == 1200
+    assert by["trudvsem"] == 900 and by["hh"] == 1800 and by["mczn"] == 1800 and by["telegram"] == 600 and by["max"] == 1200
     assert by["avito"] == 3600 and by["expire"] == 86400 and by["heartbeat"] == 60 and 180 <= by["vk"] <= 300
 
 
@@ -199,7 +199,7 @@ def test_poller_jobs_call_their_own_source(ingestor, monkeypatch):
                 await job.run()
 
     asyncio.run(go())
-    assert called == ["trudvsem", "hh", "mczn", "max", "avito"]
+    assert called == ["trudvsem", "hh", "mczn", "telegram", "max", "avito"]
 
 
 def test_heartbeat_job_writes_file(ingestor):
