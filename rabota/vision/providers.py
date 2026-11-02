@@ -313,12 +313,19 @@ class NullProvider(VisionProvider):
 
 
 def provider_from_env() -> VisionProvider:
-    """LLM_PROVIDER: anthropic (нужен LLM_API_KEY), sidecar, null. Без ключа получаем NullProvider."""
+    """LLM_PROVIDER: anthropic (нужен LLM_API_KEY), ocr (Tesseract, без платной модели), sidecar, null. Без ключа получаем NullProvider."""
     name = get("LLM_PROVIDER").strip().lower()
     if name == "sidecar":
         return SidecarProvider()
+    if name == "ocr":
+        from rabota.vision.ocr import OcrProvider, tesseract_available
+
+        if tesseract_available():
+            return OcrProvider()
+        log.warning("vision: LLM_PROVIDER=ocr, но tesseract не установлен, распознавание картинок выключено")
+        return NullProvider()
     if name in ("anthropic", "") and get("LLM_API_KEY"):
         return AnthropicVisionProvider()
-    if name not in ("", "anthropic", "null", "none"):
+    if name not in ("", "anthropic", "null", "none", "ocr"):
         log.warning("vision: неизвестный LLM_PROVIDER=%r, распознавание картинок выключено", name)
     return NullProvider()
