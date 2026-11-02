@@ -44,14 +44,14 @@ expect_code /no-such-page-for-smoke 404
 body="$(curl "${curl_opts[@]}" "$BASE/")"
 title="$(printf '%s' "$body" | tr '\n' ' ' | sed -n 's/.*<title>\([^<]*\)<\/title>.*/\1/p')"
 if [ -n "$title" ]; then pass "title главной: $title"; else fail "на главной нет <title>"; fi
-printf '%s' "$body" | grep -q '<link rel="canonical"' && pass "canonical на главной" || fail "на главной нет canonical"
+grep -q '<link rel="canonical"' <<<"$body" && pass "canonical на главной" || fail "на главной нет canonical"
 
 # robots и sitemap
 robots="$(curl "${curl_opts[@]}" "$BASE/robots.txt")"
-printf '%s' "$robots" | grep -qi '^sitemap:' && pass "robots.txt содержит Sitemap" || fail "в robots.txt нет Sitemap"
-printf '%s' "$robots" | grep -qi '^user-agent:' && pass "robots.txt содержит User-agent" || fail "в robots.txt нет User-agent"
+grep -qi '^sitemap:' <<<"$robots" && pass "robots.txt содержит Sitemap" || fail "в robots.txt нет Sitemap"
+grep -qi '^user-agent:' <<<"$robots" && pass "robots.txt содержит User-agent" || fail "в robots.txt нет User-agent"
 sitemap="$(curl "${curl_opts[@]}" "$BASE/sitemap.xml")"
-printf '%s' "$sitemap" | grep -q '<urlset' && printf '%s' "$sitemap" | grep -q '<loc>' \
+grep -q '<urlset' <<<"$sitemap" && grep -q '<loc>' <<<"$sitemap" \
   && pass "sitemap.xml с адресами" || fail "sitemap.xml пуст или не XML"
 
 # health
