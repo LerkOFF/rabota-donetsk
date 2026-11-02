@@ -1,6 +1,7 @@
 {% extends 'admin/base.html' %}
 {% from '_macros.html' import icon, vcard, pay %}
 {% from 'admin/_macros.html' import page_head, vstatus, chip, csrf %}
+{% from 'admin/_vacancy_macros.html' import reveal, vis_chips %}
 {% macro f_text(name, label, maxlength=80, hint='', type='text', inputmode='') -%}
 <div class="field{% if errors.get(name) %} field--invalid{% endif %}">
   <label for="e-{{ name }}">{{ label }}</label>
@@ -21,11 +22,11 @@
 {%- endmacro %}
 
 {% block content %}
-<nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/admin">Админка</a></li><li><a href="/admin/moderation">Модерация</a></li><li>Вакансия {{ v.id }}</li></ol></nav>
+<nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/admin">Админка</a></li><li><a href="/admin/vacancies">Вакансии</a></li><li>Вакансия {{ v.id }}</li></ol></nav>
 
 {% call page_head(pv.profession_title, 'Вакансия №' ~ v.id ~ ', добавлена ' ~ (v.created_at | dt)) %}
 <p class="adm-head__chips">
-  {{ vstatus(v) }}
+  {{ vis_chips(visibility) }}
   {% if match %}{{ chip('Контакт в стоп-листе: ' ~ match.value, 'danger', 'shield-warning') }}{% endif %}
   {% set open_c = complaints | selectattr('status', 'equalto', 'new') | list %}
   {% if open_c %}{{ chip('Открытых жалоб: ' ~ (open_c | length), 'warn', 'flag') }}{% endif %}
@@ -35,8 +36,8 @@
 {% if v.moderation_note %}<p class="notice{% if v.moderation_status == 'rejected' %} notice--warn{% endif %}">{{ icon('info') }}<span>Пометка: {{ v.moderation_note }}</span></p>{% endif %}
 
 <div class="adm-split">
-  <div class="adm-split__main">
-    <section class="panel" aria-labelledby="h-prev">
+  <div class="adm-split__main" data-sortable="vacancy-main">
+    <section class="panel" aria-labelledby="h-prev" data-key="preview" draggable="true">
       <h2 id="h-prev">Как увидит посетитель</h2>
       <p class="hint">Карточка в ленте и страница вакансии. Данные взяты из базы как есть.</p>
       <div class="adm-preview">
@@ -52,20 +53,16 @@
         {% if pv.age_min %}<div><dt>Возраст</dt><dd>От {{ pv.age_min }} лет</dd></div>{% endif %}
         {% if pv.requirements %}<div><dt>Требования</dt><dd>{{ pv.requirements }}</dd></div>{% endif %}
         <div><dt>Контакты</dt><dd>
-          {% for p in pv.phones %}<span class="mono">{{ phone_pretty(p) }}</span> {% endfor %}
-          {% if pv.telegram %}<span class="mono">{{ pv.telegram }}</span> {% endif %}
-          {% if pv.max_contact %}<span class="mono">MAX {{ pv.max_contact }}</span> {% endif %}
-          {% if pv.email %}<span class="mono">{{ pv.email }}</span>{% endif %}
-          {% if not pv.has_contact %}<span class="muted">не указаны</span>{% endif %}
+          {% for c in contact_items %}{{ reveal(c.masked, c.full, c.kind) }} {% else %}<span class="muted">не указаны</span>{% endfor %}
         </dd></div>
         <div><dt>Источник</dt><dd>{{ pv.source_label }}{% if v.source %}, {{ v.source }}{% endif %}{% if pv.original_url %} <a href="{{ pv.original_url }}" target="_blank" rel="noopener nofollow ugc">оригинал {{ icon('arrow-square-out') }}</a>{% endif %}</dd></div>
-        {% if owner %}<div><dt>Автор в системе</dt><dd>{{ owner.name or 'Без имени' }}, {{ owner.email }}</dd></div>{% endif %}
+        {% if owner %}<div><dt>Автор в системе</dt><dd>{{ owner.name or 'Без имени' }}, {{ reveal(owner.email[:1] ~ '***@' ~ (owner.email.split('@')[1] if '@' in owner.email else ''), owner.email, 'Почта автора') }}</dd></div>{% endif %}
       </dl>
       {% if pv.summary %}<div class="prose"><p>{{ pv.summary }}</p></div>{% endif %}
     </section>
 
     {% if complaints %}
-    <section class="panel" aria-labelledby="h-comp">
+    <section class="panel" aria-labelledby="h-comp" data-key="complaints" draggable="true">
       <h2 id="h-comp">Жалобы на вакансию</h2>
       <ul class="adm-list">
         {% for c in complaints %}
@@ -75,7 +72,64 @@
     </section>
     {% endif %}
 
-    <section class="panel" aria-labelledby="h-edit">
+    <section class="panel" aria-labelledby="h-hist" data-key="history" draggable="true">
+      <h2 id="h-hist">История</h2>
+      <p class="hint">События по времени: создание, публикация, жалобы и действия администраторов из журнала. Сначала новые.</p>
+      {% if history %}
+      <ol class="adm-timeline">
+        {% for e in history %}
+        <li class="adm-timeline__item adm-timeline__item--{{ e.kind }}">
+          <span class="adm-timeline__ico">{{ icon(e.icon) }}</span>
+          <div class="adm-timeline__body">
+            <p class="adm-timeline__title">{{ e.title }}{% if e.who %} <span class="muted">({{ e.who }})</span>{% endif %}</p>
+            {% if e.text %}<p class="adm-timeline__text">{{ e.text }}</p>{% endif %}
+            <time class="adm-timeline__time muted" datetime="{{ e.at }}">{{ e.at | dt }}</time>
+          </div>
+        </li>
+        {% endfor %}
+      </ol>
+      {% else %}<p class="muted">Событий пока нет.</p>{% endif %}
+    </section>
+
+    <section class="panel" aria-labelledby="h-fields" data-key="fields" draggable="true">
+      <details class="adm-details">
+        <summary id="h-fields">{{ icon('list') }}Все поля записи</summary>
+        <dl class="facts adm-facts">
+          {% for label, value in fields %}<div><dt>{{ label }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+          {% if v.source_url %}<div><dt>Ссылка на источник</dt><dd class="mono">{{ v.source_url }}</dd></div>{% endif %}
+        </dl>
+      </details>
+    </section>
+
+    <section class="panel" aria-labelledby="h-raw" data-key="raw" draggable="true">
+      <h2 id="h-raw">Исходный пост источника</h2>
+      {% if raw %}
+      <p class="hint">{{ pv.source_label }}{% if v.source %}, {{ v.source }}{% endif %}. Получен {{ raw.fetched_at | dt }}{% if raw.published_at %}, опубликован {{ raw.published_at | dt }}{% endif %}{% if raw.images %}, картинок: {{ raw.images }}{% endif %}.
+        {% if raw.url_safe %}<a href="{{ raw.url_safe }}" target="_blank" rel="noopener nofollow ugc">Открыть пост {{ icon('arrow-square-out') }}</a>{% endif %}</p>
+      <div class="adm-reveal adm-reveal--block" data-reveal>
+        <pre class="adm-raw" data-reveal-text data-masked="{{ raw.masked_text }}" data-full="{{ raw.text }}">{{ raw.masked_text }}</pre>
+        <button class="adm-reveal__btn" type="button" data-reveal-btn aria-pressed="false">Показать контакты в тексте</button>
+      </div>
+      {% if raw.extra_text %}<details class="adm-details"><summary>Служебные данные источника</summary><pre class="adm-raw">{{ raw.extra_text }}</pre></details>{% endif %}
+      {% else %}
+      <p class="muted">{% if v.origin == 'direct' %}Вакансия размещена через форму сайта, исходного поста нет.{% else %}Исходный пост не сохранён: его могли удалить вместе с истёкшей вакансией.{% endif %}
+        {% if pv.original_url %}<a href="{{ pv.original_url }}" target="_blank" rel="noopener nofollow ugc">Оригинал {{ icon('arrow-square-out') }}</a>{% endif %}</p>
+      {% endif %}
+    </section>
+
+    {% if rel.main or rel.duplicates or rel.applications or rel.company %}
+    <section class="panel" aria-labelledby="h-rel" data-key="related" draggable="true">
+      <h2 id="h-rel">Связанное</h2>
+      <ul class="adm-list">
+        {% if rel.main %}<li>Повтор вакансии <a href="/admin/vacancies/{{ rel.main.id }}">№{{ rel.main.id }}</a> <span class="muted">{{ rel.main.profession }}</span></li>{% endif %}
+        {% for d in rel.duplicates %}<li>Повтор: <a href="/admin/vacancies/{{ d.id }}">№{{ d.id }}</a> <span class="muted">{{ d.profession }}, {{ d.source_type }}{% if d.source %} {{ d.source }}{% endif %}</span></li>{% endfor %}
+        {% if rel.company %}<li>Компания: {{ rel.company.name }}</li>{% endif %}
+        {% if rel.applications %}<li>Откликов: {{ rel.applications }}</li>{% endif %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <section class="panel" aria-labelledby="h-edit" data-key="edit" draggable="true">
       <details class="adm-details"{% if errors %} open{% endif %}>
         <summary id="h-edit">{{ icon('file-text') }}Править поля</summary>
         <form class="adm-form" method="post" action="/admin/vacancies/{{ v.id }}/edit" novalidate>
@@ -121,9 +175,9 @@
     </section>
   </div>
 
-  <aside class="adm-split__side" aria-label="Решение по вакансии">
+  <aside class="adm-split__side" aria-label="Решение по вакансии" data-sortable="vacancy-side">
     {% if v.moderation_status == 'pending' %}
-    <section class="panel adm-decide" aria-labelledby="h-dec">
+    <section class="panel adm-decide" aria-labelledby="h-dec" data-key="decide" draggable="true">
       <h2 id="h-dec">Решение</h2>
       <form method="post" action="/admin/vacancies/{{ v.id }}/approve">
         {{ csrf() }}
@@ -134,7 +188,7 @@
     {% endif %}
 
     {% if v.moderation_status != 'rejected' %}
-    <section class="panel" aria-labelledby="h-rej">
+    <section class="panel" aria-labelledby="h-rej" data-key="reject" draggable="true">
       <h2 id="h-rej">Отклонить с причиной</h2>
       <form class="adm-form" method="post" action="/admin/vacancies/{{ v.id }}/reject" data-reject>
         {{ csrf() }}
@@ -149,14 +203,14 @@
         <div class="field">
           <label for="r-text">Текст для автора</label>
           <textarea class="input" id="r-text" name="reason" rows="3" maxlength="500" data-reason-text></textarea>
-          <p class="hint">{% if notify %}Письмо уйдёт на {{ notify }}.{% else %}Адреса автора нет: письмо не отправится.{% endif %}</p>
+          <p class="hint">{% if notify %}Письмо уйдёт на {{ reveal(notify[:1] ~ '***@' ~ (notify.split('@')[1] if '@' in notify else ''), notify) }}.{% else %}Адреса автора нет: письмо не отправится.{% endif %}</p>
         </div>
         <button class="btn btn--danger btn--block" type="submit" data-confirm="Отклонить вакансию?">{{ icon('x-circle') }}Отклонить</button>
       </form>
     </section>
     {% endif %}
 
-    <section class="panel" aria-labelledby="h-vis">
+    <section class="panel" aria-labelledby="h-vis" data-key="visibility" draggable="true">
       <h2 id="h-vis">Видимость</h2>
       {% if v.status == 'hidden' and v.moderation_status == 'approved' %}
       <form method="post" action="/admin/vacancies/{{ v.id }}/restore">
@@ -176,6 +230,27 @@
       <p class="muted">Вакансия не в выдаче: {% if v.moderation_status == 'pending' %}ждёт проверки{% elif v.moderation_status == 'rejected' %}отклонена{% elif v.status == 'expired' %}срок жизни истёк{% elif v.status == 'closed' %}закрыта работодателем{% else %}скрыта{% endif %}.</p>
       {% endif %}
       <p class="hint">Страница вакансии: {% if v.status == 'active' and v.moderation_status == 'approved' %}<a href="/vacancy/{{ v.id }}" target="_blank" rel="noopener">открыть на сайте</a>{% else %}не открывается посетителям{% endif %}.</p>
+    </section>
+
+    <section class="panel" aria-labelledby="h-dup" data-key="duplicate" draggable="true">
+      <h2 id="h-dup">Повторяющаяся вакансия</h2>
+      {% if v.duplicate_of %}
+      <p>Отмечена как повтор вакансии <a href="/admin/vacancies/{{ v.duplicate_of }}">№{{ v.duplicate_of }}</a>, в выдачу не попадает.</p>
+      <form method="post" action="/admin/vacancies/{{ v.id }}/unduplicate">
+        {{ csrf() }}
+        <button class="btn btn--ghost btn--block" type="submit" data-confirm="Снять отметку о повторе?">Снять отметку</button>
+      </form>
+      {% else %}
+      <form class="adm-form" method="post" action="/admin/vacancies/{{ v.id }}/duplicate">
+        {{ csrf() }}
+        <div class="field">
+          <label for="d-main">Номер главной вакансии</label>
+          <input class="input input--sm" id="d-main" name="main_id" inputmode="numeric" maxlength="9" autocomplete="off" required>
+          <p class="hint">Эта вакансия уйдёт из выдачи как повтор главной. Действие записывается в журнал.</p>
+        </div>
+        <button class="btn btn--ghost btn--block" type="submit" data-confirm="Отметить вакансию повторяющейся?">{{ icon('copy') }}Отметить повторяющейся</button>
+      </form>
+      {% endif %}
     </section>
   </aside>
 </div>

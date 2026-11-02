@@ -1,0 +1,9 @@
+/* Перетаскивание блоков в админке */
+.dnd-item { cursor: grab; touch-action: pan-y; }
+.dnd-item:active { cursor: grabbing; }
+.dnd-item.dragging { opacity: .4; outline: 2px dashed var(--accent, currentColor); outline-offset: 2px; }
+.dnd-item input, .dnd-item textarea, .dnd-item select, .dnd-item a, .dnd-item button { cursor: auto; }
+.dnd-reset { margin: 0 0 8px auto; display: block; background: none; border: 0; padding: 2px 4px;
+  font: inherit; font-size: .8125rem; color: var(--muted, inherit); text-decoration: underline; cursor: pointer; }
+.dnd-reset[hidden] { display: none; }
+@media (prefers-reduced-motion: no-preference) { .dnd-item { transition: opacity .15s; } }

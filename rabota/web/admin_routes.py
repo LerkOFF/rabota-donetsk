@@ -32,8 +32,10 @@ from rabota.accounts import service
 from rabota.accounts.deps import check_csrf, client_ip, csrf_token, get_current_user, require_user
 from rabota.accounts.mailer import SITE_NAME, Mail, send_safely
 from rabota.accounts.ratelimit import RateLimiter
-from rabota.admin import audit, complaints, dashboard, moderation, stoplist
+from rabota.admin import audit, complaints, dashboard, moderation, pulse, stoplist
 from rabota.admin import requests as legal_requests
+from rabota.admin import settings as admin_settings
+from rabota.admin import system as admin_system
 from rabota.admin.common import clean_line, iso
 from rabota.lifecycle import parse_iso
 from rabota.models import CATEGORIES, EMPLOYMENTS, PAY_PERIODS, WORK_FORMATS
@@ -73,14 +75,19 @@ FLASH = {
     "request_created": "Обращение записано в журнал.",
     "request_updated": "Обращение обновлено.",
     "erased": "Данные удалены: вакансии скрыты, контакт убран и занесён в стоп-лист.",
+    "settings_saved": "Настройки сохранены и уже действуют.",
 }
 
 MENU = (
     ("dashboard", "Сводка", "/admin", "gear-six"),
+    ("pulse", "Пульс", "/admin/pulse", "lightning"),
     ("moderation", "Модерация", "/admin/moderation", "seal-check"),
+    ("vacancies", "Вакансии", "/admin/vacancies", "briefcase"),
     ("complaints", "Жалобы", "/admin/complaints", "flag"),
     ("requests", "Запросы по ПДн", "/admin/requests", "identification-card"),
     ("stoplist", "Стоп-лист", "/admin/stoplist", "shield-warning"),
+    ("system", "Система", "/admin/system", "desktop"),
+    ("settings", "Настройки", "/admin/settings", "sliders-horizontal"),
     ("audit", "Журнал действий", "/admin/audit", "file-text"),
 )
 
@@ -275,9 +282,21 @@ def dashboard_page(request: Request, admin: Admin) -> Response:
                   description="Что требует внимания: вакансии на проверке, жалобы, запросы по данным и состояние источников.")
 
 
+# ------------------------------------------------------------------ пульс
+
+@router.get("/admin/pulse")
+def pulse_page(request: Request, admin: Admin) -> Response:
+    st = state_of(request)
+    with dbc(request) as conn:
+        data = pulse.build(conn, request.query_params.get("period"), st.clock())
+    return render(request, "pulse.html", {"p": data}, section="pulse", title="Пульс",
+                  description="Новые вакансии, скрытые и просроченные, регистрации, отклики и жалобы за период со сравнением.")
+
+
 # ------------------------------------------------------------------ модерация вакансий
 
 def vacancy_context(conn: sqlite3.Connection, request: Request, vacancy_id: int) -> dict[str, Any]:
+    from rabota.web import admin_vacancies
     from rabota.web.app import present_vacancy
 
     v = moderation.get(conn, vacancy_id)
@@ -302,6 +321,7 @@ def vacancy_context(conn: sqlite3.Connection, request: Request, vacancy_id: int)
         },
         "errors": {}, "error": "", "notify": moderation.notify_address(conn, vacancy_id),
         "ttl_days": config.VACANCY_TTL_DAYS,
+        **admin_vacancies.card_extras(conn, v, st.clock()),
     }
 
 
@@ -345,7 +365,7 @@ def moderation_list(request: Request, admin: Admin) -> Response:
 def vacancy_page(request: Request, admin: Admin, vacancy_id: int) -> Response:
     with dbc(request) as conn:
         ctx = vacancy_context(conn, request, vacancy_id)
-    return render(request, "vacancy.html", ctx, section="moderation", title=f"Вакансия {vacancy_id}",
+    return render(request, "vacancy.html", ctx, section="vacancies", title=f"Вакансия {vacancy_id}",
                   description="Карточка вакансии для проверки: как её увидит посетитель, действия модератора и правка полей.")
 
 
@@ -356,7 +376,7 @@ def vacancy_error(request: Request, vacancy_id: int, message: str, errors: dict[
     ctx.update({"error": message, "errors": errors or {}})
     if form is not None:
         ctx["edit"] = form
-    return render(request, "vacancy.html", ctx, 422, section="moderation", title=f"Вакансия {vacancy_id}",
+    return render(request, "vacancy.html", ctx, 422, section="vacancies", title=f"Вакансия {vacancy_id}",
                   description="Карточка вакансии для проверки: как её увидит посетитель, действия модератора и правка полей.")
 
 
@@ -482,7 +502,7 @@ def complaints_list(request: Request, admin: Admin) -> Response:
     with dbc(request) as conn:
         page = complaints.queue(conn, view, page_no(request))
         counts = complaints.counts(conn)
-        threshold = complaints.autohide_threshold()
+        threshold = complaints.autohide_threshold(conn)
     return render(request, "complaints.html", {
         "view": view, "views": complaints.VIEWS, "page": page, "counts": counts, "threshold": threshold,
         "tab": "vacancies",
@@ -516,7 +536,7 @@ def complaint_context(conn: sqlite3.Connection, request: Request, complaint_id: 
     return {
         "c": c, "v": vacancy, "pv": pv, "others": [x for x in complaints.for_vacancy(conn, c["vacancy_id"]) if x["id"] != c["id"]],
         "candidates": complaints.stop_candidates(conn, c["vacancy_id"]), "error": "",
-        "stop_kinds": list(stoplist.KINDS.items()), "threshold": complaints.autohide_threshold(),
+        "stop_kinds": list(stoplist.KINDS.items()), "threshold": complaints.autohide_threshold(conn),
     }
 
 
@@ -835,6 +855,54 @@ def audit_page(request: Request, admin: Admin) -> Response:
                   description="Кто и что делал в админке: действие, объект, время и адрес. Записи не редактируются.")
 
 
+# ------------------------------------------------------------------ система
+
+@router.get("/admin/system")
+def system_page(request: Request, admin: Admin) -> Response:
+    st = state_of(request)
+    log_source = clean_line(request.query_params.get("log", ""), 20)
+    needle = clean_line(request.query_params.get("grep", ""), admin_system.LOG_FILTER_MAX)
+    with dbc(request) as conn:
+        data = admin_system.build(conn, st.db_path, st.clock(), st.health, log_source, needle)
+    return render(request, "system.html", {"s": data}, section="system", title="Система",
+                  description="Фоновые задачи, опрос источников, очереди, интеграции, диск, версия кода и хвост журнала.")
+
+
+# ------------------------------------------------------------------ настройки
+
+SETTINGS_PREFIX = "s_"
+
+
+def settings_response(request: Request, conn: sqlite3.Connection, status: int = 200, submitted: dict[str, str] | None = None,
+                      errors: dict[str, str] | None = None) -> Response:
+    ctx = admin_settings.page(conn, submitted, errors)
+    return render(request, "settings.html", ctx, status, section="settings", title="Настройки",
+                  description="Сроки жизни вакансий, порог автоскрытия по жалобам, регистрация и тексты: без правки кода.")
+
+
+@router.get("/admin/settings")
+def settings_page(request: Request, admin: Admin) -> Response:
+    with dbc(request) as conn:
+        return settings_response(request, conn)
+
+
+@router.post("/admin/settings")
+async def settings_save(request: Request, admin: Admin) -> Response:
+    form = await admin_form(request, admin)
+    submitted = {
+        key: (form.getlist(SETTINGS_PREFIX + key) or [""])[-1] for key in admin_settings.BY_KEY if form.has(SETTINGS_PREFIX + key)
+    }
+
+    def work() -> Response:
+        with dbc(request) as conn:
+            changes, errors = admin_settings.save(conn, admin, submitted, ip_of(request), state_of(request).clock())
+            if errors:
+                return settings_response(request, conn, 422, submitted, errors)
+        return see_other("/admin/settings", "settings_saved" if changes else "nochange")
+
+    return await run_in_threadpool(work)
+
+
 # ------------------------------------------------------------------ публичная форма запроса
 
 CAPTCHA_TTL = timedelta(hours=1)
@@ -952,6 +1020,8 @@ def install(
     limiter: RateLimiter | None = None, health: Callable[[sqlite3.Connection], Any] | None = None,
 ) -> AdminState:
     """Подключить админку: маршруты, шаблоны, заголовки закрытия от индекса. Состояние лежит в app.state.admin."""
+    from rabota.web import admin_vacancies
+
     path = Path(db_path) if db_path else config.DB_PATH
     service.ensure_schema(path)
     state = AdminState(
@@ -976,6 +1046,7 @@ def install(
         return response
 
     app.include_router(router)
+    app.include_router(admin_vacancies.router)
     return state
 
 

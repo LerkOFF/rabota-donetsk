@@ -1,0 +1,71 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, chip, empty, csrf %}
+{% block content %}
+{% call page_head('Настройки', 'Значения, которые меняются без правки кода и перезапуска. Изменённое подсвечено, рядом видно значение по умолчанию (из .env или кода). Группы можно переставлять.') %}
+<p class="adm-head__chips">{% if changed_count %}{{ chip('Изменено полей: ' ~ changed_count, 'warn') }}{% else %}{{ chip('Всё как в .env и коде', 'ok', 'check-circle') }}{% endif %}</p>
+{% endcall %}
+
+{% for n in notes %}<p class="notice notice--warn" role="status">{{ icon('warning') }}<span>{{ n }}</span></p>{% endfor %}
+
+<form method="post" action="/admin/settings" class="adm-form adm-settings" novalidate>
+  {{ csrf() }}
+  <div class="adm-sys" data-sortable="settings-groups">
+    {% for g in groups %}
+    <section class="panel" data-key="{{ g.key }}" draggable="true" aria-labelledby="g-{{ g.key }}">
+      <h2 id="g-{{ g.key }}">{{ g.title }}</h2>
+      <p class="hint">{{ g.lead }}</p>
+      <div class="adm-setlist">
+        {% for r in g.rows %}
+        <div class="adm-set{% if r.changed %} adm-set--changed{% endif %}{% if r.error %} field--invalid{% endif %}">
+          <div class="adm-set__head">
+            <label for="{{ r.field }}">{{ r.label }}</label>
+            {% if r.kind == 'bool' %}
+            <input type="hidden" name="{{ r.field }}" value="0">
+            <label class="check adm-set__check"><input type="checkbox" id="{{ r.field }}" name="{{ r.field }}" value="1"{% if r.checked %} checked{% endif %}{% if r.error %} aria-invalid="true" aria-describedby="e-{{ r.field }}"{% endif %}><span>{{ 'Да' if r.checked else 'Нет' }}</span></label>
+            {% elif r.kind == 'int' %}
+            <span class="adm-set__num"><input class="input input--sm" type="number" inputmode="numeric" id="{{ r.field }}" name="{{ r.field }}" value="{{ r.value }}" min="{{ r.minimum }}" max="{{ r.maximum }}" step="1"{% if r.error %} aria-invalid="true" aria-describedby="e-{{ r.field }}"{% endif %}>{% if r.unit %}<span class="muted">{{ r.unit }}</span>{% endif %}</span>
+            {% else %}
+            <textarea class="input input--sm" id="{{ r.field }}" name="{{ r.field }}" rows="2" maxlength="{{ r.maximum }}"{% if r.error %} aria-invalid="true" aria-describedby="e-{{ r.field }}"{% endif %}>{{ r.value }}</textarea>
+            {% endif %}
+          </div>
+          {% if r.hint %}<p class="hint">{{ r.hint }}{% if r.kind == 'int' %} Допустимо от {{ r.minimum }} до {{ r.maximum }}.{% endif %}</p>{% endif %}
+          <p class="adm-set__was">{% if r.changed %}{{ chip('изменено', 'warn') }} по умолчанию было: {{ r.default_text }}{% else %}по умолчанию: {{ r.default_text }}{% endif %}</p>
+          {% if r.error %}<p class="error" id="e-{{ r.field }}">{{ icon('warning') }}<span>{{ r.error }}</span></p>{% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </section>
+    {% endfor %}
+  </div>
+  <div class="adm-form__end">
+    <button class="btn btn--primary" type="submit">{{ icon('check') }}Сохранить</button>
+    <span class="hint">Значение, равное умолчанию, снимает изменение. Действует сразу.</span>
+  </div>
+</form>
+
+<section class="panel" aria-labelledby="h-slog">
+  <h2 id="h-slog">Журнал изменений</h2>
+  {% if log %}
+  <div class="adm-tablewrap">
+  <table class="atable">
+    <caption class="visually-hidden">Журнал изменений настроек</caption>
+    <thead><tr><th scope="col">Когда</th><th scope="col">Кто</th><th scope="col">Что</th><th scope="col">Было</th><th scope="col">Стало</th></tr></thead>
+    <tbody>
+    {% for e in log %}
+    <tr>
+      <td data-label="Когда">{{ e.at | dt }}</td>
+      <td data-label="Кто">{{ e.actor_email }}{% if e.ip %}<span class="atable__sub">{{ e.ip }}</span>{% endif %}</td>
+      <td data-label="Что">{{ e.label }}</td>
+      <td data-label="Было"><span class="atable__sub clamp">{{ e.old }}</span></td>
+      <td data-label="Стало"><span class="atable__sub clamp">{{ e.new }}</span></td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  {% else %}
+  <p class="muted">Настройки ещё не меняли: всё как в .env и коде.</p>
+  {% endif %}
+</section>
+{% endblock %}

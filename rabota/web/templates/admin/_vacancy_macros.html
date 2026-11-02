@@ -1,0 +1,22 @@
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import chip %}
+
+{# Контакт, закрытый до нажатия. Полное значение лежит в атрибуте и подставляется скриптом админки #}
+{% macro reveal(masked, full, label='') -%}
+<span class="adm-reveal" data-reveal>
+  {% if label %}<span class="adm-reveal__kind">{{ label }}</span>{% endif %}
+  <span class="mono" data-reveal-text data-masked="{{ masked }}" data-full="{{ full }}">{{ masked }}</span>
+  <button class="adm-reveal__btn" type="button" data-reveal-btn aria-pressed="false" aria-label="Показать {{ label | lower or 'контакт' }} полностью">Показать</button>
+</span>
+{%- endmacro %}
+
+{# Метки состояния вакансии из vacancies.visibility #}
+{% macro vis_chips(vis) -%}
+{% if vis.visible %}{{ chip('В выдаче', 'ok', 'check-circle') }}{% endif %}
+{% for text, kind, ico in vis.reasons %}{{ chip(text, kind, ico) }}{% endfor %}
+{%- endmacro %}
+
+{# Ссылка-заголовок колонки с сортировкой #}
+{% macro sort_th(key, label, f, links) -%}
+<a class="adm-sort" href="/admin/vacancies?{{ links[key] }}"{% if f.sort == key %} aria-sort="{{ 'ascending' if f.dir == 'asc' else 'descending' }}"{% endif %}>{{ label }}{% if f.sort == key %}<span aria-hidden="true">{{ ' ↑' if f.dir == 'asc' else ' ↓' }}</span>{% endif %}</a>
+{%- endmacro %}

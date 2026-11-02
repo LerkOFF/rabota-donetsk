@@ -1,0 +1,142 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, chip, empty %}
+{% block content %}
+{% call page_head('Система', 'Работают ли фоновые задачи и опросники источников, что стоит в очередях, какие интеграции подключены, сколько места осталось и что пишет журнал. Время московское. Блоки можно переставлять.') %}
+<p class="adm-head__chips">
+  {% if s.version.commit %}{{ chip('код ' ~ s.version.commit, 'info') }}{% endif %}
+  {{ chip('Python ' ~ s.version.python, 'mute') }}
+  {{ chip(s.version.environment, 'mute') }}
+  {% if s.problems %}{{ chip('Проблем: ' ~ s.problems, 'danger', 'warning') }}{% else %}{{ chip('Проблем нет', 'ok', 'check-circle') }}{% endif %}
+</p>
+{% endcall %}
+
+<div class="adm-sys" data-sortable="system-blocks">
+
+  <section class="panel" data-key="worker" draggable="true" aria-labelledby="h-worker">
+    <h2 id="h-worker">Воркер и опросники источников</h2>
+    {% set w = s.worker %}
+    <p class="adm-sys__line">
+      {% if w.status == 'ok' %}{{ chip('Воркер работает', 'ok', 'check-circle') }}<span class="muted">сердцебиение {{ human_age(w.age) }}</span>
+      {% elif w.status == 'stale' %}{{ chip('Воркер молчит', 'danger', 'warning') }}<span class="muted">последнее сердцебиение {{ human_age(w.age) }}, приём данных остановлен</span>
+      {% elif w.status == 'missing' %}{{ chip('Воркер не запущен', 'danger', 'warning') }}<span class="muted">файла сердцебиения нет</span>
+      {% else %}{{ chip('Нет данных', 'mute') }}<span class="muted">состояние воркера определить не удалось</span>{% endif %}
+    </p>
+    {% if w.error %}<p class="notice notice--warn" role="alert">{{ icon('warning') }}<span>Проверка источников не удалась: {{ w.error }}</span></p>{% endif %}
+    {% if s.sources %}
+    <div class="adm-tablewrap">
+    <table class="atable">
+      <caption class="visually-hidden">Опросники источников</caption>
+      <thead><tr><th scope="col">Источник</th><th scope="col">Состояние</th><th scope="col">Последний успех</th><th scope="col">Последняя попытка</th></tr></thead>
+      <tbody>
+      {% for r in s.sources %}
+      {% set st = s.states[r.state] %}
+      <tr{% if r.state in ('silent', 'error') %} class="is-overdue"{% endif %}>
+        <td data-label="Источник"><span class="atable__main">{{ r.label }}</span><span class="atable__sub mono">{{ r.key }}</span></td>
+        <td data-label="Состояние">{{ chip(st[0], st[1]) }}{% if r.error %}<span class="atable__sub">{{ r.error }}</span>{% endif %}</td>
+        <td data-label="Последний успех">{{ human_age(r.age) }}{% if r.last_ok %}<span class="atable__sub">{{ r.last_ok | dt }}</span>{% endif %}</td>
+        <td data-label="Последняя попытка">{% if r.attempt %}{{ r.attempt | dt }}{% else %}<span class="muted">не было</span>{% endif %}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    </div>
+    <p class="hint">Опаздывает: последний успех старше двух интервалов опроса. Молчит: старше четырёх (не меньше десяти минут). Ошибка: последняя попытка закончилась сбоем.</p>
+    {% else %}
+    {% call empty('Источников нет', 'Список источников пуст или не читается. Проверьте, что воркер запущен.', 'info') %}{% endcall %}
+    {% endif %}
+  </section>
+
+  <section class="panel" data-key="jobs" draggable="true" aria-labelledby="h-jobs">
+    <h2 id="h-jobs">Фоновые задачи</h2>
+    <ul class="adm-list">
+      {% for j in s.jobs %}
+      {% set st = s.states[j.state] %}
+      <li>{{ chip(st[0], st[1]) }}<strong>{{ j.label }}</strong><span class="muted">{{ j.note }}</span>
+        <span class="muted">{% if j.last %}последний раз {{ human_age(j.age) }}{% else %}запусков не видно{% endif %}</span>
+        {% if j.error %}<span class="adm-list__err">{{ j.error }}</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="panel" data-key="queues" draggable="true" aria-labelledby="h-queues">
+    <h2 id="h-queues">Очереди</h2>
+    <ul class="adm-list">
+      {% for q in s.queues %}
+      <li>
+        {% if q.count is none %}{{ chip('нет данных', 'mute') }}
+        {% elif q.count == 0 %}{{ chip('0', 'mute') }}
+        {% else %}{{ chip(q.count, 'danger' if q.bad else 'warn') }}{% endif %}
+        {% if q.link %}<a href="{{ q.link }}">{{ q.label }}</a>{% else %}<span>{{ q.label }}</span>{% endif %}
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="panel" data-key="integrations" draggable="true" aria-labelledby="h-int">
+    <h2 id="h-int">Интеграции</h2>
+    <p class="hint">Только «настроено или нет»: значения ключей и адресов здесь не показываются.</p>
+    <ul class="adm-list">
+      {% for i in s.integrations %}
+      <li>{% if i.ok %}{{ chip('настроено', 'ok', 'check-circle') }}{% else %}{{ chip('не настроено', 'mute') }}{% endif %}
+        <strong>{{ i.name }}</strong><span class="muted">{{ i.what }}</span></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <section class="panel" data-key="disk" draggable="true" aria-labelledby="h-disk">
+    <h2 id="h-disk">Диск и база</h2>
+    {% set d = s.disk %}
+    {% if d.used_percent is not none %}
+    <p class="adm-sys__line">Диск занят на {{ d.used_percent }}%, свободно {{ d.free_text }} из {{ d.total_text }}</p>
+    <div class="adm-meter{% if d.used_percent >= 85 %} adm-meter--bad{% endif %}" role="img" aria-label="Занято {{ d.used_percent }}% диска"><span style="width: {{ d.used_percent }}%"></span></div>
+    {% else %}
+    <p class="muted">Размер диска определить не удалось.</p>
+    {% endif %}
+    <dl class="adm-facts adm-sys__facts">
+      <div><dt>Файл базы</dt><dd>{{ d.db_bytes_text }}{% if d.wal_bytes %}, журнал записи {{ d.wal_bytes_text }}{% endif %}</dd></div>
+      <div><dt>Вакансий в базе</dt><dd>{{ d.vacancies if d.vacancies is not none else 'нет данных' }}</dd></div>
+      <div><dt>Исходных постов</dt><dd>{{ d.raw_posts if d.raw_posts is not none else 'нет данных' }}</dd></div>
+      <div><dt>Пользователей</dt><dd>{{ d.users if d.users is not none else 'нет данных' }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="panel" data-key="version" draggable="true" aria-labelledby="h-ver">
+    <h2 id="h-ver">Версия</h2>
+    <dl class="adm-facts adm-sys__facts">
+      <div><dt>Код на сервере</dt><dd>{% if s.version.commit %}<span class="mono">{{ s.version.commit }}</span>{% if s.version.committed_at %}, {{ s.version.committed_at | dt }}{% endif %}{% else %}<span class="muted">не определён: нет git</span>{% endif %}</dd></div>
+      <div><dt>Python</dt><dd>{{ s.version.python }}</dd></div>
+      <div><dt>Режим</dt><dd>{{ s.version.environment }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="panel adm-sys__wide" data-key="log" draggable="true" aria-labelledby="h-log">
+    <h2 id="h-log">Журнал</h2>
+    {% set lg = s.log %}
+    <nav class="adm-tabs" aria-label="Журнал">
+      <ul>
+        {% for k, label in lg.sources.items() %}
+        <li><a href="/admin/system?log={{ k }}{% if lg.needle %}&amp;grep={{ lg.needle | urlencode }}{% endif %}"{% if k == lg.key %} aria-current="page"{% endif %}>{{ label }}</a></li>
+        {% endfor %}
+      </ul>
+    </nav>
+    <form class="adm-search" method="get" action="/admin/system" role="search">
+      <input type="hidden" name="log" value="{{ lg.key }}">
+      <label class="visually-hidden" for="log-grep">Фильтр по тексту</label>
+      <input class="input input--sm" id="log-grep" name="grep" value="{{ lg.needle }}" maxlength="60" placeholder="Фильтр по тексту, например error">
+      <button class="btn btn--soft btn--sm" type="submit">{{ icon('funnel') }}Показать</button>
+      {% if lg.needle %}<a class="btn btn--ghost btn--sm" href="/admin/system?log={{ lg.key }}">Сбросить</a>{% endif %}
+    </form>
+    {% if lg.lines %}
+    <pre class="adm-log" tabindex="0">{% for line in lg.lines %}<span{% if line.err %} class="adm-log__err"{% endif %}>{{ line.text }}</span>
+{% endfor %}</pre>
+    <p class="hint">Новые строки сверху.{% if lg.hidden %} Строк с токенами, паролями и ключами скрыто: {{ lg.hidden }}.{% endif %}</p>
+    {% elif lg.available %}
+    <p class="muted">Подходящих строк нет.{% if lg.hidden %} Скрыто строк с токенами и паролями: {{ lg.hidden }}.{% endif %}</p>
+    {% else %}
+    <p class="muted">Журнал пуст или недоступен для чтения этой службе.</p>
+    {% endif %}
+  </section>
+
+</div>
+{% endblock %}

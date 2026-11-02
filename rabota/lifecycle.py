@@ -45,13 +45,26 @@ def is_stale(last_seen_at: str | None, ttl_days: int | None = None, now: datetim
     return dt < (now or datetime.now(UTC)) - timedelta(days=ttl)
 
 
+def _ttl(conn: sqlite3.Connection) -> int:
+    """Срок жизни: значение из настроек админки, иначе VACANCY_TTL_DAYS."""
+    from rabota.admin import settings
+
+    return settings.ttl_days(conn)
+
+
+def _keep(conn: sqlite3.Connection) -> int:
+    from rabota.admin import settings
+
+    return settings.keep_days(conn)
+
+
 def _cutoff(days: int, now: datetime | None) -> str:
     return ((now or datetime.now(UTC)) - timedelta(days=days)).replace(microsecond=0).isoformat()
 
 
 def expire(conn: sqlite3.Connection, ttl_days: int | None = None, now: datetime | None = None) -> int:
     """Скрыть вакансии, которых не видели дольше TTL. Возвращает число скрытых."""
-    ttl = config.VACANCY_TTL_DAYS if ttl_days is None else ttl_days
+    ttl = _ttl(conn) if ttl_days is None else ttl_days
     cur = conn.execute(
         "UPDATE vacancies SET status = 'expired' WHERE status = 'active' "
         "AND COALESCE(last_seen_at, published_at) IS NOT NULL AND COALESCE(last_seen_at, published_at) < ?",
@@ -69,8 +82,8 @@ def purge(
 ) -> int:
     """Физически удалить истёкшие вакансии, которые лежат скрытыми дольше keep_days, вместе с дублями,
     жалобами и исходными постами. Возвращает число удалённых вакансий (главных и дублей)."""
-    ttl = config.VACANCY_TTL_DAYS if ttl_days is None else ttl_days
-    keep = config.EXPIRED_KEEP_DAYS if keep_days is None else keep_days
+    ttl = _ttl(conn) if ttl_days is None else ttl_days
+    keep = _keep(conn) if keep_days is None else keep_days
     ids = [
         r[0]
         for r in conn.execute(

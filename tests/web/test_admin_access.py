@@ -15,7 +15,7 @@ def env(tmp_path):
 
 
 GET_PAGES = ["/admin", "/admin/moderation", "/admin/complaints", "/admin/reports", "/admin/stoplist",
-             "/admin/requests", "/admin/audit"]
+             "/admin/requests", "/admin/audit", "/admin/system", "/admin/settings", "/admin/vacancies"]
 
 
 @pytest.mark.parametrize("path", GET_PAGES)
@@ -94,11 +94,12 @@ def post_targets(env):
     conn.close()
     return [
         f"/admin/vacancies/{vid}/approve", f"/admin/vacancies/{vid}/reject", f"/admin/vacancies/{vid}/hide",
-        f"/admin/vacancies/{vid}/restore", f"/admin/vacancies/{vid}/edit",
+        f"/admin/vacancies/{vid}/restore", f"/admin/vacancies/{vid}/edit", f"/admin/vacancies/{vid}/duplicate",
+        f"/admin/vacancies/{vid}/unduplicate",
         "/admin/complaints/1/hide", "/admin/complaints/1/stoplist", "/admin/complaints/1/dismiss",
         "/admin/complaints/1/reply", "/admin/reports/1/dismiss", "/admin/reports/1/resolve", "/admin/reports/1/block",
         "/admin/stoplist/add", "/admin/stoplist/1/delete", "/admin/requests/new", "/admin/requests/1/update",
-        "/admin/requests/1/erase",
+        "/admin/requests/1/erase", "/admin/settings",
     ]
 
 

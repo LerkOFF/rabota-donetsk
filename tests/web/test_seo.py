@@ -78,10 +78,11 @@ POLICY: dict[str, str] = {
     "/employers": "index", "/about": "index", "/razmestit": "index",
     "/legal": "index", **{f"/legal/{d.slug}": "index" for d in legal.list_documents()},
     "/razmestit/spasibo": "noindex", "/legal/request": "noindex",
-    "/admin": "noindex", "/admin/audit": "noindex", "/admin/complaints": "noindex", "/admin/moderation": "noindex",
+    "/admin": "noindex", "/admin/pulse": "noindex", "/admin/audit": "noindex", "/admin/complaints": "noindex", "/admin/moderation": "noindex",
     "/admin/reports": "noindex", "/admin/requests": "noindex", "/admin/requests.csv": "noindex",
+    "/admin/system": "noindex", "/admin/settings": "noindex",
     "/admin/stoplist": "noindex", "/admin/complaints/1": "noindex", "/admin/requests/1": "noindex",
-    "/admin/vacancies/{open}": "noindex",
+    "/admin/vacancies/{open}": "noindex", "/admin/vacancies": "noindex",
     "/cabinet/messages": "noindex", "/cabinet/responses": "noindex", "/messages": "noindex", "/messages/1": "noindex",
     "/responses": "noindex", "/responses/1": "noindex", "/notifications": "noindex", "/notifications/unsubscribe/not-a-real-token": "noindex",
     "/vacancy/{open}/apply": "noindex",
@@ -362,7 +363,7 @@ def test_every_get_route_is_covered_and_has_full_seo(site):
             checked += 1
     assert checked >= 20, f"проверено только {checked} страниц"
     # закрытые разделы проверены вошедшими пользователями, а не только перенаправлением на вход
-    for must in ("/account", "/cabinet/seeker", "/cabinet/employer", "/admin", "/messages", "/responses",
+    for must in ("/account", "/cabinet/seeker", "/cabinet/employer", "/admin", "/admin/pulse", "/messages", "/responses",
                  "/cabinet/vacancies", "/cabinet/company", "/cabinet/vacancies/{owned}/edit", "/cabinet/vacancies/{owned}/delete"):
         assert must in visited, f"{must}: страница ни разу не открылась с кодом 200, SEO не проверен"
 

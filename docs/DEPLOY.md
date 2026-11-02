@@ -101,6 +101,7 @@
 | `MEDIA_DIR`, `HEARTBEAT_PATH`, `WORKER_EXPIRE` | служебные пути воркера | нет |
 | `VACANCY_TTL_DAYS`, `EXPIRED_KEEP_DAYS` | срок жизни вакансии и хранение скрытых | нет |
 | `LOG_FORMAT` | `json` для journald | рекомендуется (службы задают сами) |
+| `LOG_FILE` | файл журнала, который админка показывает в разделе «Система» (только чтение; пусто: источник не показывается) | нет |
 | `HEALTH_TOKEN` | токен для подробностей `/healthz/deep` | рекомендуется |
 | `ALERT_TG_BOT_TOKEN`, `ALERT_TG_CHAT_ID` | уведомления о сбоях в Telegram-бот; без них выключено | нет |
 | `BACKUP_DIR`, `BACKUP_KEEP_DAYS`, `BACKUP_GPG_RECIPIENT`, `BACKUP_RSYNC_TARGET` | резервные копии | нет |

@@ -41,6 +41,19 @@
 
 Таблица обращений: вакансия, причина, статус, время. По запросу работодателя вакансия скрывается, источник остаётся в чёрном списке сборщика.
 
+## Настройки админки
+
+Таблицы создаёт `rabota.admin.settings.migrate` (вызывается из `rabota.admin.schema.migrate`, повторный запуск безопасен).
+
+- `settings`: `key` (ключ из схемы в `rabota/admin/settings.py`, первичный), `value` (строка: число, `1` или `0`, текст), `updated_at`, `updated_by`. Строка есть только у изменённых настроек.
+- `settings_log`: `id`, `at`, `actor_user_id`, `actor_email`, `key`, `old`, `new` (человекочитаемые значения), `ip`. Записи не правятся.
+
+Поля схемы (`Setting`): `key`, `group` (ключ из `GROUPS`), `label`, `kind` (`int`, `bool`, `text`), `default` (функция: значение из `.env` или кода), `minimum` и `maximum` (для `text`: наибольшая длина), `hint`, `unit`.
+
+Ключи: `vacancy_ttl_days` (3-90, по умолчанию `VACANCY_TTL_DAYS`), `expired_keep_days` (1-365, `EXPIRED_KEEP_DAYS`), `complaint_autohide_threshold` (0-50, `COMPLAINT_AUTOHIDE_THRESHOLD`), `registration_open` (да или нет, `REGISTRATION_OPEN`), `registration_closed_note` (текст до 300 знаков).
+
+Состояние фоновых задач хранится в `ingest_state`: ключ `job:expire` отмечает последнюю ежедневную уборку.
+
 ## Срок жизни вакансии
 
 - Вакансия показывается на сайте 21 день после последней публикации (`VACANCY_TTL_DAYS`).

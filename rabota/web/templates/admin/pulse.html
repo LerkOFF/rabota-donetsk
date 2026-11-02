@@ -1,0 +1,54 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, empty %}
+{% set per = p.period %}
+{% block content %}
+{{ page_head('Пульс', 'Что происходит на сайте за выбранный период и как это соотносится с прошлым таким же. Время местное, Донецк.') }}
+
+<nav class="adm-tabs adm-tabs--periods" aria-label="Период">
+  <ul>
+    {% for key, text in p.periods %}
+    <li><a href="/admin/pulse?period={{ key }}"{% if key == per.key %} aria-current="page"{% endif %}>{{ text }}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
+<p class="pulse-range muted">
+  С {{ (per.start).strftime('%d.%m.%Y %H:%M') }} по {{ (per.end).strftime('%d.%m.%Y %H:%M') }}{% if per.has_prev %}, сравнение: {{ per.prev_label }} ({{ per.prev_start.strftime('%d.%m %H:%M') }} - {{ per.prev_end.strftime('%d.%m %H:%M') }}){% else %}, сравнения нет{% endif %}
+</p>
+
+<section class="pulse" aria-label="Плитки" data-sortable="pulse-tiles">
+  {% for t in p.tiles %}
+  <article class="tile{% if t.value is none %} tile--empty{% endif %}" data-key="{{ t.key }}" draggable="true" aria-labelledby="tile-{{ t.key }}">
+    <header class="tile__head">
+      <h2 class="tile__t" id="tile-{{ t.key }}"><a href="{{ t.href }}">{{ t.title }}</a></h2>
+      <span class="tile__hint">{{ t.hint }}</span>
+    </header>
+    {% if t.value is none %}
+    <p class="tile__n tile__n--none" data-pulse-value="{{ t.key }}">нет данных</p>
+    {% else %}
+    <p class="tile__n" data-pulse-value="{{ t.key }}">{{ t.value }}</p>
+    {% endif %}
+    <p class="tile__delta tile__delta--{{ t.delta.tone }}">
+      {% if t.delta.arrow %}<span aria-hidden="true">{{ t.delta.arrow }}</span> {% endif %}{{ t.delta.text }}{% if t.prev is not none %}<span class="tile__prev"> (было {{ t.prev }})</span>{% endif %}
+    </p>
+    {% if t.spark %}
+    {% set sp = t.spark %}
+    <svg class="spark spark--{{ t.delta.tone }}" viewBox="0 0 {{ sp.w }} {{ sp.h }}" preserveAspectRatio="none" role="img"
+         aria-label="{{ t.title }} по {{ 'часам' if per.step == 'hour' else ('неделям' if per.step == 'week' else 'дням') }}: всего {{ sp.total }}, наибольшее значение {{ sp.max }}">
+      <path class="spark__area" d="{{ sp.area }}"></path>
+      <path class="spark__line" d="{{ sp.line }}"></path>
+      <circle class="spark__dot" cx="{{ sp.x }}" cy="{{ sp.y }}" r="2.6"></circle>
+    </svg>
+    {% elif t.value is not none %}
+    <p class="tile__nospark muted">мало точек для графика</p>
+    {% endif %}
+    {% if t.breakdown %}
+    <ul class="tile__list">
+      {% for name, n in t.breakdown %}<li><span>{{ name }}</span><strong>{{ n }}</strong></li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if t.note %}<p class="tile__note muted">{{ t.note }}</p>{% endif %}
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

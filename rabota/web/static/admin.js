@@ -47,6 +47,19 @@
     });
   });
 
+  /* ---------- закрытые контакты: полное значение по нажатию, повторное нажатие закрывает ---------- */
+  document.addEventListener("click", function (e) {
+    var btn = e.target.closest ? e.target.closest("[data-reveal-btn]") : null;
+    if (!btn) return;
+    var box = btn.closest("[data-reveal]");
+    var text = box ? box.querySelector("[data-reveal-text]") : null;
+    if (!text) return;
+    var open = btn.getAttribute("aria-pressed") === "true";
+    text.textContent = text.getAttribute(open ? "data-masked" : "data-full") || "";
+    btn.setAttribute("aria-pressed", open ? "false" : "true");
+    btn.textContent = open ? "Показать" : "Скрыть";
+  });
+
   /* ---------- сообщения об ошибках получают фокус ---------- */
   var err = document.getElementById("adm-error") || document.getElementById("error-summary");
   if (err) err.focus();

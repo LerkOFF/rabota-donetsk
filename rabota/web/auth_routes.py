@@ -206,10 +206,31 @@ def _registered_page(request: Request, email: str, mail_failed: bool = False) ->
     )
 
 
+def _admin_setting(request: Request, key: str) -> Any:
+    """Настройка из админки (сначала таблица, иначе .env). Сбой чтения даёт значение из .env."""
+    from rabota.admin import settings
+
+    conn = None
+    try:
+        conn = _acc(request).db()
+        return settings.effective(conn, key)
+    except Exception:  # noqa: BLE001 - регистрация не должна падать из-за настроек
+        return settings.BY_KEY[key].default_value()
+    finally:
+        if conn is not None:
+            conn.close()
+
+
+def _registration_open(request: Request) -> bool:
+    return bool(_admin_setting(request, "registration_open"))
+
+
 def _registration_closed(request: Request, status: int) -> Response:
+    extra = str(_admin_setting(request, "registration_closed_note") or "").strip()
     return notice(
         request, "Регистрация откроется позже",
-        ["Мы готовим сервис к открытию личных кабинетов. Смотреть вакансии и звонить работодателям можно уже сейчас."],
+        ["Мы готовим сервис к открытию личных кабинетов. Смотреть вакансии и звонить работодателям можно уже сейчас.",
+         *([extra] if extra else [])],
         [("К вакансиям", "/vacancies", "primary"), ("На главную", "/", "ghost")],
         status=status, icon_name="clock",
     )
@@ -220,7 +241,7 @@ def register_form(request: Request) -> Response:
     user = get_current_user(request)
     if user:
         return _redirect("/cabinet")
-    if not config.registration_open():
+    if not _registration_open(request):
         return _registration_closed(request, 200)
     return render(request, "auth/register.html", {
         "form": {}, "errors": {},
@@ -230,7 +251,7 @@ def register_form(request: Request) -> Response:
 
 @router.post("/register")
 async def register_submit(request: Request) -> Response:
-    if not config.registration_open():
+    if not _registration_open(request):
         return _registration_closed(request, 403)
     acc = _acc(request)
     form = await read_form(request)

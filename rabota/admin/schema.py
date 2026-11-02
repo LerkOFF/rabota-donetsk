@@ -57,3 +57,6 @@ def migrate(conn: sqlite3.Connection) -> None:
             conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_complaints_vac ON complaints(vacancy_id, status)")
     conn.commit()
+    from rabota.admin import settings  # настройки из админки и их журнал
+
+    settings.migrate(conn)

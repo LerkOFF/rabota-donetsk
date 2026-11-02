@@ -17,7 +17,7 @@ from typing import Any
 
 from rabota import config
 from rabota.lifecycle import expire, purge
-from rabota.realtime import pollers, vk_poller
+from rabota.realtime import pollers, state, vk_poller
 from rabota.realtime.health import HEARTBEAT_EVERY, heartbeat_path, write_heartbeat
 from rabota.realtime.ingest import Ingestor
 from rabota.realtime.scheduler import Job, Scheduler
@@ -25,6 +25,7 @@ from rabota.realtime.telegram_listener import TelegramListener, TelegramNotConfi
 
 log = logging.getLogger("rabota.realtime.worker")
 
+EXPIRE_STATE_KEY = "job:expire"
 EXPIRE_EVERY = 24 * 3600.0
 EXPIRE_FIRST_DELAY = 120.0
 TELEGRAM_CRASH_PAUSE = 60.0
@@ -49,9 +50,15 @@ def cleanup_media(directory: Path, max_age_days: float, now: datetime | None = N
 def expire_job(conn: Any, media_dir: Path | None = None, now: datetime | None = None) -> dict[str, int]:
     """Скрыть истёкшие вакансии, удалить давно скрытые и старые копии фото."""
     result = {"скрыто": expire(conn, now=now), "удалено": purge(conn, now=now)}
-    keep = config.VACANCY_TTL_DAYS + config.EXPIRED_KEEP_DAYS + 1
+    from rabota.admin import settings
+
+    keep = settings.ttl_days(conn) + settings.keep_days(conn) + 1
     if media_dir is not None:
         result["фото"] = cleanup_media(media_dir, keep, now)
+    try:  # отметка для раздела «Система»: когда последний раз прошла уборка
+        state.mark_ok(conn, EXPIRE_STATE_KEY, now=now)
+    except Exception:
+        log.warning("не удалось записать отметку уборки", exc_info=True)
     return result
 
 

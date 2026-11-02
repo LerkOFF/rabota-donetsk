@@ -1,0 +1,112 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, pager, empty, chip %}
+{% from 'admin/_vacancy_macros.html' import reveal, vis_chips, sort_th %}
+{% macro opt(value, text, current) -%}<option value="{{ value }}"{% if value == current %} selected{% endif %}>{{ text }}</option>{%- endmacro %}
+
+{% block content %}
+{{ page_head('Вакансии', 'Все записи базы: в выдаче, скрытые, на проверке, просроченные, дубли и города вне выдачи. Откройте карточку, чтобы увидеть историю и исходный пост.') }}
+
+<section class="kpis" aria-label="Сколько вакансий в каждом состоянии" data-sortable="vacancies-tiles">
+  {% for key, label, href in [
+    ('all', 'Всего', ''), ('visible', 'В выдаче', 'flag=visible'), ('pending', 'На проверке', 'mod=pending'),
+    ('hidden', 'Скрыты', 'status=hidden'), ('expired', 'Истекли', 'status=expired'),
+    ('duplicate', 'Дубли', 'flag=duplicate'), ('foreign', 'Вне выдачи по городу', 'flag=foreign')] %}
+  <a class="kpi" data-key="{{ key }}" draggable="true" href="/admin/vacancies{% if href %}?{{ href }}{% endif %}">
+    <span class="kpi__n">{{ totals[key] }}</span><span class="kpi__t">{{ label }}</span>
+  </a>
+  {% endfor %}
+</section>
+
+<form class="adm-filter" method="get" action="/admin/vacancies" role="search" aria-label="Фильтры списка вакансий">
+  <div class="adm-grid adm-grid--4">
+    <div class="field"><label for="f-q">Поиск</label>
+      <input class="input input--sm" id="f-q" name="q" type="search" value="{{ f.q }}" maxlength="80" placeholder="Номер, профессия, компания, телефон"></div>
+    <div class="field"><label for="f-prof">Профессия</label>
+      <input class="input input--sm" id="f-prof" name="prof" type="search" value="{{ f.prof }}" maxlength="60" placeholder="Часть названия"></div>
+    <div class="field"><label for="f-text">Текст вакансии</label>
+      <input class="input input--sm" id="f-text" name="text" type="search" value="{{ f.text }}" maxlength="80" placeholder="Слово в описании или требованиях"></div>
+    <div class="field"><label for="f-period">Добавлена</label>
+      <select class="input input--sm" id="f-period" name="period">{% for k, t in options.periods.items() %}{{ opt(k, t, f.period) }}{% endfor %}</select></div>
+  </div>
+  <div class="adm-grid adm-grid--4">
+    <div class="field"><label for="f-status">Статус</label>
+      <select class="input input--sm" id="f-status" name="status"><option value="">Любой</option>{% for k, t in options.statuses.items() %}{{ opt(k, t, f.status) }}{% endfor %}</select></div>
+    <div class="field"><label for="f-mod">Модерация</label>
+      <select class="input input--sm" id="f-mod" name="mod"><option value="">Любая</option>{% for k, t in options.moderation.items() %}{{ opt(k, t, f.mod) }}{% endfor %}</select></div>
+    <div class="field"><label for="f-origin">Происхождение</label>
+      <select class="input input--sm" id="f-origin" name="origin"><option value="">Любое</option>{% for k, t in options.origins.items() %}{{ opt(k, t, f.origin) }}{% endfor %}</select></div>
+    <div class="field"><label for="f-source">Источник</label>
+      <select class="input input--sm" id="f-source" name="source"><option value="">Любой</option>{% for name, n in facets.sources %}{{ opt(name, name ~ ' (' ~ n ~ ')', f.source) }}{% endfor %}</select></div>
+  </div>
+  <div class="adm-grid adm-grid--4">
+    <div class="field"><label for="f-city">Город</label>
+      <select class="input input--sm" id="f-city" name="city"><option value="">Любой</option>{{ opt(options.foreign_city, 'Вне выдачи (не город сайта)', f.city) }}{% for name, n in facets.cities %}{{ opt(name, name ~ ' (' ~ n ~ ')', f.city) }}{% endfor %}</select></div>
+    <div class="field"><label for="f-flag">Состояние</label>
+      <select class="input input--sm" id="f-flag" name="flag"><option value="">Любое</option>{% for k, t in options.flags.items() %}{{ opt(k, t, f.flag) }}{% endfor %}</select></div>
+    <div class="field"><label for="f-kind">Тип записи</label>
+      <select class="input input--sm" id="f-kind" name="kind"><option value="">Любой</option>{% for k, t in options.kinds.items() %}{{ opt(k, t, f.kind) }}{% endfor %}</select></div>
+    <div class="field"><label for="f-sort">Сортировка</label>
+      <div class="adm-inline">
+        <select class="input input--sm" id="f-sort" name="sort">{% for k, (t, _) in options.sorts.items() %}{{ opt(k, t, f.sort) }}{% endfor %}</select>
+        <select class="input input--sm" name="dir" aria-label="Порядок"><option value="desc"{% if f.dir == 'desc' %} selected{% endif %}>Сначала новые</option><option value="asc"{% if f.dir == 'asc' %} selected{% endif %}>Сначала старые</option></select>
+      </div></div>
+  </div>
+  <div class="adm-actions">
+    <button class="btn btn--primary btn--sm" type="submit">{{ icon('magnifying-glass') }}Показать</button>
+    {% if f.active %}<a class="btn btn--ghost btn--sm" href="/admin/vacancies">Сбросить фильтры</a>{% endif %}
+    <span class="adm-filter__found" role="status">Найдено: {{ page.total }}</span>
+  </div>
+</form>
+
+{% if items %}
+<div class="adm-tablewrap">
+<table class="atable">
+  <caption class="visually-hidden">Вакансии, страница {{ page.page }} из {{ page.pages }}</caption>
+  <thead>
+    <tr data-sortable="vacancies-columns">
+      <th scope="col" data-key="id" draggable="true">{{ sort_th('id', '№', f, sort_links) }}</th>
+      <th scope="col" data-key="vacancy" draggable="true">{{ sort_th('profession', 'Вакансия', f, sort_links) }}</th>
+      <th scope="col" data-key="pay" draggable="true">{{ sort_th('pay', 'Оплата', f, sort_links) }}</th>
+      <th scope="col" data-key="contact" draggable="true">Контакт</th>
+      <th scope="col" data-key="source" draggable="true">Откуда</th>
+      <th scope="col" data-key="added" draggable="true">{{ sort_th('created', 'Добавлена', f, sort_links) }}</th>
+      <th scope="col" data-key="state" draggable="true">Состояние</th>
+      <th scope="col" data-key="actions"><span class="visually-hidden">Действия</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for v in items %}
+    <tr>
+      <td data-label="№" data-key="id" class="mono">{{ v.id }}</td>
+      <td data-label="Вакансия" data-key="vacancy">
+        <a class="atable__main" href="/admin/vacancies/{{ v.id }}">{{ v.pv.profession_title }}</a>
+        <span class="atable__sub">{% if v.employer %}{{ v.employer }}, {% endif %}{{ v.pv.location or 'город не указан' }}</span>
+      </td>
+      <td data-label="Оплата" data-key="pay">{{ v.pv.pay.text }}</td>
+      <td data-label="Контакт" data-key="contact">
+        {% for c in v.contact_items[:2] %}{{ reveal(c.masked, c.full, c.kind) }}{% else %}<span class="muted">нет</span>{% endfor %}
+        {% if v.contact_items | length > 2 %}<span class="atable__sub">и ещё {{ v.contact_items | length - 2 }}, в карточке</span>{% endif %}
+      </td>
+      <td data-label="Откуда" data-key="source">{{ v.pv.source_label }}<span class="atable__sub">{{ v.source }}{% if v.origin == 'direct' %} (с сайта){% endif %}</span></td>
+      <td data-label="Добавлена" data-key="added">{{ v.created_at | dt }}</td>
+      <td data-label="Состояние" data-key="state">{{ vis_chips(v.visibility) }}</td>
+      <td data-label="Действия" data-key="actions" class="atable__act">
+        <a class="btn btn--ghost btn--sm" href="/admin/vacancies/{{ v.id }}">Открыть</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{{ pager(page, '/admin/vacancies', query) }}
+{% else %}
+  {% if f.active %}
+  {% call empty('Ничего не нашлось', 'Под выбранные фильтры вакансий нет. Ослабьте условия или сбросьте фильтры.', 'magnifying-glass') %}
+    <a class="btn btn--ghost btn--sm" href="/admin/vacancies">Сбросить фильтры</a>
+  {% endcall %}
+  {% else %}
+  {% call empty('Вакансий пока нет', 'Когда сборщики или работодатели добавят вакансии, они появятся здесь.', 'info') %}{% endcall %}
+  {% endif %}
+{% endif %}
+{% endblock %}

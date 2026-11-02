@@ -47,7 +47,12 @@ def reporter_key(secret: bytes, ip: str) -> str:
     return hmac.new(secret, b"complaint:" + ip.encode(), hashlib.sha256).hexdigest()[:24]
 
 
-def autohide_threshold() -> int:
+def autohide_threshold(conn: sqlite3.Connection | None = None) -> int:
+    """Порог автоскрытия: сначала значение из настроек админки, иначе COMPLAINT_AUTOHIDE_THRESHOLD, иначе 3."""
+    if conn is not None:
+        from rabota.admin import settings
+
+        return settings.autohide_threshold(conn)
     try:
         return max(0, int(config.get("COMPLAINT_AUTOHIDE_THRESHOLD", "3")))
     except ValueError:
@@ -71,7 +76,7 @@ def autohide_if_needed(
     conn: sqlite3.Connection, vacancy_id: int, threshold: int | None = None, now: datetime | None = None
 ) -> bool:
     """Скрыть опубликованную вакансию, если открытых жалоб от разных людей набралось не меньше порога (0: выключено)."""
-    limit = autohide_threshold() if threshold is None else threshold
+    limit = autohide_threshold(conn) if threshold is None else threshold
     if limit <= 0:
         return False
     people = conn.execute(
