@@ -163,3 +163,13 @@ def test_search_window_not_shifted_by_card_lines():
     raw = _hh("Сотрудник фаст-фуда", "Занятость: полная занятость\nГрафик: 2/2\nГород: Донецк\nАдрес: Донецк, ул. Артема, 1\nОписание:\nРабочий день с 9 до 18.")
     (v,) = process(raw)
     assert v.profession == "сотрудник фаст-фуда"
+
+
+@pytest.mark.parametrize("title", ["Инженер по охране труда", "Инженер по охране окружающей среды", "Специалист по охране труда"])
+def test_labour_protection_is_not_security_services(title):
+    assert detect_context_category(title) != "услуги"
+
+
+def test_security_guard_still_services():
+    assert detect_context_category("Требуется охранник в магазин") in ("услуги", "торговля")
+    assert detect_context_category("Охранник в салон красоты") == "услуги"
