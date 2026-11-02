@@ -1,0 +1,27 @@
+# Отправка адресов новых вакансий в IndexNow. Без INDEXNOW_KEY в .env тихо ничего не делает.
+# Подставьте <USER> и <PROJECT_DIR>.
+[Unit]
+Description=Работа Донецк: уведомление поисковиков о новых вакансиях
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=<USER>
+Group=<USER>
+WorkingDirectory=<PROJECT_DIR>
+Environment=LOG_FORMAT=json
+EnvironmentFile=<PROJECT_DIR>/.env
+ExecStart=<PROJECT_DIR>/.venv/bin/python -m rabota.ops.indexnow
+Nice=10
+MemoryMax=200M
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=
+UMask=0077
+ReadWritePaths=<PROJECT_DIR>/data

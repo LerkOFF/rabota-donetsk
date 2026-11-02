@@ -1,0 +1,12 @@
+# Раз в 10 минут отправляет новые вакансии в IndexNow (Яндекс и другие поисковики).
+[Unit]
+Description=Работа Донецк: уведомление поисковиков о новых вакансиях каждые 10 минут
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=10min
+AccuracySec=30s
+Unit=rabota-indexnow.service
+
+[Install]
+WantedBy=timers.target

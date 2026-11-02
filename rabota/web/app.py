@@ -29,11 +29,13 @@ from rabota.accounts.service import valid_email
 from rabota.admin import complaints as complaint_service
 from rabota.models import CATEGORIES, PAY_PERIODS, WORK_FORMATS
 from rabota.ops import deep as deep_health
+from rabota.ops.indexnow import key as indexnow_key
 from rabota.ops.logs import StatusCounterMiddleware
 from rabota.web import format as fmt
 from rabota.web import queries as q
 from rabota.web import seo as seolib
 from rabota.web.analytics import install_analytics
+from rabota.web.indexnow import install_indexnow
 from rabota.web.postform import form_options, validate_post
 from rabota.web.security import install_security
 from rabota.web.seo import job_posting_jsonld, website_jsonld
@@ -214,6 +216,7 @@ def create_app(
 
     # заголовки безопасности, кеш статики, счётчики ответов, счётчик Метрики и файл Вебмастера: rabota/web/security.py и др.
     analytics = install_analytics(app)
+    install_indexnow(app, indexnow_key())
     install_security(app, site_url=base_url, metrika=analytics.enabled)
     app.add_middleware(StatusCounterMiddleware)
 

@@ -73,7 +73,7 @@ wait_healthy() {
   return 1
 }
 
-UNIT_FILES=(rabota-web.service rabota-worker.service rabota-backup.service rabota-backup.timer rabota-alert.service rabota-alert.timer)
+UNIT_FILES=(rabota-web.service rabota-worker.service rabota-backup.service rabota-backup.timer rabota-alert.service rabota-alert.timer rabota-indexnow.service rabota-indexnow.timer)
 
 # install_units: поставить юниты systemd; печатает "changed", если что-то изменилось
 install_units() {

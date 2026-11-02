@@ -105,6 +105,9 @@
 | `ALERT_TG_BOT_TOKEN`, `ALERT_TG_CHAT_ID` | уведомления о сбоях в Telegram-бот; без них выключено | нет |
 | `BACKUP_DIR`, `BACKUP_KEEP_DAYS`, `BACKUP_GPG_RECIPIENT`, `BACKUP_RSYNC_TARGET` | резервные копии | нет |
 | `METRIKA_ID`, `METRIKA_WEBVISOR` | Яндекс Метрика | нет |
+| `WEBMASTER_VERIFY_FILE` | имя файла подтверждения Яндекс Вебмастера, например `yandex_0123abcd.html` | нет |
+| `INDEXNOW_KEY`, `INDEXNOW_STATE_PATH` | ключ IndexNow и файл состояния отправки | нет |
+| `SERVICE_CITIES` | города, вакансии которых видны на сайте, через запятую | Донецк |
 | `WEBMASTER_VERIFY_FILE`, `WEBMASTER_VERIFY_BODY` | файл подтверждения Вебмастера | нет |
 
 Безопасность cookie задана в коде: сессия и CSRF-ключ `HttpOnly`, `SameSite=Lax`, `Secure` при запросе по https (nginx передаёт `X-Forwarded-Proto: https`, uvicorn запущен с `--proxy-headers` только для `127.0.0.1`).
@@ -230,3 +233,9 @@ sudo /var/www/rabota/scripts/deploy.sh --smoke https://xn----7sbadrg9awfdp1a2d.x
 | `/healthz/deep` отдаёт 503 | воркер: `systemctl status rabota-worker`; подробности с токеном: `curl -H "X-Health-Token: ..." .../healthz/deep` |
 | Telegram молчит | `TELEGRAM_PROXY`, доступность прокси, `docs/REALTIME.md` |
 | `deploy.sh` откатился | `/var/log/rabota/deploy.log` и `journalctl -u rabota-web`, причина в последних строках |
+
+## IndexNow: Яндекс узнаёт о новых вакансиях сразу
+
+1. Сгенерировать ключ: `openssl rand -hex 16`, записать в `INDEXNOW_KEY` в `.env`, перезапустить `rabota-web`. Сайт начнёт отдавать ключ по `/<ключ>.txt`.
+2. Таймер `rabota-indexnow` раз в 10 минут отправляет на `https://yandex.com/indexnow` адреса новых видимых вакансий и главных страниц ленты (состояние в `data/indexnow-state.json`). Без ключа ничего не отправляется. Проверка вручную: `python -m rabota.ops.indexnow --dry-run`.
+3. Каждая новая страница обязана иметь SEO: тест `test_every_get_route_is_covered_and_has_full_seo` падает, если добавлен маршрут без `title`, `description`, `canonical`, Open Graph, структурированных данных или политики индексации.

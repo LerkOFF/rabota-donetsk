@@ -117,9 +117,9 @@ chown "$APP_USER:$APP_USER" "$APP_DIR/.env"; chmod 600 "$APP_DIR/.env"
 # ---------- 5. юниты, logrotate
 install_units
 rc=0; install_rendered "$APP_DIR/deploy/logrotate-rabota" /etc/logrotate.d/rabota 644 || rc=$?
-systemctl enable rabota-web.service rabota-worker.service rabota-backup.timer rabota-alert.timer >/dev/null 2>&1
+systemctl enable rabota-web.service rabota-worker.service rabota-backup.timer rabota-alert.timer rabota-indexnow.timer >/dev/null 2>&1
 if [ "$start" -eq 1 ]; then
-  systemctl start rabota-web.service rabota-worker.service rabota-backup.timer rabota-alert.timer
+  systemctl start rabota-web.service rabota-worker.service rabota-backup.timer rabota-alert.timer rabota-indexnow.timer
   wait_healthy 40 && log "приложение отвечает на $LOCAL_URL/healthz" || warn "приложение не ответило за 40 секунд, смотрите journalctl -u rabota-web"
 fi
 
