@@ -54,7 +54,9 @@ def new_vacancy_ids(conn, last_id: int, limit: int = MAX_URLS) -> list[int]:
 
 
 def build_payload(site: str, ik: str, ids: list[int]) -> dict[str, Any]:
-    host = site.split("://", 1)[-1].split("/", 1)[0]
+    scheme, _, rest = site.partition("://")
+    host = rest.split("/", 1)[0].encode("idna").decode("ascii")  # IndexNow принимает домен только в punycode
+    site = f"{scheme}://{host}"
     urls = [f"{site}{p}" for p in STATIC_URLS] + [f"{site}/vacancy/{i}" for i in ids]
     return {"host": host, "key": ik, "keyLocation": f"{site}/{ik}.txt", "urlList": urls}
 

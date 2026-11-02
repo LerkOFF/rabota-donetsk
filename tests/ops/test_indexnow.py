@@ -36,11 +36,11 @@ def test_key_validation(monkeypatch):
 
 def test_payload_has_host_key_location_and_urls():
     payload = indexnow.build_payload("https://работа-донецк.рф", KEY, [5, 7])
-    assert payload["host"] == "работа-донецк.рф"
-    assert payload["keyLocation"] == f"https://работа-донецк.рф/{KEY}.txt"
+    host = "xn----7sbadrg9awfdp1a2d.xn--p1ai"  # кириллический домен уходит в punycode
+    assert payload["host"] == host
+    assert payload["keyLocation"] == f"https://{host}/{KEY}.txt"
     assert payload["urlList"] == [
-        "https://работа-донецк.рф/", "https://работа-донецк.рф/vacancies",
-        "https://работа-донецк.рф/vacancy/5", "https://работа-донецк.рф/vacancy/7",
+        f"https://{host}/", f"https://{host}/vacancies", f"https://{host}/vacancy/5", f"https://{host}/vacancy/7",
     ]
 
 
