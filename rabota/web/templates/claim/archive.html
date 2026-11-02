@@ -1,0 +1,44 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, crumbs %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('claim.css') }}">
+<div class="wrap claim-archive">
+  <header class="company-head">
+    {{ crumbs(seo.breadcrumbs) }}
+    <h1 class="h1 h1--page">Архив вакансий: {{ company.name }}</h1>
+    <nav class="claim-tabs" aria-label="Разделы страницы работодателя">
+      <a href="/company/{{ company.id }}">Открытые вакансии <span class="claim-tabs__n">{{ counts.visible }}</span></a>
+      <a href="/company/{{ company.id }}/archive" aria-current="page">Архив <span class="claim-tabs__n">{{ counts.archived }}</span></a>
+    </nav>
+    <p class="lead">Вакансии, которые работодатель публиковал раньше. Они закрыты, откликнуться на них нельзя: список показывает, кого и за какую оплату компания набирала.</p>
+  </header>
+
+  {% if rows %}
+  <ul class="arch-list">
+    {% for r in rows %}
+    <li class="arch-item">
+      <div class="arch-item__main">
+        <h2 class="arch-item__title">{{ r.title }}</h2>
+        <p class="arch-item__meta">{% if r.location %}<span>{{ icon('map-pin') }}{{ r.location }}</span>{% endif %}{% if r.period %}<span>{{ icon('calendar-blank') }}{{ r.period }}</span>{% endif %}</p>
+      </div>
+      <p class="arch-item__pay{% if not r.pay.known %} arch-item__pay--none{% endif %}">{{ r.pay.main }}{% if r.pay.period %} <span class="muted">{{ r.pay.period }}</span>{% endif %}</p>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if pages > 1 %}
+  <nav class="pager" aria-label="Страницы архива">
+    {% if prev_url %}<a class="btn btn--ghost" rel="prev" href="{{ prev_url }}">Назад</a>{% endif %}
+    <span class="muted">Страница {{ page }} из {{ pages }}</span>
+    {% if next_url %}<a class="btn btn--ghost" rel="next" href="{{ next_url }}">Дальше</a>{% endif %}
+  </nav>
+  {% endif %}
+  {% else %}
+  <div class="state">
+    <span class="state__ico">{{ icon('hourglass') }}</span>
+    <h2 class="h3">В архиве пока пусто</h2>
+    <p>Когда вакансии работодателя закроются или устареют, они появятся здесь.</p>
+    <div class="state__actions"><a class="btn btn--primary" href="/company/{{ company.id }}">К открытым вакансиям</a></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

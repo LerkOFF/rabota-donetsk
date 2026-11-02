@@ -1,4 +1,5 @@
-"""Срок жизни вакансии: через TTL дней после последней публикации она скрывается, затем удаляется.
+"""Срок жизни вакансии: через TTL дней после последней публикации она скрывается, затем уходит в архив
+(rabota.employers_auto.archive), а из архива удаляется по сроку хранения.
 
 Отсчёт идёт от `last_seen_at`. Когда та же вакансия того же работодателя встречается снова
 (в любом источнике), склейка дублей переносит более позднюю дату в главную вакансию и отсчёт начинается заново.
@@ -74,35 +75,30 @@ def expire(conn: sqlite3.Connection, ttl_days: int | None = None, now: datetime 
     return cur.rowcount
 
 
-def purge(
+def archive(
     conn: sqlite3.Connection,
     ttl_days: int | None = None,
     keep_days: int | None = None,
     now: datetime | None = None,
 ) -> int:
-    """Физически удалить истёкшие вакансии, которые лежат скрытыми дольше keep_days, вместе с дублями,
-    жалобами и исходными постами. Возвращает число удалённых вакансий (главных и дублей)."""
-    ttl = _ttl(conn) if ttl_days is None else ttl_days
-    keep = _keep(conn) if keep_days is None else keep_days
-    ids = [
-        r[0]
-        for r in conn.execute(
-            "SELECT id FROM vacancies WHERE status = 'expired' AND duplicate_of IS NULL "
-            "AND COALESCE(last_seen_at, published_at) < ?",
-            (_cutoff(ttl + keep, now),),
-        )
-    ]
-    if not ids:
-        return 0
-    marks = ",".join("?" * len(ids))
-    rows = conn.execute(
-        f"SELECT id, source, external_id FROM vacancies WHERE id IN ({marks}) OR duplicate_of IN ({marks})", ids + ids
-    ).fetchall()
-    all_ids = [r["id"] for r in rows]
-    m2 = ",".join("?" * len(all_ids))
-    conn.execute(f"DELETE FROM complaints WHERE vacancy_id IN ({m2})", all_ids)
-    conn.execute(f"DELETE FROM vacancies WHERE id IN ({m2})", all_ids)
-    for r in rows:
-        conn.execute("DELETE FROM raw_posts WHERE source = ? AND external_id = ?", (r["source"], r["external_id"]))
-    conn.commit()
-    return len(all_ids)
+    """Перенести в архив истёкшие и закрытые вакансии, которые лежат скрытыми дольше keep_days.
+    Строки остаются в базе (ушли из выдачи, поиска, подписок и карты сайта). Возвращает число перенесённых."""
+    from rabota.employers_auto import archive as arch
+
+    return arch.archive_expired(conn, ttl_days, keep_days, now)
+
+
+def purge(
+    conn: sqlite3.Connection,
+    ttl_days: int | None = None,
+    keep_days: int | None = None,
+    now: datetime | None = None,
+    archive_days: int | None = None,
+) -> int:
+    """Уборка после скрытия: сначала просроченное уходит в архив, затем из архива физически удаляется всё, что
+    лежит там дольше срока хранения (`archive_keep_days`, по умолчанию 365), вместе с дублями, жалобами и
+    исходными постами. Возвращает число удалённых вакансий (главных и дублей)."""
+    from rabota.employers_auto import archive as arch
+
+    arch.archive_expired(conn, ttl_days, keep_days, now)
+    return arch.purge_archive(conn, archive_days, now)

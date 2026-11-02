@@ -1,0 +1,40 @@
+{% extends 'resumes/layout.html' %}
+{% from '_macros.html' import icon %}
+{% from 'messages/_parts.html' import crumbs, csrf %}
+{% from 'resumes/_parts.html' import state %}
+{% block rs_body %}
+<div class="wrap cab rs-page">
+  <header class="page-head">
+    {{ crumbs([('Мои резюме', '/cabinet/resumes'), ('Удаление', '')]) }}
+    <h1 class="h1 h1--page">Удалить резюме «{{ item.title }}»?</h1>
+    <p class="cab__state">{{ state(item) }}</p>
+  </header>
+
+  <section class="panel cab__confirm" aria-labelledby="rs-del-h">
+    <h2 id="rs-del-h" class="h3">Что произойдёт</h2>
+    <ul class="cab__list">
+      <li>Резюме сразу пропадёт у работодателей и из вашего списка, вернуть его не получится.</li>
+      <li>Удалятся сведения о просмотрах и открытых контактах этого резюме.</li>
+      {% if item.applications %}
+      <li>Отклики, к которым оно было приложено ({{ item.applications }}), останутся, но работодатель больше не увидит резюме.</li>
+      {% endif %}
+    </ul>
+    {% if item.visibility != 'hidden' %}
+    <p class="muted">Если резюме просто нужно убрать на время, лучше скрыть его: вернуть его в поиск можно в любой момент.</p>
+    {% endif %}
+    <div class="cab__confirm-actions">
+      <form method="post" action="/cabinet/resumes/{{ item.id }}/delete" data-busy-form>
+        {{ csrf(csrf_token) }}
+        <button class="btn btn--danger btn--lg" type="submit">{{ icon('trash') }}Удалить навсегда</button>
+      </form>
+      {% if item.visibility != 'hidden' %}
+      <form method="post" action="/cabinet/resumes/{{ item.id }}/hide" data-busy-form>
+        {{ csrf(csrf_token) }}
+        <button class="btn btn--soft btn--lg" type="submit">{{ icon('lock-simple') }}Скрыть вместо удаления</button>
+      </form>
+      {% endif %}
+      <a class="btn btn--ghost btn--lg" href="/cabinet/resumes">Отмена</a>
+    </div>
+  </section>
+</div>
+{% endblock %}

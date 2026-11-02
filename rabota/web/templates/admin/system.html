@@ -84,6 +84,37 @@
     </ul>
   </section>
 
+  <section class="panel" data-key="alerts" draggable="true" aria-labelledby="h-alerts">
+    <h2 id="h-alerts">Подписки и рассылка</h2>
+    {% set al = s.alerts %}
+    <ul class="adm-list">
+      {% for f in al.flags %}
+      <li>{% if f.on %}{{ chip('включено', 'ok', 'check-circle') }}{% else %}{{ chip('выключено', 'mute') }}{% endif %}
+        <strong>{{ f.name }}</strong><span class="muted">{{ f.note }}</span></li>
+      {% endfor %}
+    </ul>
+    {% if al.stats %}
+    <dl class="adm-facts adm-sys__facts">
+      <div><dt>Подписок всего</dt><dd>{{ al.stats.total }} (работают {{ al.stats.active }}, ждут подтверждения {{ al.stats.pending }}, на паузе {{ al.stats.paused }}, отключены {{ al.stats.unsubscribed }})</dd></div>
+      <div><dt>Работают по каналам</dt><dd>почта {{ al.stats.email }}, Telegram {{ al.stats.telegram }}</dd></div>
+      <div><dt>Писем за сутки</dt><dd>{{ al.stats.mail_sent_24h }}, ошибок {{ al.stats.mail_errors_24h }}, всего с начала {{ al.stats.mail_sent_total }}</dd></div>
+      <div><dt>Сообщений в Telegram за сутки</dt><dd>{{ al.stats.tg_sent_24h }}, ошибок {{ al.stats.tg_errors_24h }}</dd></div>
+      <div><dt>Вакансий разослано за сутки</dt><dd>{{ al.stats.vacancies_sent_24h }}</dd></div>
+      <div><dt>Постов в канал за сутки</dt><dd>{{ al.stats.posts_24h }}, ошибок {{ al.stats.post_errors_24h }}</dd></div>
+    </dl>
+    {% if al.stats.last_error %}<p class="notice notice--warn" role="alert">{{ icon('warning') }}<span>Последняя ошибка доставки: {{ al.stats.last_error }}</span></p>{% endif %}
+    {% endif %}
+    <ul class="adm-list">
+      {% for j in al.jobs %}
+      {% set st = s.states[j.state] %}
+      <li>{{ chip(st[0], st[1]) }}<strong>{{ j.label }}</strong><span class="muted">{{ j.note }}</span>
+        <span class="muted">{% if j.last_ok %}последний успех {{ human_age(j.age) }}{% else %}запусков не видно{% endif %}</span>
+        {% if j.error %}<span class="adm-list__err">{{ j.error }}</span>{% endif %}</li>
+      {% endfor %}
+    </ul>
+    <p class="hint">Тумблеры и лимиты: <a href="/admin/settings">настройки</a>, группы «Подписки и рассылка» и «Telegram: бот и канал».</p>
+  </section>
+
   <section class="panel" data-key="disk" draggable="true" aria-labelledby="h-disk">
     <h2 id="h-disk">Диск и база</h2>
     {% set d = s.disk %}

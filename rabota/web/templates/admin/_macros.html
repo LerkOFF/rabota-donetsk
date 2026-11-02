@@ -37,6 +37,7 @@
 {% elif v.status == 'hidden' %}{{ chip('Скрыта', 'mute', 'lock-key') }}
 {% elif v.status == 'active' %}{{ chip('В выдаче', 'ok', 'check-circle') }}
 {% elif v.status == 'expired' %}{{ chip('Истекла', 'mute', 'clock') }}
+{% elif v.status == 'archived' %}{{ chip('В архиве', 'mute', 'hourglass') }}
 {% else %}{{ chip(v.status, 'mute') }}{% endif %}
 {%- endmacro %}
 

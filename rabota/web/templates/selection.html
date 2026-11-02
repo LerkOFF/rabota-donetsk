@@ -1,0 +1,61 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, vcard, pager, crumbs %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('content.css') }}">
+<div class="wrap">
+  <header class="page-head">
+    {{ crumbs(seo.breadcrumbs) }}
+    <h1 class="h1 h1--page">{{ heading }}</h1>
+    <div class="prose landing-intro">{% for text in intro %}<p{% if loop.first %} class="landing-intro__lead"{% endif %}>{{ text }}</p>{% endfor %}</div>
+  </header>
+  <div class="listing">
+    {% if items %}
+    <div class="vlist">
+      {% for v in items %}{{ vcard(v, 'h2') }}{% endfor %}
+    </div>
+    {{ pager(page, list_path, '') }}
+    {% else %}
+    <div class="state">
+      <span class="state__ico">{{ icon(sel.icon) }}</span>
+      <h2 class="h3">Пока нет вакансий в этой подборке</h2>
+      <p>Новые вакансии появляются каждый день. Загляните позже или посмотрите общую ленту и другие подборки.</p>
+      <div class="state__actions">
+        <a class="btn btn--primary" href="/vacancies">Все вакансии</a>
+        <a class="btn btn--ghost" href="/podborki">Другие подборки</a>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if sel.tips %}
+    <section class="section section--tight prose" aria-labelledby="tips">
+      <h2 class="h2 section__title" id="tips">На что обратить внимание</h2>
+      {% for t in sel.tips %}<p>{{ t }}</p>{% endfor %}
+      {% if salary_href %}<p><a class="link-arrow" href="{{ salary_href }}">Сколько платят по этой профессии{{ icon('arrow-right') }}</a></p>{% endif %}
+    </section>
+    {% endif %}
+
+    {% if groups %}
+    <section class="section section--tight link-groups" aria-labelledby="more">
+      <h2 class="h2 section__title" id="more">Смотрите также</h2>
+      {% for g in groups %}
+      <div class="link-group">
+        <h3 class="link-group__title" id="lg-{{ loop.index }}">{{ g.title }}</h3>
+        <ul class="chip-row" aria-labelledby="lg-{{ loop.index }}">
+          {% for it in g['items'] %}<li><a class="chip" href="{{ it.href }}">{% if it.icon %}{{ icon('map-pin') }}{% endif %}{{ it.label }}{% if it.n %} <span class="chip__n">{{ it.n }}</span>{% endif %}</a></li>{% endfor %}
+        </ul>
+      </div>
+      {% endfor %}
+    </section>
+    {% endif %}
+
+    {% if related %}
+    <section class="section section--tight link-groups" aria-labelledby="read">
+      <h2 class="h2 section__title" id="read">Читайте также</h2>
+      <ul class="chip-row">
+        {% for a in related %}<li><a class="chip chip--wrap" href="{{ a.path }}">{{ icon('file-text') }}{{ a.title }}</a></li>{% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

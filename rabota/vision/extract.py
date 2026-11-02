@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 import re
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -144,8 +145,10 @@ def extract_from_image(
         log.warning("vision: картинка недоступна: %s", exc)
         return {**empty_result(), "image_hash": None, "error": str(exc)}
 
+    provider = provider or provider_from_env()
+    version = getattr(provider, "version", None)  # версия распознавания: после улучшения старые ответы не берутся
     cached = cache.get(h, max_distance=2)
-    if cached is not None:
+    if cached is not None and cached.get("ocr_version") == version:
         return {**normalize_output(cached), "image_hash": h, "cached": True}
 
     if post_key:
@@ -153,7 +156,6 @@ def extract_from_image(
     if cache.is_banner(h):
         return {**empty_result("ad"), "image_hash": h, "skipped": "banner"}
 
-    provider = provider or provider_from_env()
     try:
         result = provider.extract(data, hint_text)
     except ProviderError as exc:
@@ -161,7 +163,7 @@ def extract_from_image(
         return {**empty_result(), "image_hash": h, "error": str(exc)}
     result = normalize_output(result)
     if provider.cacheable:
-        cache.put(h, result)
+        cache.put(h, {**result, "ocr_version": version} if version is not None else result)
     return {**result, "image_hash": h}
 
 
@@ -238,6 +240,65 @@ def build_vacancies(result: dict[str, Any], raw: RawPost) -> tuple[list[Vacancy]
     return vacancies, conflicts
 
 
+@dataclass
+class ImageScan:
+    """Итог чтения картинок поста: вакансии и признак, что афиша не прочиталась."""
+
+    vacancies: list[Vacancy] = field(default_factory=list)
+    attempted: bool = False           # картинки были и шли в распознавание
+    unread: bool = False              # ни одна картинка не дала читаемого текста или вакансии
+    image_key: str = ""               # хеши картинок: по ним видно, что картинка изменилась
+    reasons: list[str] = field(default_factory=list)
+
+
+def scan_images(
+    raw: RawPost,
+    provider: VisionProvider | None = None,
+    *,
+    cache: VisionCache | None = None,
+    fetch: Callable[[str], bytes] | None = None,
+) -> ImageScan:
+    """Читает картинки поста. Услуги, набор на службу, реклама и баннеры вакансий не дают."""
+    scan = ImageScan()
+    if not raw.image_urls or not needs_image_recognition(raw.text):
+        return scan
+    scan.attempted = True
+    cache = cache or VisionCache()
+    post_key = f"{raw.source_type}:{raw.source}:{raw.external_id}"
+    seen: set[str] = set()
+    hashes: list[str] = []
+    readable_any = False
+    for url in raw.image_urls:
+        result = extract_from_image(url, raw.text, provider, cache=cache, fetch=fetch, post_key=post_key)
+        h = result.get("image_hash")
+        if h in seen:
+            continue
+        if h:
+            seen.add(h)
+            hashes.append(h)
+        found, conflicts = build_vacancies(result, raw)
+        if conflicts:
+            log.info("vision: расхождение с текстом в %s: %s", raw.url, ", ".join(conflicts))
+        scan.vacancies.extend(found)
+        if result.get("kind") in ("service", "military", "ad") or result.get("skipped"):
+            readable_any = True  # афиша прочитана и это не вакансия: перечитывать нечего
+        elif result.get("error"):
+            scan.reasons.append(str(result["error"])[:120])
+        elif result.get("kind") == "other" and not _text_is_readable(result.get("raw_text", "")):
+            scan.reasons.append("текст афиши не прочитан")
+        else:
+            readable_any = True
+    scan.image_key = ",".join(hashes)
+    scan.unread = not scan.vacancies and not readable_any
+    return scan
+
+
+def _text_is_readable(text: str) -> bool:
+    from rabota.vision.ocr_quality import readable
+
+    return readable(text or "")
+
+
 def vacancies_from_images(
     raw: RawPost,
     provider: VisionProvider | None = None,
@@ -246,21 +307,4 @@ def vacancies_from_images(
     fetch: Callable[[str], bytes] | None = None,
 ) -> list[Vacancy]:
     """Вакансии с картинок поста. Услуги, набор на службу, реклама и баннеры дают пустой список."""
-    if not raw.image_urls or not needs_image_recognition(raw.text):
-        return []
-    cache = cache or VisionCache()
-    post_key = f"{raw.source_type}:{raw.source}:{raw.external_id}"
-    seen: set[str] = set()
-    vacancies: list[Vacancy] = []
-    for url in raw.image_urls:
-        result = extract_from_image(url, raw.text, provider, cache=cache, fetch=fetch, post_key=post_key)
-        h = result.get("image_hash")
-        if h in seen:
-            continue
-        if h:
-            seen.add(h)
-        found, conflicts = build_vacancies(result, raw)
-        if conflicts:
-            log.info("vision: расхождение с текстом в %s: %s", raw.url, ", ".join(conflicts))
-        vacancies.extend(found)
-    return vacancies
+    return scan_images(raw, provider, cache=cache, fetch=fetch).vacancies

@@ -1,0 +1,92 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, pager, empty, chip %}
+{% macro opt(value, text, current) -%}<option value="{{ value }}"{% if value == current %} selected{% endif %}>{{ text }}</option>{%- endmacro %}
+{% macro sort_th(key, label) -%}
+<a class="adm-sort" href="/admin/employers?{{ sort_links[key] }}"{% if f.sort == key %} aria-sort="{{ 'ascending' if f.dir == 'asc' else 'descending' }}"{% endif %}>{{ label }}{% if f.sort == key %}<span aria-hidden="true">{{ ' ↑' if f.dir == 'asc' else ' ↓' }}</span>{% endif %}</a>
+{%- endmacro %}
+
+{% block content %}
+{{ page_head('Работодатели', 'Компании, которые размещают вакансии на сайте. Проверенному работодателю вакансии без подозрительных признаков публикуются сразу, заблокированному аккаунт закрыт, а вакансии скрыты.') }}
+
+<section class="kpis" aria-label="Сколько компаний в каждом состоянии" data-sortable="employers-tiles">
+  {% for key, label, href in [
+    ('all', 'Всего', ''), ('verified', 'Проверенные', 'verified=yes'), ('unverified', 'Не проверенные', 'verified=no'),
+    ('pending', 'С вакансиями на проверке', ''), ('blocked', 'Заблокированные', 'state=blocked')] %}
+  <a class="kpi" data-key="{{ key }}" draggable="true" href="/admin/employers{% if href %}?{{ href }}{% endif %}">
+    <span class="kpi__n">{{ totals[key] }}</span><span class="kpi__t">{{ label }}</span>
+  </a>
+  {% endfor %}
+</section>
+
+<form class="adm-filter" method="get" action="/admin/employers" role="search" aria-label="Фильтры списка работодателей">
+  <div class="adm-grid adm-grid--4">
+    <div class="field"><label for="f-q">Поиск</label>
+      <input class="input input--sm" id="f-q" name="q" type="search" value="{{ f.q }}" maxlength="80" placeholder="Номер, название, почта, телефон, сайт"></div>
+    <div class="field"><label for="f-verified">Проверка</label>
+      <select class="input input--sm" id="f-verified" name="verified"><option value="">Любая</option>{% for k, t in options.verified.items() %}{{ opt(k, t, f.verified) }}{% endfor %}</select></div>
+    <div class="field"><label for="f-state">Состояние</label>
+      <select class="input input--sm" id="f-state" name="state"><option value="">Любое</option>{% for k, t in options.states.items() %}{{ opt(k, t, f.state) }}{% endfor %}</select></div>
+    <div class="field"><label for="f-period">Зарегистрирована</label>
+      <select class="input input--sm" id="f-period" name="period">{% for k, t in options.periods.items() %}{{ opt(k, t, f.period) }}{% endfor %}</select></div>
+  </div>
+  <div class="adm-actions">
+    <button class="btn btn--primary btn--sm" type="submit">{{ icon('magnifying-glass') }}Показать</button>
+    {% if f.active %}<a class="btn btn--ghost btn--sm" href="/admin/employers">Сбросить фильтры</a>{% endif %}
+    <span class="adm-filter__found" role="status">Найдено: {{ page.total }}</span>
+  </div>
+</form>
+
+{% if items %}
+<div class="adm-tablewrap">
+<table class="atable">
+  <caption class="visually-hidden">Работодатели, страница {{ page.page }} из {{ page.pages }}</caption>
+  <thead>
+    <tr data-sortable="employers-columns">
+      <th scope="col" data-key="id" draggable="true">№</th>
+      <th scope="col" data-key="company" draggable="true">{{ sort_th('name', 'Компания') }}</th>
+      <th scope="col" data-key="owner" draggable="true">Владелец</th>
+      <th scope="col" data-key="vacancies" draggable="true">{{ sort_th('vacancies', 'Вакансии') }}</th>
+      <th scope="col" data-key="complaints" draggable="true">{{ sort_th('complaints', 'Жалобы') }}</th>
+      <th scope="col" data-key="created" draggable="true">{{ sort_th('created', 'Регистрация') }}</th>
+      <th scope="col" data-key="state" draggable="true">Состояние</th>
+      <th scope="col" data-key="actions"><span class="visually-hidden">Действия</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for c in items %}
+    <tr>
+      <td data-label="№" data-key="id" class="mono">{{ c.id }}</td>
+      <td data-label="Компания" data-key="company">
+        <a class="atable__main" href="/admin/employers/{{ c.id }}">{{ c.name }}</a>
+        <span class="atable__sub">{{ c.city or 'Донецк' }}{% if c.site %}, {{ c.site }}{% endif %}</span>
+      </td>
+      <td data-label="Владелец" data-key="owner">{{ c.owner_email or '-' }}<span class="atable__sub">{{ c.owner_name }}</span></td>
+      <td data-label="Вакансии" data-key="vacancies">{{ c.vacancies_total }}{% if c.vacancies_pending %}<span class="atable__sub">на проверке: {{ c.vacancies_pending }}</span>{% endif %}</td>
+      <td data-label="Жалобы" data-key="complaints">{% if c.complaints_open %}{{ chip('Открытых: ' ~ c.complaints_open, 'warn', 'flag') }}{% else %}<span class="muted">нет</span>{% endif %}</td>
+      <td data-label="Регистрация" data-key="created">{{ c.created_at | dt }}</td>
+      <td data-label="Состояние" data-key="state">
+        {% if c.blocked_at %}{{ chip('Заблокирован', 'danger', 'lock-key') }}
+        {% elif c.verified_at %}{{ chip('Проверенный', 'ok', 'seal-check') }}
+        {% else %}{{ chip('Не проверен', 'mute', 'clock') }}{% endif %}
+        {% if c.origin == 'auto' and not c.owner_user_id %}{{ chip('Автокарточка', 'info', 'copy') }}{% endif %}
+      </td>
+      <td data-label="Действия" data-key="actions" class="atable__act">
+        <a class="btn btn--ghost btn--sm" href="/admin/employers/{{ c.id }}">Открыть</a>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{{ pager(page, '/admin/employers', query) }}
+{% else %}
+  {% if f.active %}
+  {% call empty('Ничего не нашлось', 'Под выбранные фильтры работодателей нет. Ослабьте условия или сбросьте фильтры.', 'magnifying-glass') %}
+    <a class="btn btn--ghost btn--sm" href="/admin/employers">Сбросить фильтры</a>
+  {% endcall %}
+  {% else %}
+  {% call empty('Работодателей пока нет', 'Когда работодатель разместит вакансию или заполнит карточку компании, она появится здесь.', 'buildings') %}{% endcall %}
+  {% endif %}
+{% endif %}
+{% endblock %}

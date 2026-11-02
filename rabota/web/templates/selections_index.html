@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, crumbs %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('content.css') }}">
+<div class="wrap">
+  <header class="page-head">
+    {{ crumbs(seo.breadcrumbs) }}
+    <h1 class="h1 h1--page">Подборки вакансий в Донецке</h1>
+    <p class="lead">Готовые наборы вакансий под частые запросы: без опыта, на день, с ежедневной оплатой. Всего на сайте {{ count_label(all_total, 'актуальная вакансия', 'актуальные вакансии', 'актуальных вакансий') }}.</p>
+  </header>
+
+  <ul class="scards">
+    {% for c in cards %}
+    <li>
+      <a class="scard" href="/podborki/{{ c.sel.slug }}">
+        <span class="scard__ico">{{ icon(c.sel.icon) }}</span>
+        <span class="scard__title">{{ c.sel.heading }}</span>
+        <span class="scard__text">{{ c.sel.lead }}</span>
+        <span class="scard__n">{% if c.n %}{{ count_label(c.n, 'вакансия', 'вакансии', 'вакансий') }}{% else %}Пока пусто{% endif %}</span>
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+
+  {% if district_links or profession_links %}
+  <section class="section link-groups" aria-labelledby="by">
+    <h2 class="h2 section__title" id="by">Популярные сочетания</h2>
+    {% if district_links %}
+    <div class="link-group">
+      <h3 class="link-group__title" id="by-d">По районам</h3>
+      <ul class="chip-row" aria-labelledby="by-d">
+        {% for href, n, label in district_links %}<li><a class="chip chip--wrap" href="{{ href }}">{{ icon('map-pin') }}{{ label }} <span class="chip__n">{{ n }}</span></a></li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+    {% if profession_links %}
+    <div class="link-group">
+      <h3 class="link-group__title" id="by-p">По профессиям</h3>
+      <ul class="chip-row" aria-labelledby="by-p">
+        {% for href, n, label in profession_links %}<li><a class="chip chip--wrap" href="{{ href }}">{{ label }} <span class="chip__n">{{ n }}</span></a></li>{% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

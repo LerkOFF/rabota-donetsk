@@ -1,0 +1,21 @@
+{{ count_text | capitalize }}: {{ title }}
+
+{% for c in items %}
+{{ loop.index }}. {{ c.title }}
+{% if c.details %}
+   {{ c.details }}
+{% endif %}
+   {{ c.url }}
+
+{% endfor %}
+{% if more %}
+И ещё {{ more }} на сайте.
+{% endif %}
+Все вакансии по вашему поиску: {{ all_url }}
+
+Вы получаете это письмо, потому что подписались на новые вакансии ({{ frequency_text }}).
+Отписаться в один шаг: {{ unsubscribe_url }}
+Все подписки: {{ manage_url }}
+
+{{ site_name }}
+{{ site_url }}

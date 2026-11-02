@@ -6,7 +6,7 @@ import pytest
 
 from rabota import legal
 
-SLUGS = ["privacy", "terms", "employers", "consent", "cookies", "requests", "sources"]
+SLUGS = ["privacy", "terms", "employers", "consent", "cookies", "requests", "sources", "resume"]
 VARS = {
     "operator_name": "Тестов Тест", "operator_status": "самозанятый", "operator_inn": "000000000000",
     "operator_email": "legal@example.test", "operator_address": "Тестовая улица, 1",
@@ -38,7 +38,7 @@ def test_document_has_title_and_no_draft_or_resume_notes(slug):
     assert "Редакция от" in lines[1]
     low = text.lower()
     assert "черновик" not in low and "проверки юристом" not in low
-    assert "резюме" not in low and "избранн" not in low  # этих возможностей на сайте нет
+    assert "избранн" not in low  # этой возможности на сайте нет
     assert 'class="notice' not in legal.render_document(slug, VARS).html
 
 
@@ -127,3 +127,23 @@ def test_consent_text_uses_environment_placeholders(monkeypatch):
 def test_unknown_document_raises():
     with pytest.raises(legal.UnknownDocument):
         legal.render_document("nope")
+
+
+def test_resume_consent_follows_articles_9_and_10_1():
+    text = legal.source_text("resume")
+    for needle in ("статья 9 закона 152-ФЗ", "статья 10.1 закона 152-ФЗ", "часть 12 статьи 10.1", "отдельной отметкой",
+                   "Какие данные я разрешаю", "Условия и запреты", "трёх рабочих дней", "удалить резюме", "Показать контакты",
+                   "12 месяцев", "не позднее 30 дней"):
+        assert needle in text, needle
+
+
+@pytest.mark.parametrize("slug", ["privacy", "terms", "employers", "consent", "requests"])
+def test_other_documents_mention_resume_rules(slug):
+    assert "/legal/resume" in legal.source_text(slug) or slug in ("employers", "requests")
+    assert "резюме" in legal.source_text(slug).lower()
+
+
+def test_privacy_lists_resume_data_recipients_and_retention():
+    text = legal.source_text("privacy")
+    for needle in ("**Резюме соискателя:**", "Всем работодателям", "Показать контакты", "12 месяцев", "статьи 9 и 10.1"):
+        assert needle in text, needle

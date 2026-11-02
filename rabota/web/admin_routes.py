@@ -33,6 +33,7 @@ from rabota.accounts.deps import check_csrf, client_ip, csrf_token, get_current_
 from rabota.accounts.mailer import SITE_NAME, Mail, send_safely
 from rabota.accounts.ratelimit import RateLimiter
 from rabota.admin import audit, complaints, dashboard, moderation, pulse, stoplist
+from rabota.admin import claims as admin_claims
 from rabota.admin import requests as legal_requests
 from rabota.admin import settings as admin_settings
 from rabota.admin import system as admin_system
@@ -40,6 +41,7 @@ from rabota.admin.common import clean_line, iso
 from rabota.lifecycle import parse_iso
 from rabota.models import CATEGORIES, EMPLOYMENTS, PAY_PERIODS, WORK_FORMATS
 from rabota.realtime.health import human_age
+from rabota.web import content_routes
 from rabota.web import format as fmt
 from rabota.web import seo as seolib
 
@@ -83,8 +85,11 @@ MENU = (
     ("pulse", "Пульс", "/admin/pulse", "lightning"),
     ("moderation", "Модерация", "/admin/moderation", "seal-check"),
     ("vacancies", "Вакансии", "/admin/vacancies", "briefcase"),
+    ("employers", "Работодатели", "/admin/employers", "buildings"),
+    ("claims", "Заявки на карточки", "/admin/claims", "handshake"),
     ("complaints", "Жалобы", "/admin/complaints", "flag"),
     ("requests", "Запросы по ПДн", "/admin/requests", "identification-card"),
+    ("resumes", "Резюме", "/admin/resumes", "user-circle"),
     ("stoplist", "Стоп-лист", "/admin/stoplist", "shield-warning"),
     ("system", "Система", "/admin/system", "desktop"),
     ("settings", "Настройки", "/admin/settings", "sliders-horizontal"),
@@ -213,6 +218,9 @@ def build_templates(site_url: str) -> Jinja2Templates:
     env.filters["date"] = lambda v: (local(v).strftime("%d.%m.%Y") if local(v) else "")
     env.filters["ucfirst"] = lambda s: (s[:1].upper() + s[1:]) if s else s
     env.filters["quote"] = lambda s: quote(str(s), safe="")
+    from rabota.employers.automod import flag_labels
+
+    env.filters["automod_labels"] = flag_labels  # пометки автопроверки вакансии по-русски
     return templates
 
 
@@ -221,7 +229,7 @@ def nav_counts(conn: sqlite3.Connection, now: datetime) -> dict[str, int]:
     cmp_ = complaints.counts(conn)
     req = legal_requests.counts(conn, now)
     return {
-        "moderation": mod["pending"], "complaints": cmp_["open"] + cmp_["reports_open"],
+        "moderation": mod["pending"], "complaints": cmp_["open"] + cmp_["reports_open"], "claims": admin_claims.nav_count(conn),
         "requests": req["open"], "requests_overdue": req["overdue"],
     }
 
@@ -289,7 +297,8 @@ def pulse_page(request: Request, admin: Admin) -> Response:
     st = state_of(request)
     with dbc(request) as conn:
         data = pulse.build(conn, request.query_params.get("period"), st.clock())
-    return render(request, "pulse.html", {"p": data}, section="pulse", title="Пульс",
+        index_pages = content_routes.index_counts(conn)
+    return render(request, "pulse.html", {"p": data, "index_pages": index_pages}, section="pulse", title="Пульс",
                   description="Новые вакансии, скрытые и просроченные, регистрации, отклики и жалобы за период со сравнением.")
 
 
@@ -466,7 +475,7 @@ async def vacancy_edit(request: Request, admin: Admin, vacancy_id: int) -> Respo
     form = await admin_form(request, admin)
 
     def work() -> Response:
-        from rabota.web.app import validate_post
+        from rabota.web.postform import validate_post
 
         _exists(request, vacancy_id)
         vacancy, cleaned, errors = validate_post(form.first_values())
@@ -1047,6 +1056,12 @@ def install(
 
     app.include_router(router)
     app.include_router(admin_vacancies.router)
+    from rabota.web import admin_employers
+
+    app.include_router(admin_employers.router)
+    from rabota.web import admin_claims as admin_claims_routes
+
+    app.include_router(admin_claims_routes.router)
     return state
 
 

@@ -25,10 +25,53 @@
 | duplicate_of | ссылка на главную вакансию, если это дубль |
 | last_seen_at | когда вакансию видели в последний раз, от этой даты идёт срок жизни |
 | status | активна, истекла, закрыта, скрыта по жалобе |
+| automod_flags | пометки автопроверки (JSON-список ключей, например `["money","links"]`), пусто, если замечаний нет |
+| raised_at, raise_count | когда вакансию поднимали в последний раз и сколько раз |
+| company_id, company_state | карточка работодателя и результат привязки (`linked` или `skip:<причина>`); название работодателя в `employer` не перезаписывается |
+| archived_at | когда вакансия ушла в архив (`status = 'archived'`) |
+| owner_edited_at | когда владелец правил собранную вакансию; после этого сборщик её поля не перезаписывает |
 
 ## Компания работодателя
 
-Таблица `companies`: название, описание, сайт, город, `phone` и `contact_email` (подставляются в форму новой вакансии, на странице компании не показываются), `verified`. Одна карточка на работодателя, создаётся при первом сохранении в кабинете или при размещении вакансии.
+Таблица `companies`: название, описание, сайт, город, `logo_path` (имя файла логотипа), `phone` и `contact_email` (подставляются в форму новой вакансии, на странице компании не показываются), `verified`. Одна карточка на работодателя, создаётся при первом сохранении в кабинете или при размещении вакансии.
+
+Проверка и блокировка (добавляет `rabota/employers/schema.py`, повтор безопасен):
+
+| Поле | Смысл |
+| --- | --- |
+| `verified_at` | когда администратор отметил «проверенный работодатель»; пусто, если не проверен. Значок на сайте показывается только по этому полю |
+| `verified_by`, `verify_note` | кто отметил и короткая заметка (как проверили) |
+| `blocked_at`, `blocked_note` | когда и почему компания заблокирована; страница компании и логотип отвечают 404, вакансии скрыты |
+
+Старая отметка `verified = 1` при миграции переносится в `verified_at` (дата регистрации компании). Снятие проверки и блокировка сбрасывают оба поля.
+
+Автокарточки (добавляет `rabota/employers_auto/schema.py`, `ALTER TABLE ... ADD COLUMN` только если колонки нет, повтор безопасен). Подробности: `docs/EMPLOYERS_AUTO.md`.
+
+| Поле | Смысл |
+| --- | --- |
+| `owner_user_id` | владелец; пусто у автокарточки (при миграции таблица пересоздаётся без `NOT NULL`, данные и индексы сохраняются) |
+| `origin` | `auto` (создана из собранных вакансий) или `registered` (завёл работодатель) |
+| `norm_name`, `legal_form` | нормализованное название для поиска дублей и форма собственности (ООО, ИП, АО...), которая в `norm_name` не входит, но не теряется |
+| `source_kind`, `source_ref` | источник и номер работодателя у источника (`hh:123`, `inn:930...`); по ним карточка находится в первую очередь |
+| `first_seen_at`, `last_vacancy_at` | когда у компании появилась первая вакансия и когда последняя |
+| `claimed_at` | когда карточку закрепили за владельцем после заявки |
+| `merged_into` | номер карточки, в которую эту влили; адрес старой карточки отвечает редиректом 301 |
+
+Уникальные индексы только для автокарточек: `norm_name` + город (`uq_companies_auto_norm`) и `source_kind` + `source_ref` (`uq_companies_auto_ref`).
+
+Таблица `company_claims` (заявки «Это моя компания»): `company_id`, `user_id`, `status` (`sent`, `review`, `confirmed`, `rejected`), `method` (`email` или `phone`), `contact`, `email_domain`, `domain_match`, `phone_match`, `code_hash`, `code_expires_at`, `code_attempts`, `code_sent_at`, `code_sent_count`, `code_ok_at`, `dispute`, `message`, `docs_requested_at`, `docs_note`, `admin_note`, `decided_by`, `decided_at`, `ip`, `created_at`, `updated_at`. Код хранится только хешем (HMAC), история действий идёт в `audit_log` (`claim.submit`, `claim.approve`, `claim.reject`, `claim.docs`, `company.merge`).
+
+Черновики размещения гостем: таблица `post_drafts`, подробнее в `docs/EMPLOYERS.md`.
+
+## Резюме
+
+Подробно в `docs/RESUMES.md`. Таблицы создаёт `rabota.resumes.schema.migrate` (повторный запуск безопасен).
+
+`resumes`: `id`, `user_id` (аккаунт, `ON DELETE CASCADE`, резюме у человека до трёх), `title`, `profession`, `city`, `district`, `district_key`, `pay_min`, `pay_period`, `work_formats`, `employments`, `schedule`, `relocate`, `remote`, `experience_years`, `experience` (JSON, до 3 мест), `skills` (JSON), `skills_key`, `about`, `contact_phone`, `contact_telegram`, `visibility` (`hidden`, `public`, `open`), `consent_at`, `consent_version`, `consent_withdrawn_at`, `admin_hidden`, `admin_note`, `admin_hidden_at`, `created_at`, `updated_at`.
+
+`resume_views`: `resume_id` и `employer_user_id` (оба `ON DELETE CASCADE`), `kind` (`view` или `contact`), `at`. По ней считаются просмотры, открытия контактов и суточный лимит.
+
+В `applications` добавлены `resume_id` (приложенное резюме, `ON DELETE SET NULL`) и `viewed_at` (когда работодатель впервые открыл отклик).
 
 ## Справочники
 
@@ -50,7 +93,7 @@
 
 Поля схемы (`Setting`): `key`, `group` (ключ из `GROUPS`), `label`, `kind` (`int`, `bool`, `text`), `default` (функция: значение из `.env` или кода), `minimum` и `maximum` (для `text`: наибольшая длина), `hint`, `unit`.
 
-Ключи: `vacancy_ttl_days` (3-90, по умолчанию `VACANCY_TTL_DAYS`), `expired_keep_days` (1-365, `EXPIRED_KEEP_DAYS`), `complaint_autohide_threshold` (0-50, `COMPLAINT_AUTOHIDE_THRESHOLD`), `registration_open` (да или нет, `REGISTRATION_OPEN`), `registration_closed_note` (текст до 300 знаков).
+Ключи: `vacancy_ttl_days` (3-90, по умолчанию `VACANCY_TTL_DAYS`), `expired_keep_days` (1-365, `EXPIRED_KEEP_DAYS`), `complaint_autohide_threshold` (0-50, `COMPLAINT_AUTOHIDE_THRESHOLD`), `registration_open` (да или нет, `REGISTRATION_OPEN`), `registration_closed_note` (текст до 300 знаков), группа «Работодатели»: `archive_keep_days` (30-3650, 365), `archive_raw_days` (1-365, 30), `employer_auto_enabled` (да или нет), `employer_index_min` (1-50, 3), `claims_per_day` (суточный лимит заявок одного работодателя, 3), `claims_open_max` (сколько заявок одновременно ждут решения, 3).
 
 Состояние фоновых задач хранится в `ingest_state`: ключ `job:expire` отмечает последнюю ежедневную уборку.
 
@@ -61,7 +104,10 @@
 - Если тот же работодатель выложил ту же вакансию снова, в любом источнике, склейка дублей переносит новую дату в главную вакансию и отсчёт начинается заново. "Тот же" значит тот же телефон и профессия или почти тот же текст.
 - Истёкшая вакансия получает статус `expired` и пропадает с сайта. Сайт сверяет срок и сам, даже если команда не запускалась.
 - Если истёкшую вакансию опубликовали снова, она возвращается на сайт.
-- Истёкшие вакансии физически удаляются из базы вместе с дублями, жалобами и исходными постами через 30 дней скрытого хранения (`EXPIRED_KEEP_DAYS`).
+- Истёкшие вакансии через 30 дней скрытого хранения (`EXPIRED_KEEP_DAYS`) не удаляются, а уходят в архив: статус `archived`, дата `archived_at`. Из выдачи, поиска, подписок, рассылок и sitemap они выпадают (везде нужен `status = 'active'`), строка остаётся и показывается вкладкой «Архив» на странице работодателя.
+- У архивной вакансии через `archive_raw_days` (по умолчанию 30) очищается сырой текст источника, поля карточки (профессия, период, оплата, город, контакты) остаются.
+- Из архива вакансия удаляется вместе с дублями, жалобами и исходными постами через `archive_keep_days` (по умолчанию 365, настройка «Хранить архив, дней»).
+- Если архивную вакансию собрали снова с новой датой, она возвращается на сайт без дубля.
 - Команда: `python -m rabota expire`. Она же вызывается при `process` и `run`.
 - Пост старше 21 дня сохраняется сразу скрытым, поэтому старые посты каналов не оживают.
 
@@ -83,3 +129,34 @@
 | `created_at` | когда выпущен; по нему считаются пауза в минуту и лимит 5 кодов в час |
 
 Действует один неиспользованный код на пару `user_id` и `purpose`. Просроченные и использованные старше суток удаляются вместе с токенами (`service.purge_expired`). Индекс `idx_email_codes_user (user_id, purpose, created_at)`.
+
+## Подписки и канал
+
+Создаются в `rabota/alerts/schema.py` при старте, повтор безопасен. Подробности работы: `docs/ALERTS.md`.
+
+`alert_subscriptions`: сохранённый поиск.
+
+| Поле | Смысл |
+| --- | --- |
+| `user_id` | аккаунт; пусто у гостя; удаляется вместе с аккаунтом (`ON DELETE CASCADE`) |
+| `email` | почта гостя или аккаунта (регистр не важен) |
+| `channel` | `email` или `telegram` |
+| `frequency` | `instant` или `daily` |
+| `filters`, `filters_key` | фильтры JSON и их нормализованный ключ (повторная подписка на тот же поиск не создаёт дубль) |
+| `title` | заголовок вида "бариста в Донецке" |
+| `status` | `pending`, `active`, `paused`, `unsubscribed` |
+| `baseline_id` | номер последней вакансии на момент подтверждения; старше в рассылку не идёт |
+| `code_hash`, `code_expires_at`, `code_attempts` | код подтверждения гостя (хранится хеш), срок и число попыток |
+| `tg_chat_id`, `tg_code_hash`, `tg_code_expires_at` | чат Telegram и хеш одноразового кода привязки |
+| `created_at`, `confirmed_at`, `last_sent_at`, `last_checked_at`, `unsubscribed_at` | время событий |
+| `sent_count`, `error_count`, `last_error` | счётчики и последняя ошибка доставки |
+
+`alert_sent` (`subscription_id`, `vacancy_id`, `sent_at`, первичный ключ из первых двух): что уже отправлено, повторов нет; удаляется вместе с подпиской.
+
+`alert_log`: журнал доставки (`at`, `subscription_id`, `channel`, `kind` = `digest`, `confirm` или `telegram`, `ok`, `error`, `vacancies`); по нему считается лимит писем в час и блок админки.
+
+`channel_posts`: попытки автопостинга (`at`, `rubric`, `post_key`, `vacancy_ids` JSON, `ok`, `error`, `message_id`). По ним считаются потолок постов в час, ключи "раз в день" и "раз в час" и пауза 10 минут после сбоя.
+
+`channel_vacancies` (`rubric`, `vacancy_id`, `posted_at`): какие вакансии уже были в канале; вакансия попадает в канал один раз во всех рубриках.
+
+Состояние задач и смещение бота лежат в `ingest_state` (`job:alerts-email`, `job:alerts-telegram`, `job:channel`, `bot:offset`, `bot:poll`).

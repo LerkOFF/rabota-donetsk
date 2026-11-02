@@ -1,0 +1,64 @@
+{# Доверие: метки свежести, значок проверенного работодателя, честность для собранных вакансий, показатели, советы.
+   Файл самодостаточный (не импортирует _macros.html), поэтому его можно подключать откуда угодно. #}
+
+{% macro ic(name) -%}
+<svg class="icon" aria-hidden="true" focusable="false"><use href="/static/icons.svg#i-{{ name }}"></use></svg>
+{%- endmacro %}
+
+{# Метки карточки: свежесть и проверка у вакансий работодателя, пометка об источнике у собранных. #}
+{% macro card_trust(v) -%}
+{% if v.fresh or v.is_parsed %}
+<ul class="badges trust-badges">
+  {% for c in v.fresh %}<li class="badge badge--{{ c.kind }}" title="{{ c.title }}">{% if c.kind == 'checked' %}{{ ic('seal-check') }}{% elif c.kind == 'new' %}{{ ic('lightning') }}{% else %}{{ ic('clock') }}{% endif %}{{ c.label }}</li>{% endfor %}
+  {% if v.is_parsed %}<li class="badge badge--open" title="Вакансию собрал сайт из открытых источников. Работодатель не подтверждён.">{{ ic('globe') }}Из открытых источников</li>{% endif %}
+</ul>
+{% endif %}
+{%- endmacro %}
+
+{# Значок «Проверенный работодатель» с пояснением, что это значит. date: дата проверки в виде текста. #}
+{% macro verified_badge(date='') -%}
+<details class="verified">
+  <summary class="tag tag--verified">{{ ic('seal-check') }}Проверенный работодатель</summary>
+  <p class="verified__text">Администрация сайта проверила телефон или документы этой компании{% if date %} ({{ date }}){% endif %}. Это значит, что за вакансиями стоит реальная организация. Это не гарантия: работодатель не должен просить деньги за трудоустройство, и это правило действует для всех.</p>
+</details>
+{%- endmacro %}
+
+{# Логотип компании или первая буква названия. src: адрес логотипа (может быть пустым). #}
+{% macro logo(name, src='', size='') -%}
+{% if src %}<img class="logo-tile logo-tile--img{% if size %} logo-tile--{{ size }}{% endif %}" src="{{ src }}" alt="" loading="lazy" decoding="async" width="{{ 64 if size == 'lg' else 48 }}" height="{{ 64 if size == 'lg' else 48 }}">
+{%- else %}<span class="logo-tile{% if size %} logo-tile--{{ size }}{% endif %}" aria-hidden="true">{{ (name or '?')[:1] | upper }}</span>{% endif %}
+{%- endmacro %}
+
+{# Показатели работодателя: только то, на что хватает данных. stats.visible ложно: ничего не выводится. #}
+{% macro employer_stats(stats) -%}
+{% if stats and stats.visible %}
+<dl class="emp-stats">
+  {% if stats.show_responses %}<div><dt>Откликов получено</dt><dd>{{ stats.responses }}</dd></div>{% endif %}
+  {% if stats.show_reply_time %}<div><dt>Отвечает</dt><dd>{{ stats.reply_text }}</dd></div>{% endif %}
+</dl>
+{% endif %}
+{%- endmacro %}
+
+{# Честность для собранных вакансий: откуда она, ссылка на источник, работодатель не подтверждён. #}
+{% macro open_source_note(v) -%}
+<div class="open-note">
+  <p class="badge badge--open">{{ ic('globe') }}Собрано из открытых источников</p>
+  <p>Мы нашли эту вакансию в открытом источнике: {{ v.source_label }}{% if v.source %}, {{ v.source }}{% endif %}. Работодатель не подтверждён, условия мы не проверяли.</p>
+  {% if v.original_url %}<p><a class="link-arrow" href="{{ v.original_url }}" target="_blank" rel="noopener nofollow ugc">Открыть источник{{ ic('arrow-square-out') }}</a></p>{% endif %}
+</div>
+{%- endmacro %}
+
+{# Как отличить мошенников. open: показывать развёрнутым. #}
+{% macro scam_tips(open=False) -%}
+<details class="panel scam"{% if open %} open{% endif %}>
+  <summary class="scam__title">{{ ic('shield-warning') }}Как отличить мошенников</summary>
+  <ul class="scam__list">
+    <li><strong>Просят деньги.</strong> Залог, взнос за обучение, оплата формы или анкеты: настоящий работодатель этого не требует.</li>
+    <li><strong>Слишком высокая оплата</strong> за простую работу без опыта и собеседования.</li>
+    <li><strong>Уводят в мессенджер</strong> и не называют ни организацию, ни адрес.</li>
+    <li><strong>Просят документы</strong> или код из СМС до встречи. Паспорт показывают только при оформлении.</li>
+    <li><strong>Закладки, «курьеры» без договора, переводы через вашу карту</strong>: это уголовные статьи, а не работа.</li>
+  </ul>
+  <p class="scam__more">Что-то насторожило? Отправьте жалобу на эту вакансию: мы проверим и скроем её. <a href="/about#safety">Подробнее о безопасности</a></p>
+</details>
+{%- endmacro %}

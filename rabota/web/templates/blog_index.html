@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, crumbs %}
+{% from '_content_macros.html' import article_card %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('content.css') }}">
+<div class="wrap">
+  <header class="page-head">
+    {{ crumbs(seo.breadcrumbs) }}
+    <h1 class="h1 h1--page">Блог о работе в Донецке</h1>
+    <p class="lead">Короткие понятные статьи: как составить резюме, пройти собеседование, не попасть на обман и выбрать график.</p>
+  </header>
+  {% if articles %}
+  <div class="acards">{% for a in articles %}{{ article_card(a) }}{% endfor %}</div>
+  {% else %}
+  <div class="state">
+    <span class="state__ico">{{ icon('file-text') }}</span>
+    <h2 class="h3">Статьи скоро появятся</h2>
+    <p>Пока загляните в свежие вакансии.</p>
+    <div class="state__actions"><a class="btn btn--primary" href="/vacancies">Смотреть вакансии</a></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

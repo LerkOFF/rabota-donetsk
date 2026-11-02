@@ -76,15 +76,38 @@
       <h2 id="c-view" class="h3">Как это видят соискатели</h2>
       {% if company %}
       <div class="cab__preview">
-        {{ logo_tile(company.name, 'lg') }}
+        {{ logo_tile(company.name, 'lg', logo_url(company)) }}
         <div>
           <p class="cab__preview-name">{{ company.name }}</p>
           <p class="muted">{{ company.city or 'Донецк' }}</p>
+          {% if company.verified_at %}<p class="tag tag--verified">{{ icon('seal-check') }}Проверенный работодатель</p>{% endif %}
         </div>
       </div>
       <a class="btn btn--ghost" href="/company/{{ company.id }}">{{ icon('arrow-square-out') }}Страница компании</a>
+      <div class="logo-form" id="logo">
+        <h3 class="h3">Логотип</h3>
+        {% set logo_state = request.query_params.get('logo', '') %}
+        {% if logo_state == 'ok' %}<p class="notice" role="status">{{ icon('check-circle') }}<span>Логотип сохранён.</span></p>
+        {% elif logo_state == 'removed' %}<p class="notice" role="status">{{ icon('check-circle') }}<span>Логотип удалён.</span></p>
+        {% elif logo_state == 'err' %}<p class="notice notice--warn" role="alert">{{ icon('warning') }}<span>{{ logo_error(request.query_params.get('logo_err', '')) }}</span></p>{% endif %}
+        <form method="post" action="/cabinet/company/logo" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="field">
+            <label for="c-logo">Файл PNG, JPEG или WEBP</label>
+            <input class="input" id="c-logo" name="logo" type="file" accept="image/png,image/jpeg,image/webp" required aria-describedby="hint-logo">
+            <p class="hint" id="hint-logo">До 2 МБ, от 32 до 4000 пикселей. Лучше квадратный. Мы пересохраним картинку: лишние данные из файла уберутся.</p>
+          </div>
+          <button class="btn btn--soft" type="submit">{{ icon('plus') }}Загрузить логотип</button>
+        </form>
+        {% if company.logo_path %}
+        <form method="post" action="/cabinet/company/logo/delete">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn--ghost btn--sm" type="submit">{{ icon('trash') }}Убрать логотип</button>
+        </form>
+        {% endif %}
+      </div>
       {% else %}
-      <p>Страница компании появится после первого сохранения или публикации вакансии. Название по умолчанию берётся из вакансии.</p>
+      <p>Страница компании появится после первого сохранения или публикации вакансии. Название по умолчанию берётся из вакансии. Логотип можно загрузить после сохранения карточки.</p>
       {% endif %}
       <p class="hint">Страницу компании ищут по названию и открывают из вакансии, поэтому описание и сайт помогают получать больше откликов.</p>
     </aside>

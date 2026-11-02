@@ -346,14 +346,16 @@ def test_employer_posts_edits_and_sees_status_in_browser(open_page, db_file):
     page = open_page("/razmestit", 390, role="employer")
     assert "в вашем кабинете" in page.inner_text("body")
     page.fill("#p-profession", "Кондитер")
-    page.select_option("#p-category", "общепит")
     page.fill("#p-summary", "Печь торты и десерты для кофейни на проспекте.")
     page.fill("#p-phone", "+7 949 555-44-33")
     page.click("form.form-grid button[type=submit]")
     page.wait_for_load_state("load")
-    assert page.url.endswith("/cabinet/vacancies?done=posted")
+    assert "/razmestit/gotovo/" in page.url
+    assert "Кондитер" in page.inner_text("body")
+    page.goto(page.url.split("/razmestit/")[0] + "/cabinet/vacancies")
+    page.wait_for_load_state("load")
     text = page.inner_text("body")
-    assert "отправлена на проверку" in text and "Кондитер" in text
+    assert "Кондитер" in text
     card = page.locator("li.vrow", has_text="Кондитер")
     assert "На проверке" in card.inner_text()
     card.get_by_role("link", name="Править").click()
@@ -392,3 +394,52 @@ def test_company_card_saved_in_browser(open_page):
     page.click("form.form-grid button[type=submit]")
     page.wait_for_load_state("load")
     assert page.locator("#error-summary").count() == 1 and page.input_value("#c-description") == "Сеть кофеен Донецка."
+
+
+# ---------------------------------------------------------------- работодатели и доверие
+
+def _company_id(db_file) -> int:
+    """Компания с проверкой и открытой вакансией: на ней видны значок, метки и показатели."""
+    c = sqlite3.connect(db_file)
+    row = c.execute("SELECT id FROM companies ORDER BY id LIMIT 1").fetchone()
+    if row is None:
+        owner = c.execute("SELECT id FROM users WHERE role = 'employer' ORDER BY id LIMIT 1").fetchone()[0]
+        c.execute("INSERT INTO companies(owner_user_id, name, description, city) VALUES (?, 'Кофейня Зерно', 'Сеть кофеен.', 'Донецк')", (owner,))
+        row = (c.execute("SELECT MAX(id) FROM companies").fetchone()[0],)
+    c.execute("UPDATE companies SET verified_at = '2026-10-01T10:00:00+00:00', verified = 1 WHERE id = ?", (row[0],))
+    c.execute("UPDATE vacancies SET company_id = ? WHERE origin = 'direct' AND moderation_status = 'approved'", (row[0],))
+    c.commit()
+    c.close()
+    return int(row[0])
+
+
+EMPLOYER_PAGES = [
+    ("/razmestit", "guest"), ("/razmestit", "employer"), ("/company/%(cid)s", "guest"), ("/vacancy/%(vid)s", "guest"),
+    ("/cabinet/company", "employer"), ("/admin/employers", "admin"), ("/admin/employers/%(cid)s", "admin"),
+]
+
+
+def _employer_path(path, db_file):
+    return path % {"cid": _company_id(db_file), "vid": _first_direct(db_file)} if "%(" in path else path
+
+
+@pytest.mark.parametrize(("path", "role"), EMPLOYER_PAGES)
+def test_employer_pages_touch_targets_on_phone(open_page, db_file, path, role):
+    page = open_page(_employer_path(path, db_file), 360, role=role)
+    assert page.evaluate(SMALL_TARGETS_JS) == [], f"{role} {path}"
+
+
+@pytest.mark.parametrize("scheme", ["light", "dark"])
+@pytest.mark.parametrize("width", [360, 390, 768, 1280])
+@pytest.mark.parametrize(("path", "role"), EMPLOYER_PAGES)
+def test_employer_pages_have_no_horizontal_scroll(open_page, db_file, path, role, width, scheme):
+    page = open_page(_employer_path(path, db_file), width, scheme=scheme, role=role)
+    assert page.evaluate("document.documentElement.scrollWidth - document.documentElement.clientWidth") <= 0, f"{role} {path} {width}"
+
+
+def test_verified_badge_opens_explanation(open_page, db_file):
+    page = open_page(f"/company/{_company_id(db_file)}", 360)
+    badge = page.locator("summary.tag--verified").first
+    assert badge.is_visible()
+    badge.click()
+    assert "Это не гарантия" in page.inner_text("body")

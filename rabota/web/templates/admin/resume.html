@@ -1,0 +1,66 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, chip, csrf %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('resumes.css') }}">
+{% call page_head('Резюме №' ~ r.id ~ ': ' ~ r.title, 'Данные резюме, согласие на передачу работодателям и учёт просмотров.') %}
+<p class="adm-head__chips">
+  {% if r.admin_hidden %}{{ chip('Скрыто модератором', 'danger', 'shield-warning') }}
+  {% elif r.visibility == 'hidden' %}{{ chip('Скрыто владельцем', 'mute', 'lock-key') }}
+  {% elif r.stale %}{{ chip('Давно не обновлялось', 'warn', 'hourglass') }}
+  {% elif r.visibility == 'public' %}{{ chip('Всем работодателям', 'ok', 'check-circle') }}
+  {% else %}{{ chip('Только по отклику', 'info', 'paper-plane-tilt') }}{% endif %}
+  <a class="btn btn--ghost btn--sm" href="/admin/resumes">{{ icon('caret-left') }}К списку</a>
+</p>
+{% endcall %}
+
+<div class="adm-sys" data-sortable="resume-blocks">
+  <section class="panel" data-key="data" draggable="true" aria-labelledby="r-data">
+    <h2 id="r-data">Данные</h2>
+    <dl class="facts adm-facts">
+      <div><dt>Профессия</dt><dd>{{ r.title }}</dd></div>
+      <div><dt>Зарплата</dt><dd>{{ r.pay_text }}</dd></div>
+      <div><dt>Стаж</dt><dd>{{ r.experience_text }}</dd></div>
+      <div><dt>Место</dt><dd>{{ r.location or 'не указано' }}{% if r.flags %}, {{ r.flags | join(', ') | lower }}{% endif %}</dd></div>
+      <div><dt>Условия</dt><dd>{{ (r.employment_labels + r.format_labels) | join(', ') or 'не указаны' }}{% if r.schedule %}, {{ r.schedule }}{% endif %}</dd></div>
+      <div><dt>Места работы</dt><dd>{% for p in r.places %}{{ p.role }}{% if p.role and p.place %}, {% endif %}{{ p.place }}{% if p.period %} ({{ p.period }}){% endif %}{% if not loop.last %}; {% endif %}{% else %}не указаны{% endfor %}</dd></div>
+      <div><dt>Навыки</dt><dd>{{ r.skills | join(', ') or 'не указаны' }}</dd></div>
+      <div><dt>О себе</dt><dd class="plain-text">{{ r.about or 'не заполнено' }}</dd></div>
+      <div><dt>Контакты</dt><dd>{{ r.phone_pretty or 'нет телефона' }}, {{ ('@' ~ r.contact_telegram) if r.contact_telegram else 'нет Telegram' }}</dd></div>
+    </dl>
+  </section>
+
+  <section class="panel" data-key="meta" draggable="true" aria-labelledby="r-meta">
+    <h2 id="r-meta">Владелец, согласие, учёт</h2>
+    <dl class="facts adm-facts">
+      <div><dt>Владелец</dt><dd>{{ r.owner_name }}, {{ r.owner_email }}{% if r.owner_status != 'active' %} (аккаунт заблокирован){% endif %}</dd></div>
+      <div><dt>Создано</dt><dd>{{ r.created_at | dt or 'нет данных' }}</dd></div>
+      <div><dt>Обновлено</dt><dd>{{ r.updated_at | dt }}</dd></div>
+      <div><dt>Согласие на передачу</dt><dd>{% if r.consent_at %}{{ r.consent_at | dt }}, редакция «{{ r.consent_version }}»{% if r.consent_withdrawn_at %}; отозвано {{ r.consent_withdrawn_at | dt }}{% endif %}{% else %}не давалось{% endif %}</dd></div>
+      <div><dt>Просмотры</dt><dd>работодателей: {{ r.views }}, открыли контакты: {{ r.contacts }}, откликов с этим резюме: {{ r.applications }}</dd></div>
+      <div><dt>Заполненность</dt><dd>{{ r.percent }}%</dd></div>
+    </dl>
+  </section>
+
+  <section class="panel" data-key="moderation" draggable="true" aria-labelledby="r-act">
+    <h2 id="r-act">Модерация</h2>
+    {% if r.admin_hidden %}
+    <p class="notice notice--warn" role="status">{{ icon('shield-warning') }}<span>Скрыто модератором {{ r.admin_hidden_at | dt }}. Причина, которую видит владелец: {{ r.admin_note }}</span></p>
+    <form method="post" action="/admin/resumes/{{ r.id }}/restore" class="adm-form">
+      {{ csrf() }}
+      <input type="hidden" name="next" value="/admin/resumes/{{ r.id }}">
+      <div class="adm-actions"><button class="btn btn--primary" type="submit">{{ icon('check-circle') }}Вернуть владельцу</button></div>
+    </form>
+    {% else %}
+    <p class="hint">Скройте резюме, если в нём ложные сведения, чужие данные, ссылки, реклама или оскорбления. Владелец увидит причину и сможет исправить резюме.</p>
+    <form method="post" action="/admin/resumes/{{ r.id }}/hide" class="adm-form">
+      {{ csrf() }}
+      <input type="hidden" name="next" value="/admin/resumes/{{ r.id }}">
+      <div class="field"><label for="r-note">Причина (видна владельцу)</label>
+        <textarea class="input" id="r-note" name="note" rows="3" maxlength="300" required></textarea></div>
+      <div class="adm-actions"><button class="btn btn--danger" type="submit">{{ icon('lock-key') }}Скрыть резюме</button></div>
+    </form>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

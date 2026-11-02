@@ -26,7 +26,7 @@ PER_PAGE = 25
 LOCAL_UTC_OFFSET = timedelta(hours=3)  # Донецк, московское время: границы периодов считает код, а не база
 MAX_CHAIN = 8
 
-STATUSES = {"active": "Активна", "hidden": "Скрыта", "expired": "Истекла", "closed": "Закрыта"}
+STATUSES = {"active": "Активна", "hidden": "Скрыта", "expired": "Истекла", "closed": "Закрыта", "archived": "В архиве"}
 MODERATION = {"pending": "На проверке", "approved": "Одобрена", "rejected": "Отклонена"}
 ORIGINS = {"parsed": "Собрана из источника", "direct": "От работодателя на сайте"}
 FLAGS = {
@@ -332,7 +332,7 @@ def counts(conn: sqlite3.Connection, now: datetime) -> dict[str, int]:
     foreign_sql, cities = _foreign_sql()
     return {
         "all": one("1"), "visible": one(queries.VISIBLE_SQL), "pending": one("moderation_status = 'pending'"),
-        "hidden": one("status = 'hidden'"), "expired": one("status = 'expired'"),
+        "hidden": one("status = 'hidden'"), "expired": one("status = 'expired'"), "archived": one("status = 'archived'"),
         "duplicate": one("duplicate_of IS NOT NULL"), "foreign": one(foreign_sql, *cities),
     }
 
@@ -364,6 +364,8 @@ def visibility(v: Mapping[str, Any], now: datetime) -> dict[str, Any]:
         reasons.append(("Скрыта", "mute", "lock-key"))
     elif status == "expired":
         reasons.append(("Истекла", "mute", "clock"))
+    elif status == "archived":
+        reasons.append(("В архиве", "mute", "hourglass"))
     elif status == "closed":
         reasons.append(("Закрыта", "mute", "lock-simple"))
     elif status not in ("active", "hidden"):
@@ -450,8 +452,10 @@ def history(conn: sqlite3.Connection, v: Mapping[str, Any], now: datetime) -> li
     if v.get("last_seen_at") and v.get("last_seen_at") not in (v.get("published_at"), v.get("created_at")):
         add(v["last_seen_at"], "Последний раз подтверждена", "От этой даты считается срок жизни.", "check-circle", "source")
     seen = parse_iso(v.get("last_seen_at") or v.get("published_at"))
-    if v.get("status") == "expired" and seen is not None:
+    if v.get("status") in ("expired", "archived") and seen is not None:
         add(iso(seen + timedelta(days=int(config.VACANCY_TTL_DAYS))), "Срок жизни истёк", f"Срок: {config.VACANCY_TTL_DAYS} дн.", "hourglass", "system")
+    if v.get("status") == "archived" and v.get("archived_at"):
+        add(v["archived_at"], "Перенесена в архив", "Из выдачи убрана, строка и поля карточки сохранены.", "hourglass", "system")
 
     for c in conn.execute("SELECT * FROM complaints WHERE vacancy_id=? ORDER BY id", (vid,)).fetchall():
         c = dict(c)

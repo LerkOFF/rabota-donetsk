@@ -63,12 +63,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, expires_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS companies (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, owner_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  id INTEGER PRIMARY KEY AUTOINCREMENT, owner_user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', site TEXT, city TEXT, logo_path TEXT,
   verified INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS resumes (
-  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   title TEXT NOT NULL DEFAULT '', profession TEXT, city TEXT, district TEXT,
   pay_min INTEGER, pay_period TEXT, work_formats TEXT NOT NULL DEFAULT '[]', about TEXT NOT NULL DEFAULT '',
   experience TEXT NOT NULL DEFAULT '[]', skills TEXT NOT NULL DEFAULT '[]',
@@ -166,6 +166,20 @@ def _migrate(conn: sqlite3.Connection) -> None:
     from rabota.messaging.schema import migrate as messaging_migrate  # отклики, переписка, уведомления
 
     messaging_migrate(conn)
+    from rabota.alerts.schema import migrate as alerts_migrate  # подписки на вакансии, рассылка, автопостинг
+
+    alerts_migrate(conn)
+    from rabota.resumes.schema import migrate as resumes_migrate  # резюме, просмотры, резюме в отклике
+
+    resumes_migrate(conn)
+    from rabota.employers.schema import migrate as employers_migrate  # проверка, автомодерация, черновики
+
+    employers_migrate(conn)
+    from rabota.employers_auto.schema import (
+        migrate as employers_auto_migrate,  # автокарточки, архив, заявки на карточки
+    )
+
+    employers_auto_migrate(conn)
 
 
 def save_raw(conn: sqlite3.Connection, post: RawPost) -> bool:
@@ -196,7 +210,8 @@ def load_raw(conn: sqlite3.Connection, source_type: str | None = None, limit: in
     ]
 
 
-def save_vacancy(conn: sqlite3.Connection, v: Vacancy) -> int:
+def save_vacancy(conn: sqlite3.Connection, v: Vacancy, *, check_quality: bool = False) -> int:
+    """Сохранить вакансию. check_quality=True (путь разбора постов): мусорное название уходит на проверку, см. pipeline.quality."""
     d = v.to_dict()
     # срок жизни идёт от последней публикации; старый пост сразу сохраняется скрытым
     d["last_seen_at"] = to_utc_iso(d["last_seen_at"] or d["published_at"]) or datetime.now(UTC).replace(microsecond=0).isoformat()
@@ -205,10 +220,20 @@ def save_vacancy(conn: sqlite3.Connection, v: Vacancy) -> int:
     d["contacts"] = json.dumps(d["contacts"], ensure_ascii=False)
     d["pay_daily"] = int(d["pay_daily"])
     d["suspicious"] = int(d["suspicious"])
+    from rabota.pipeline.quality import note_for, vacancy_problem
+
+    problem = vacancy_problem(d) if check_quality else None  # мусор вместо должности не публикуется: на проверку, причина в пометке
+    if problem:
+        d["suspicious"], d["status"] = 1, "hidden"
     cur = conn.execute(
         f"INSERT INTO vacancies({','.join(_VAC_COLS)}) VALUES ({','.join('?' * len(_VAC_COLS))})",
         [d[c] for c in _VAC_COLS],
     )
+    if problem:
+        conn.execute(
+            "UPDATE vacancies SET moderation_status = 'pending', moderation_note = ? WHERE id = ?",
+            (note_for(problem, d["profession"]), cur.lastrowid),
+        )
     conn.commit()
     return int(cur.lastrowid)
 

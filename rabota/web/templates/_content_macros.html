@@ -1,0 +1,40 @@
+
+{# Полоска вилки зарплаты: тонкая линия от минимума до максимума, плотная часть от первого до третьего квартиля, метка медианы.
+   Рисуется в SVG: атрибуты разметки разрешены политикой безопасности, а встроенные стили нет. #}
+{% macro range_bar(s) -%}
+{% set span = [s.maximum - s.minimum, 1] | max %}
+{% set x1 = ((s.low - s.minimum) / span * 100) | round(1) %}
+{% set x2 = ((s.high - s.minimum) / span * 100) | round(1) %}
+{% set xm = ((s.median - s.minimum) / span * 100) | round(1) %}
+<svg class="rbar" viewBox="0 0 100 14" preserveAspectRatio="none" role="img"
+     aria-label="Разброс оплаты {{ s.period_text }}: от {{ money(s.minimum) }} до {{ money(s.maximum) }} рублей, медиана {{ money(s.median) }}">
+  <rect class="rbar__track" x="0" y="5.5" width="100" height="3" rx="1.5"></rect>
+  <rect class="rbar__core" x="{{ x1 }}" y="3" width="{{ [x2 - x1, 1.5] | max }}" height="8" rx="2"></rect>
+  <rect class="rbar__med" x="{{ xm }}" y="0" width="1.4" height="14" rx="0.7"></rect>
+</svg>
+<p class="rbar__cap"><span>{{ money(s.minimum) }} ₽</span><span>{{ money(s.maximum) }} ₽</span></p>
+{%- endmacro %}
+
+{# Блок зарплаты по периодам: одна карточка на период (в месяц, за смену) #}
+{% macro salary_cards(stats, date) -%}
+<div class="sal__grid">
+  {% for s in stats %}
+  <div class="sal__item">
+    <p class="sal__n"><span>{{ money(s.median) }}&nbsp;₽</span> <span class="sal__per">{{ s.period_text }}</span></p>
+    <p class="sal__cap">Медиана по {{ s.n }}&nbsp;{{ plural(s.n, 'вакансии', 'вакансиям', 'вакансиям') }}</p>
+    {{ range_bar(s) }}
+    <p class="sal__range">Типичная вилка: {{ s.range_text }}</p>
+  </div>
+  {% endfor %}
+</div>
+{%- endmacro %}
+
+{# Карточка статьи для списков #}
+{% macro article_card(a) -%}
+<article class="acard">
+  <p class="acard__topic">{{ a.topic }}</p>
+  <h3 class="acard__title"><a href="{{ a.path }}">{{ a.title }}</a></h3>
+  <p class="acard__text">{{ a.description }}</p>
+  <p class="acard__meta"><time datetime="{{ a.updated.isoformat() }}">{{ a.updated.strftime('%d.%m.%Y') }}</time> · {{ a.minutes }}&nbsp;мин чтения</p>
+</article>
+{%- endmacro %}

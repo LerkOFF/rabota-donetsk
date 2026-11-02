@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon %}
+{% block content %}
+<div class="wrap">
+  <div class="error-page">
+    <span class="state__ico">{{ icon('clock') }}</span>
+    <h1 class="h1 h1--page">Страница устарела</h1>
+    <p class="lead">Вакансия по этой ссылке уже опубликована или время подтверждения вышло. Заполните форму размещения ещё раз: это займёт минуту.</p>
+    <div class="state__actions">
+      <a class="btn btn--primary" href="/razmestit">Разместить вакансию</a>
+      <a class="btn btn--ghost" href="/vacancies">Смотреть вакансии</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

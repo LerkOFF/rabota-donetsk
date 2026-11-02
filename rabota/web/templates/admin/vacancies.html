@@ -10,7 +10,7 @@
 <section class="kpis" aria-label="Сколько вакансий в каждом состоянии" data-sortable="vacancies-tiles">
   {% for key, label, href in [
     ('all', 'Всего', ''), ('visible', 'В выдаче', 'flag=visible'), ('pending', 'На проверке', 'mod=pending'),
-    ('hidden', 'Скрыты', 'status=hidden'), ('expired', 'Истекли', 'status=expired'),
+    ('hidden', 'Скрыты', 'status=hidden'), ('expired', 'Истекли', 'status=expired'), ('archived', 'В архиве', 'status=archived'),
     ('duplicate', 'Дубли', 'flag=duplicate'), ('foreign', 'Вне выдачи по городу', 'flag=foreign')] %}
   <a class="kpi" data-key="{{ key }}" draggable="true" href="/admin/vacancies{% if href %}?{{ href }}{% endif %}">
     <span class="kpi__n">{{ totals[key] }}</span><span class="kpi__t">{{ label }}</span>

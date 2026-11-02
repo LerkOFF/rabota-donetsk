@@ -1,0 +1,10 @@
+{% from '_content_macros.html' import salary_cards %}
+{% from '_macros.html' import icon %}
+<section class="sal" aria-labelledby="sal-title">
+  <div class="sal__head">
+    <h2 class="h3" id="sal-title">Зарплата: {{ salary.profession | ucfirst }} в Донецке</h2>
+    <p class="sal__upd">Обновлено {{ salary.date }}</p>
+  </div>
+  {{ salary_cards(salary.stats, salary.date) }}
+  <p class="sal__foot">Считаем по открытым вакансиям с указанной оплатой, без явных выбросов. Это оплата из объявлений, а не выплаченные деньги. <a class="link-arrow" href="{{ salary.href }}">Подробнее о зарплате{{ icon('arrow-right') }}</a></p>
+</section>

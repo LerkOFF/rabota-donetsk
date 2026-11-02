@@ -404,10 +404,11 @@ def sitemap_entries(conn: sqlite3.Connection, min_count: int = 3) -> dict[str, l
         f"SELECT id, COALESCE(published_at, created_at) AS ts FROM vacancies WHERE {VISIBLE_SQL} "
         f"ORDER BY {ORDER_SQL} LIMIT 200000"
     ).fetchall()
-    companies = conn.execute(
-        f"SELECT company_id AS id, MAX(COALESCE(published_at, created_at)) AS ts FROM vacancies "
-        f"WHERE {VISIBLE_SQL} AND company_id IN (SELECT id FROM companies) GROUP BY company_id ORDER BY company_id"
-    ).fetchall()
+    from rabota.employers_auto.seo import (
+        sitemap_companies,  # автокарточки: только с достаточным числом вакансий
+    )
+
+    companies = [{"id": cid, "ts": ts} for cid, ts in sitemap_companies(conn)]
     latest_ts = conn.execute(
         f"SELECT MAX(COALESCE(published_at, created_at)) FROM vacancies WHERE {VISIBLE_SQL}"
     ).fetchone()[0]

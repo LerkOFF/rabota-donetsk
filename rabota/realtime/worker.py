@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from rabota import config
-from rabota.lifecycle import expire, purge
+from rabota.lifecycle import expire
 from rabota.realtime import pollers, state, vk_poller
 from rabota.realtime.health import HEARTBEAT_EVERY, heartbeat_path, write_heartbeat
 from rabota.realtime.ingest import Ingestor
@@ -49,7 +49,10 @@ def cleanup_media(directory: Path, max_age_days: float, now: datetime | None = N
 
 def expire_job(conn: Any, media_dir: Path | None = None, now: datetime | None = None) -> dict[str, int]:
     """Скрыть истёкшие вакансии, удалить давно скрытые и старые копии фото."""
-    result = {"скрыто": expire(conn, now=now), "удалено": purge(conn, now=now)}
+    from rabota.employers_auto import archive as arch
+
+    result = {"скрыто": expire(conn, now=now)}
+    result.update(arch.run_all(conn, now))  # в архив, очистка сырого текста, удаление по сроку хранения
     from rabota.admin import settings
 
     keep = settings.ttl_days(conn) + settings.keep_days(conn) + 1
@@ -92,6 +95,15 @@ def build_jobs(ingestor: Ingestor, env: Mapping[str, str], media_dir: Path | Non
 
         jobs.append(Job("expire", EXPIRE_EVERY, run_expire, jitter=0.01, initial_delay=EXPIRE_FIRST_DELAY,
                         retry_base=600.0))
+    if (env.get("WORKER_EMPLOYERS") or "1").strip() != "0":
+        from rabota.employers_auto.jobs import PERIOD as EMPLOYERS_EVERY
+        from rabota.employers_auto.jobs import employers_job
+
+        async def run_employers() -> None:
+            res = await ingestor.acall(employers_job)
+            log.info("employers: %s", res)
+
+        jobs.append(Job("employers", EMPLOYERS_EVERY, run_employers, jitter=0.05, initial_delay=300.0, retry_base=600.0))
     return jobs
 
 
@@ -135,8 +147,17 @@ async def run_worker(
         listener = make_listener(env, ingestor)
     from rabota.vision.images import media_dir
 
-    scheduler = Scheduler(jobs if jobs is not None else build_jobs(ingestor, env, media_dir()))
+    if jobs is None:
+        from rabota.alerts.jobs import build_alert_jobs
+
+        jobs = [*build_jobs(ingestor, env, media_dir()), *build_alert_jobs(ingestor.db_path, env)]
+    scheduler = Scheduler(jobs)
     tasks = [asyncio.create_task(scheduler.run(stop), name="scheduler")]
+    from rabota.telegram_bot.runner import make_bot_task
+
+    bot_task = make_bot_task(stop, env, ingestor.db_path)  # команды бота: getUpdates, без публичного порта
+    if bot_task is not None:
+        tasks.append(bot_task)
     if listener:
         tasks.append(asyncio.create_task(_telegram_task(listener, stop), name="telegram"))
     log.info("воркер запущен: задач %d, Telegram %s", len(scheduler.jobs), "включён" if listener else "выключен")

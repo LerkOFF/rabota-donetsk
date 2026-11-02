@@ -53,6 +53,7 @@ class Mail:
     subject: str
     body: str
     html: str = ""
+    headers: tuple[tuple[str, str], ...] = ()  # дополнительные заголовки, например List-Unsubscribe у рассылок
 
 
 class Mailer:
@@ -172,6 +173,10 @@ def build_message(mail: Mail, sender: str, readable: bool = False) -> EmailMessa
     msg["Auto-Submitted"] = "auto-generated"
     msg["X-Auto-Response-Suppress"] = "All"
     msg["Content-Language"] = "ru"
+    for name, value in mail.headers:
+        if any(ch in name + value for ch in "\r\n"):
+            raise MailError("недопустимый заголовок")
+        msg[name] = value
     cte = "8bit" if readable else "base64"
     msg.set_content(mail.body, charset="utf-8", cte=cte)
     if mail.html:

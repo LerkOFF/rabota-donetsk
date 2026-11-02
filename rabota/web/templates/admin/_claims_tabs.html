@@ -1,0 +1,10 @@
+{# Вкладки раздела «Заявки на карточки» #}
+{% macro claims_tabs(tabs) -%}
+<nav class="adm-tabs" aria-label="Разделы заявок на карточки">
+  <ul>
+    {% for t in tabs %}
+    <li><a href="{{ t.href }}"{% if t.active %} aria-current="page"{% endif %}>{{ t.label }}{% if t.n is not none %} <span class="count{% if t.active %} count--on{% endif %}">{{ t.n }}</span>{% endif %}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
+{%- endmacro %}

@@ -90,7 +90,9 @@ def approve(conn: sqlite3.Connection, vacancy_id: int, actor: dict[str, Any] | N
         return False
     status = "active" if row["status"] == "hidden" else row["status"]
     conn.execute(
-        "UPDATE vacancies SET moderation_status='approved', moderation_note=NULL, status=?, last_seen_at=? WHERE id=?",
+        "UPDATE vacancies SET moderation_status='approved', status=?, last_seen_at=?,"
+        " suspicious=CASE WHEN moderation_note LIKE 'Похоже на мусор%' THEN 0 ELSE suspicious END,"
+        " moderation_note=NULL WHERE id=?",
         (status, iso(now), vacancy_id),
     )
     conn.commit()

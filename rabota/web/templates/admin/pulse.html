@@ -51,4 +51,23 @@
   </article>
   {% endfor %}
 </section>
+
+<h2 class="pulse-sub" id="idx-title">Страницы в индексе поисковиков</h2>
+<p class="pulse-range muted">Сколько страниц сайт сейчас отдаёт поисковикам и кладёт в карту сайта: подборки, профессии, зарплаты, статьи. Тонкие страницы закрыты noindex и сюда не входят.</p>
+<section class="pulse" aria-labelledby="idx-title" data-sortable="pulse-index">
+  {% for b in index_pages %}
+  <article class="tile" data-key="{{ b.key }}" draggable="true" aria-labelledby="idx-{{ b.key }}">
+    <header class="tile__head">
+      <h3 class="tile__t" id="idx-{{ b.key }}"><a href="{{ b.href }}">{{ b.title }}</a></h3>
+    </header>
+    <p class="tile__n" data-index-value="{{ b.key }}">{{ b.n }}</p>
+    {% if b.parts %}
+    <ul class="tile__list">
+      {% for name, n in b.parts %}<li><span>{{ name }}</span><strong>{{ n }}</strong></li>{% endfor %}
+    </ul>
+    {% endif %}
+    <p class="tile__note muted">{{ b.note }}</p>
+  </article>
+  {% endfor %}
+</section>
 {% endblock %}

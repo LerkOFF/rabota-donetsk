@@ -1,0 +1,12 @@
+{% from '_macros.html' import icon %}
+{# Ход отклика: шаги с датами. Слова всегда есть, цвет и значок только помогают. r.steps готовит response_status.timeline #}
+{% macro timeline(r) -%}
+<ol class="steps" aria-label="Ход отклика">
+  {% for s in r.steps %}
+  <li class="steps__item steps__item--{{ s.state }} steps__item--{{ s.key }}"{% if s.state == 'now' %} aria-current="step"{% endif %}>
+    <span class="steps__dot">{% if s.state == 'next' %}{{ icon('clock') }}{% elif s.key in ('rejected', 'withdrawn') %}{{ icon('x-circle') }}{% else %}{{ icon('check-circle') }}{% endif %}</span>
+    <span class="steps__text"><strong>{{ s.label }}</strong><span class="steps__when">{{ s.when or ('ожидается' if s.state == 'next' else '') }}</span></span>
+  </li>
+  {% endfor %}
+</ol>
+{%- endmacro %}

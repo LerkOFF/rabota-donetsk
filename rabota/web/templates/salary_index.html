@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, crumbs %}
+{% from '_content_macros.html' import article_card %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('content.css') }}">
+<div class="wrap">
+  <header class="page-head">
+    {{ crumbs(seo.breadcrumbs) }}
+    <h1 class="h1 h1--page">Зарплаты в Донецке по профессиям</h1>
+    <p class="lead">Сколько платят по вакансиям на сайте: медиана и типичная вилка по каждой профессии. Данные на {{ date }}.</p>
+  </header>
+
+  {% if items %}
+  <ul class="sal-list">
+    {% for e in items %}
+    <li>
+      <a class="sal-row" href="/zarplaty/{{ e.name | quote }}">
+        <span class="sal-row__name">{{ e.name | ucfirst }}</span>
+        <span class="sal-row__n">{{ money(e.main.median) }}&nbsp;<span class="sal-row__cur">₽ {{ e.main.period_text }}</span></span>
+        <span class="sal-row__range">{{ e.main.range_text }}</span>
+        <span class="sal-row__cnt">{{ e.main.n }}&nbsp;{{ plural(e.main.n, 'вакансия', 'вакансии', 'вакансий') }}</span>
+        {{ icon('caret-right') }}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="state">
+    <span class="state__ico">{{ icon('currency-rub') }}</span>
+    <h2 class="h3">Пока мало данных</h2>
+    <p>Мы показываем зарплату по профессии, когда есть не меньше {{ min_sample }} вакансий с указанной оплатой. Как только их станет достаточно, профессия появится здесь.</p>
+    <div class="state__actions"><a class="btn btn--primary" href="/vacancies">Смотреть вакансии</a></div>
+  </div>
+  {% endif %}
+
+  <section class="section section--tight prose" aria-labelledby="how">
+    <h2 class="h2 section__title" id="how">Как мы считаем</h2>
+    <p>Берём только открытые вакансии с указанной оплатой «в месяц» или «за смену». Для каждой берём середину вилки, убираем явные выбросы и опечатки и показываем медиану, то есть середину списка. Вилка показывает, где лежит оплата у половины вакансий. Профессии, у которых меньше {{ min_sample }} таких вакансий, не показываем.</p>
+    <p>Это оплата из объявлений, а не выплаченные деньги: уточняйте условия у работодателя. Советы по оплате и графику собраны в <a href="/blog">блоге</a>.</p>
+  </section>
+
+  {% if articles %}
+  <section class="section section--tight" aria-labelledby="read">
+    <h2 class="h2 section__title" id="read">Читайте также</h2>
+    <div class="acards">{% for a in articles %}{{ article_card(a) }}{% endfor %}</div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
 {% from '_macros.html' import icon, vcard, pager, crumbs %}
 {% block content %}
+{% if salary %}<link rel="stylesheet" href="{{ asset('content.css') }}">{% endif %}
 <div class="wrap">
   <header class="page-head">
     {{ crumbs(seo.breadcrumbs) }}
@@ -8,6 +9,7 @@
     <div class="prose landing-intro">{% for text in intro %}<p{% if loop.first %} class="landing-intro__lead"{% endif %}>{{ text }}</p>{% endfor %}</div>
   </header>
   <div class="listing">
+    {% if salary %}{% include '_salary_block.html' %}{% endif %}
     <div class="vlist">
       {% for v in items %}{{ vcard(v, 'h2') }}{% endfor %}
     </div>

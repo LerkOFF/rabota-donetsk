@@ -1,0 +1,23 @@
+{
+  "poster_detailing.jpg": {
+    "hint": "📞 По всем вопросам обращаться по телефону:\n+7 949 505-57-55",
+    "kinds": ["vacancy"], "profession": "автомойщик", "phones": ["+79495055755"],
+    "soft": {"city": "Донецк", "district": "Ленинский", "schedule": "2/2"}
+  },
+  "poster_sales_christmas.jpg": {
+    "hint": "", "kinds": ["vacancy"], "profession": "продавец", "phones": ["+79494890599"], "soft": {}
+  },
+  "poster_cleaners_banner.jpg": {
+    "hint": "", "kinds": ["vacancy"], "profession": "уборщик", "phones": [], "soft": {}
+  },
+  "poster_cleaner_stamp.jpg": {
+    "hint": "", "kinds": ["other"], "note": "вакансия без контакта: карточка не создаётся"
+  },
+  "poster_moloko.jpg": {
+    "hint": "", "kinds": ["other", "vacancy"], "note": "контакт только короткий номер 335, Tesseract его не видит"
+  },
+  "poster_military_banner.jpg": {"hint": "", "kinds": ["military", "other"]},
+  "ad_wall_finishing.jpg": {"hint": "", "kinds": ["service", "other"]},
+  "photo_coffee_no_text.jpg": {"hint": "", "kinds": ["other"]},
+  "photo_tire_no_text.jpg": {"hint": "", "kinds": ["other"]}
+}

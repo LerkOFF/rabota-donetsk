@@ -1,0 +1,27 @@
+{# Поля короткой формы размещения. Нужны form и errors из контекста страницы (импорт с контекстом). #}
+{% from '_macros.html' import field_error %}
+
+{% macro text_field(name, label, required=False, hint='', placeholder='', maxlength=80, type='text', inputmode='', autocomplete='off', list='') -%}
+<div class="field{% if errors.get(name) %} field--invalid{% endif %}">
+  <label for="p-{{ name }}">{{ label }}{% if required %} <span class="muted">(обязательно)</span>{% endif %}</label>
+  {% if hint %}<p class="hint" id="hint-{{ name }}">{{ hint }}</p>{% endif %}
+  <input class="input" id="p-{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ form.get(name, '') }}" maxlength="{{ maxlength }}"
+         placeholder="{{ placeholder }}" spellcheck="{{ 'false' if type in ('tel', 'email') or name in ('telegram', 'phone', 'account_email') else 'true' }}"
+         {% if inputmode %} inputmode="{{ inputmode }}"{% endif %} autocomplete="{{ autocomplete }}"{% if list %} list="{{ list }}"{% endif %}
+         {% if required %}required{% endif %}
+         {% if errors.get(name) %}aria-invalid="true"{% endif %}
+         {% set d = [] %}{% if hint %}{% set _ = d.append('hint-' ~ name) %}{% endif %}{% if errors.get(name) %}{% set _ = d.append('err-' ~ name) %}{% endif %}{% if d %}aria-describedby="{{ d | join(' ') }}"{% endif %}>
+  {{ field_error(errors, name) }}
+</div>
+{%- endmacro %}
+
+{% macro select_field(name, label, options, required=False, empty='Не указывать') -%}
+<div class="field{% if errors.get(name) %} field--invalid{% endif %}">
+  <label for="p-{{ name }}">{{ label }}{% if required %} <span class="muted">(обязательно)</span>{% endif %}</label>
+  <select class="input" id="p-{{ name }}" name="{{ name }}" {% if required %}required{% endif %}{% if errors.get(name) %} aria-invalid="true" aria-describedby="err-{{ name }}"{% endif %}>
+    <option value="">{{ empty }}</option>
+    {% for value, text in options %}<option value="{{ value }}"{% if form.get(name) == value %} selected{% endif %}>{{ text }}</option>{% endfor %}
+  </select>
+  {{ field_error(errors, name) }}
+</div>
+{%- endmacro %}

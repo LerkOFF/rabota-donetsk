@@ -1,0 +1,14 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon %}
+{% block hsearch %}{% endblock %}
+{% block content %}
+<div class="wrap">
+  <header class="page-head"><h1 class="h1 h1--page">Нет подключения к сети</h1></header>
+  <div class="state">
+    <span class="state__ico">{{ icon('warning') }}</span>
+    <h2 class="h3">Страница не открылась</h2>
+    <p>Похоже, пропал интернет. Проверьте Wi-Fi или мобильную сеть и обновите страницу: вакансии загрузятся заново. Мы не показываем сохранённые копии вакансий, чтобы вы не звонили по закрытым объявлениям.</p>
+    <div class="state__actions"><button class="btn btn--primary" type="button" data-reload>Обновить страницу</button> <a class="btn btn--ghost" href="/">На главную</a></div>
+  </div>
+</div>
+{% endblock %}

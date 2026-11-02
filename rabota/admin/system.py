@@ -200,6 +200,8 @@ def integrations() -> list[dict[str, Any]]:
          "отправка писем по SMTP" if mail_backend == "smtp" else "письма складываются в папку, наружу не уходят"),
         ("Модель или распознавание афиш", bool(llm), f"режим: {llm}" if llm else "разбор только правилами"),
         ("Уведомления о сбоях в Telegram", _set("ALERT_TG_BOT_TOKEN") and _set("ALERT_TG_CHAT_ID"), "бот для оповещения владельца"),
+        ("Бот Telegram для подписчиков", _set("TG_BOT_TOKEN"), "команды бота и доставка новых вакансий"),
+        ("Канал Telegram", _set("TG_BOT_TOKEN") and _set("TG_CHANNEL_ID"), "автопостинг рубрик"),
         ("Подробная проверка /healthz/deep", _set("HEALTH_TOKEN"), "доступ по токену в заголовке"),
     ]
     return [{"name": n, "ok": bool(ok), "what": w} for n, ok, w in items]
@@ -342,6 +344,16 @@ def log_tail(source: str, needle: str = "", limit: int = LOG_LINES) -> dict[str,
             "available": bool(raw)}
 
 
+def _alerts_block(conn: sqlite3.Connection, now: datetime) -> dict[str, Any]:
+    """Подписки и рассылка (см. rabota/alerts/admin.py). Сбой блока не мешает остальной странице."""
+    try:
+        from rabota.alerts.admin import block
+
+        return block(conn, now)
+    except Exception:  # noqa: BLE001
+        return {"stats": {}, "flags": [], "jobs": []}
+
+
 # ------------------------------------------------------------------ сборка страницы
 
 def build(
@@ -358,5 +370,5 @@ def build(
     return {
         "worker": worker, "jobs": jobs, "sources": sources, "problems": problems, "queues": queues(conn, now),
         "integrations": integrations(), "disk": disk_and_db(db_path, conn), "version": version_info(),
-        "log": log_tail(log_source, needle), "states": STATES,
+        "log": log_tail(log_source, needle), "states": STATES, "alerts": _alerts_block(conn, now),
     }

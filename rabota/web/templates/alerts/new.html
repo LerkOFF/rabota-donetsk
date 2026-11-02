@@ -1,0 +1,84 @@
+{% extends 'alerts/layout.html' %}
+{% from 'auth/_forms.html' import csrf, field, alert, summary %}
+{% from 'messages/_parts.html' import crumbs %}
+{% from '_macros.html' import icon %}
+{% block alerts_body %}
+<div class="wrap auth">
+  <div class="auth__card auth__card--wide">
+    <div class="auth__head">
+      {{ crumbs([('Вакансии', '/vacancies'), ('Подписка', '')]) }}
+      <h1>Подписаться на новые вакансии</h1>
+      {% if filters %}
+      <p>Пришлём новые вакансии по вашему поиску. Старые не повторяются.</p>
+      {% endif %}
+    </div>
+
+    {% if not filters %}
+    <div class="state">
+      <span class="state__ico">{{ icon('magnifying-glass') }}</span>
+      <h2 class="h3">Сначала задайте поиск</h2>
+      <p>Подписка нужна на конкретный поиск: профессию, район или условия. Подписка на все вакансии подряд завалила бы вас письмами.</p>
+      <div class="state__actions"><a class="btn btn--primary" href="/vacancies">Перейти к вакансиям</a></div>
+    </div>
+    {% else %}
+    <section class="alert-query" aria-labelledby="aq-h">
+      <h2 id="aq-h" class="alert-query__label">Ваш поиск</h2>
+      <p class="alert-query__title">{{ title | ucfirst }}</p>
+      <p><a href="{{ results_url }}">Посмотреть, что найдётся сейчас</a></p>
+    </section>
+
+    {% if errors.form %}{{ alert(errors.form) }}{% endif %}
+    {% if not mail_enabled %}{{ alert('Подписки по почте временно отключены. Можно выбрать Telegram, если он доступен.') }}{% endif %}
+    {{ summary(errors, 'f') }}
+
+    <form class="auth__form" method="post" action="/alerts/new" novalidate>
+      {{ csrf(csrf_token) }}
+      {% for name, value in fields %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+
+      <fieldset class="role-pick">
+        <legend>Куда присылать</legend>
+        <label class="role-pick__item">
+          <input type="radio" name="channel" value="email"{% if channel == 'email' %} checked{% endif %}>
+          <span><span class="role-pick__title">На почту</span><span class="role-pick__text">{% if me %}На адрес вашего аккаунта{% else %}Подтвердим адрес кодом из письма{% endif %}</span></span>
+        </label>
+        {% if tg_enabled %}
+        <label class="role-pick__item">
+          <input type="radio" name="channel" value="telegram"{% if channel == 'telegram' %} checked{% endif %}>
+          <span><span class="role-pick__title">В Telegram</span><span class="role-pick__text">Откроем бота, подписка подключится по нажатию Start</span></span>
+        </label>
+        {% endif %}
+      </fieldset>
+
+      {% if not me %}
+      {{ field('email', 'Почта (для письма)', 'email', email, errors.email, 'Нужна, если выбрали почту. Для Telegram можно оставить пустой.', 'email', 254, 'email', 'f', False) }}
+      {% endif %}
+
+      <fieldset class="role-pick">
+        <legend>Как часто</legend>
+        <label class="role-pick__item">
+          <input type="radio" name="frequency" value="daily"{% if frequency == 'daily' %} checked{% endif %}>
+          <span><span class="role-pick__title">Раз в день</span><span class="role-pick__text">Одно письмо утром со всеми новыми вакансиями</span></span>
+        </label>
+        <label class="role-pick__item">
+          <input type="radio" name="frequency" value="instant"{% if frequency == 'instant' %} checked{% endif %}>
+          <span><span class="role-pick__title">Сразу</span><span class="role-pick__text">Как только появятся, но не чаще раза в 10 минут</span></span>
+        </label>
+      </fieldset>
+
+      {% if not me %}
+      <div class="field{% if errors.consent %} field--invalid{% endif %}">
+        <label class="check" for="f-consent">
+          <input id="f-consent" type="checkbox" name="consent" value="1"{% if consent %} checked{% endif %}>
+          <span>Согласен получать письма с вакансиями и на обработку почты по <a href="/legal/consent">согласию</a> и <a href="/legal/privacy">политике</a></span>
+        </label>
+        {% if errors.consent %}<p class="error" id="f-consent-err">{{ icon('warning') }}<span>{{ errors.consent }}</span></p>{% endif %}
+      </div>
+      {% endif %}
+
+      <button class="btn btn--primary btn--lg" type="submit">{{ icon('bell') }}Подписаться</button>
+      <p class="hint">Отписаться можно в один клик по ссылке в каждом письме.</p>
+    </form>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

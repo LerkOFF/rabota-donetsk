@@ -1,21 +1,35 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import icon, vcard, logo_tile, crumbs %}
+{% from '_macros.html' import icon, vcard, crumbs %}
+{% from '_trust.html' import verified_badge, logo, employer_stats %}
 {% block content %}
+<link rel="stylesheet" href="{{ asset('employers.css') }}">
 <div class="wrap">
   <header class="company-head">
     {{ crumbs(seo.breadcrumbs) }}
     <div class="company-head__row">
-      {{ logo_tile(company.name, 'lg') }}
+      {{ logo(company.name, logo_src, 'lg') }}
       <div class="company-head__titles">
         <h1 class="h1 h1--page">{{ company.name }}</h1>
         <p class="meta-line">
-          <span>{{ icon('map-pin') }}{{ company.city }}</span>
-          {% if company.verified %}<span class="tag tag--direct">{{ icon('seal-check') }}Проверенный работодатель</span>{% endif %}
+          {% if company.city %}<span>{{ icon('map-pin') }}{{ company.city }}</span>{% endif %}
+          {% if registered %}<span>{{ icon('calendar-blank') }}На сайте {{ registered }}</span>{% endif %}
         </p>
+        {% if company.verified %}{{ verified_badge(verified_on) }}{% endif %}
+        {% if company.is_auto %}<p class="auto-note"><span class="badge badge--open">Карточка создана автоматически, работодатель не подтверждён</span></p>{% endif %}
       </div>
       <a class="btn btn--primary company-head__cta" href="#vacancies">{{ count_label(items | length, 'вакансия', 'вакансии', 'вакансий') }}</a>
     </div>
   </header>
+
+  {% if company.is_auto %}
+  <section class="notice claim-box" id="claim" aria-label="Карточка без владельца">
+    {{ icon('info') }}
+    <div>
+      <p>Эту карточку мы собрали из открытых источников: работодатель её не оформлял и не подтверждал. Если это ваша компания, заберите карточку: появятся логотип, описание и управление вакансиями.</p>
+      <a class="btn btn--primary" href="{{ company.claim_url }}" rel="nofollow">Это моя компания</a>
+    </div>
+  </section>
+  {% endif %}
 
   {% if company.is_stub %}
   <p class="notice" role="status">{{ icon('info') }}<span>Профиль компании ещё оформляется. Здесь появятся описание, сайт и открытые вакансии работодателя.</span></p>
@@ -27,6 +41,8 @@
         <h2 id="about-c">О компании</h2>
         {% if company.description %}
         <div class="prose"><p>{{ company.description }}</p></div>
+        {% elif company.auto_card %}
+        <div class="prose"><p class="muted">Карточка создана автоматически по открытым вакансиям. Описание, сайт и логотип появятся, когда работодатель подтвердит компанию.</p></div>
         {% else %}
         <div class="prose"><p class="muted">Работодатель пока не добавил описание. Расскажите о себе в личном кабинете: чем занимается компания, какие условия и что важно для вас в сотрудниках.</p></div>
         {% endif %}
@@ -34,6 +50,7 @@
 
       <section aria-labelledby="vacancies">
         <h2 class="h2 section__title" id="vacancies">Вакансии работодателя</h2>
+        {% if company.archive_count %}<p class="company-archive"><a class="btn btn--ghost" href="{{ company.archive_url }}">Архив вакансий: {{ company.archive_count }}</a></p>{% endif %}
         {% if items %}
         <div class="vlist">{% for v in items %}{{ vcard(v) }}{% endfor %}</div>
         {% else %}
@@ -51,11 +68,26 @@
       <section class="panel">
         <h2 class="visually-hidden">Сведения</h2>
         <dl class="facts facts--stack">
-          <div><dt>Город</dt><dd>{{ company.city }}</dd></div>
+          <div><dt>Город</dt><dd>{{ company.city or 'Не указан' }}</dd></div>
           <div><dt>Сайт</dt><dd>{% if company.site %}<a href="{{ company.site if company.site.startswith(('http://', 'https://')) else '' }}" rel="noopener nofollow ugc" target="_blank">{{ company.site }}</a>{% else %}Не указан{% endif %}</dd></div>
-          <div><dt>Статус</dt><dd>{% if company.verified %}Проверен сайтом{% else %}Проверка не пройдена{% endif %}</dd></div>
+          {% if phones or telegram %}
+          <div><dt>Контакты</dt><dd class="contact-dd">
+            {% for p in phones %}<a href="tel:{{ phone_href(p) }}">{{ phone_pretty(p) }}</a>{% endfor %}
+            {% if telegram %}<a href="{{ telegram_href(telegram) }}" rel="noopener nofollow">{{ telegram }}</a>{% endif %}
+          </dd></div>
+          {% endif %}
+          {% if registered %}<div><dt>На сайте</dt><dd>{{ registered }}</dd></div>{% endif %}
+          <div><dt>Статус</dt><dd>{% if company.verified %}Проверенный работодатель{% else %}Не проверен администрацией{% endif %}</dd></div>
         </dl>
+        {% if not company.verified and not company.is_stub and not company.is_auto %}<p class="hint">Администрация проверяет телефон или документы по запросу работодателя. Пока отметки нет, условия уточняйте сами и не платите за трудоустройство.</p>{% endif %}
       </section>
+      {% if stats and stats.visible %}
+      <section class="panel" aria-labelledby="stats-h">
+        <h2 id="stats-h">Как работодатель отвечает</h2>
+        {{ employer_stats(stats) }}
+        <p class="hint">Показатели за последние 90 дней по откликам на сайте.</p>
+      </section>
+      {% endif %}
     </aside>
   </div>
 </div>

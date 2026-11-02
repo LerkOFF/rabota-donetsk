@@ -43,6 +43,12 @@
 
   {% include 'messages/_cabinet.html' %}
 
+  <section class="panel cab__company" aria-labelledby="cab-res">
+    <h2 id="cab-res" class="h3">Поиск резюме</h2>
+    <p>Соискатели Донецка, которые открыли резюме работодателям: фильтры по профессии, району, зарплате, опыту и графику. Контакты открываются по кнопке, пригласить можно в один шаг.</p>
+    <div class="state__actions"><a class="btn btn--primary btn--sm" href="/employers/resumes">{{ icon('magnifying-glass') }}Искать резюме</a></div>
+  </section>
+
   <section class="panel cab__company" aria-labelledby="cab-co">
     <h2 id="cab-co" class="h3">Компания</h2>
     {% if summary.company and summary.company.description %}

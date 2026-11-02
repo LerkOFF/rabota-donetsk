@@ -1,0 +1,94 @@
+/* Заявка «Это моя компания», архив вакансий компании, мои заявки. Только токены из tokens.css, мобильный экран первичен. */
+
+.claim, .claim-archive { display: grid; gap: var(--sp-5); align-content: start; padding-bottom: var(--sp-12); }
+.claim > .notice { margin: 0; }
+.claim__grid { display: grid; gap: var(--sp-5); align-items: start; }
+.claim__main, .claim__side { display: grid; gap: var(--sp-4); min-width: 0; }
+.claim .panel h2 { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-lg); margin-bottom: var(--sp-3); }
+.claim .panel p + p { margin-top: var(--sp-3); }
+.claim__state { display: grid; gap: var(--sp-3); }
+.claim__state h2 { margin-bottom: 0; }
+.claim__state--ok { border-color: var(--c-accent); background: var(--c-accent-soft); }
+.claim__state--warn { border-color: var(--c-line-strong); }
+.claim__actions { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.claim__inline { display: block; }
+.claim__code, .claim__note { display: grid; gap: var(--sp-3); max-width: 28rem; }
+.claim__chips { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.claim .input--code { font-size: var(--fs-2xl); letter-spacing: 0.3em; text-align: center; font-variant-numeric: tabular-nums; min-height: 3.5rem; }
+.claim .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: var(--fs-sm); overflow-wrap: anywhere; }
+.btn--text { background: transparent; border-color: transparent; color: var(--c-ink-2); text-decoration: underline; min-height: var(--tap-min); }
+.btn--text:hover { color: var(--c-danger); }
+
+.claim-chip {
+  display: inline-flex; align-items: center; padding: 0.15rem 0.7rem; border-radius: var(--r-pill); border: 1px solid transparent;
+  font-size: var(--fs-xs); font-weight: var(--fw-semibold); line-height: 1.4; white-space: nowrap;
+}
+.claim-chip--sent { background: var(--c-surface-2); color: var(--c-ink); border-color: var(--c-line-strong); }
+.claim-chip--review { background: var(--c-accent-soft); color: var(--c-accent-ink); }
+.claim-chip--confirmed { background: var(--c-accent); color: var(--c-on-accent); }
+.claim-chip--rejected { background: var(--c-danger-soft); color: var(--c-danger); border-color: var(--c-danger); }
+.claim-chip--dispute { background: var(--c-surface); color: var(--c-ink); border: 1px dashed var(--c-line-strong); }
+
+.claim-form { display: grid; gap: var(--sp-4); }
+.claim-method { display: grid; gap: var(--sp-3); border: 0; padding: 0; margin: 0; min-width: 0; }
+.claim-method__item {
+  display: grid; grid-template-columns: auto 1fr; align-items: start; gap: var(--sp-3); padding: var(--sp-4); cursor: pointer;
+  background: var(--c-surface); border: 1px solid var(--c-line-strong); border-radius: var(--r-ctl);
+  transition: background-color var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.claim-method__item:hover { border-color: var(--c-accent); }
+.claim-method__item:has(input:checked) { background: var(--c-accent-soft); border-color: var(--c-accent); }
+.claim-method__item:has(input:focus-visible) { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+.claim-method__item input { width: 1.4rem; height: 1.4rem; accent-color: var(--c-accent); margin: 0.1rem 0 0; }
+.claim-method__item .role-pick__title { display: block; font-weight: var(--fw-bold); }
+.claim-method__item .role-pick__text { display: block; color: var(--c-ink-2); font-size: var(--fs-sm); }
+/* поле показывается под выбранный способ; без :has обе видны */
+.claim-form:has(#m-phone:checked) .claim-field--email { display: none; }
+.claim-form:has(#m-email:checked) .claim-field--phone { display: none; }
+
+.claim__list, .claim__steps { display: grid; gap: var(--sp-3); margin: 0; padding: 0; list-style: none; }
+.claim__list li { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-3); align-items: start; color: var(--c-ink-2); font-size: var(--fs-sm); }
+.claim__list .icon { width: 1.3rem; height: 1.3rem; color: var(--c-accent-ink); margin-top: 0.1rem; }
+.claim__steps { counter-reset: step; }
+.claim__steps li { counter-increment: step; display: grid; grid-template-columns: auto 1fr; gap: var(--sp-3); align-items: start; color: var(--c-ink-2); font-size: var(--fs-sm); }
+.claim__steps li::before {
+  content: counter(step); display: inline-grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: var(--r-pill);
+  background: var(--c-accent-soft); color: var(--c-accent-ink); font-weight: var(--fw-bold); font-size: var(--fs-xs);
+}
+
+/* мои заявки */
+.claim-list { display: grid; gap: var(--sp-3); margin: 0; padding: 0; list-style: none; }
+.claim-list__item {
+  display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-4);
+  background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card);
+}
+.claim-list__item > div { display: grid; gap: var(--sp-1); min-width: 0; }
+.claim-list__name { font-weight: var(--fw-bold); color: var(--c-ink); overflow-wrap: anywhere; }
+
+/* вкладки и архив на странице работодателя */
+.claim-tabs { display: flex; gap: var(--sp-2); overflow-x: auto; padding-block: var(--sp-2); border-bottom: 1px solid var(--c-line); }
+.claim-tabs a {
+  display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--tap-min); padding: 0 var(--sp-4); white-space: nowrap;
+  border-radius: var(--r-pill); color: var(--c-ink-2); font-weight: var(--fw-semibold); text-decoration: none; border: 1px solid transparent;
+}
+.claim-tabs a:hover { color: var(--c-ink); border-color: var(--c-line); }
+.claim-tabs a[aria-current="page"] { background: var(--c-accent-soft); color: var(--c-accent-ink); }
+.claim-tabs__n { font-size: var(--fs-xs); padding: 0 0.5rem; border-radius: var(--r-pill); background: var(--c-surface-2); color: var(--c-ink-2); }
+.arch-list { display: grid; gap: var(--sp-3); margin: 0; padding: 0; list-style: none; }
+.arch-item {
+  display: grid; gap: var(--sp-2); padding: var(--sp-4); background: var(--c-surface); border: 1px solid var(--c-line);
+  border-left: 4px solid var(--c-line-strong); border-radius: var(--r-card);
+}
+.arch-item__title { font-size: var(--fs-md); font-weight: var(--fw-bold); line-height: var(--lh-snug); overflow-wrap: anywhere; }
+.arch-item__meta { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-4); font-size: var(--fs-sm); color: var(--c-ink-2); }
+.arch-item__meta span { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.arch-item__meta .icon { width: 1.1em; height: 1.1em; flex: none; }
+.arch-item__pay { font-weight: var(--fw-bold); }
+.arch-item__pay--none { font-weight: var(--fw-regular); color: var(--c-ink-2); }
+
+@media (min-width: 640px) {
+  .arch-item { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+}
+@media (min-width: 960px) {
+  .claim__grid { grid-template-columns: minmax(0, 1fr) var(--w-aside); }
+}

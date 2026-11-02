@@ -1,0 +1,60 @@
+/* Размещение вакансии, код из письма, страница «Готово». Только токены из tokens.css, мобильный экран первичен. */
+
+.post { display: grid; gap: var(--sp-5); align-content: start; padding-bottom: var(--sp-12); }
+.post--narrow { max-width: 44rem; }
+.post .page-head { display: grid; gap: var(--sp-3); }
+
+/* шаги */
+.pstep { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); font-size: var(--fs-sm); color: var(--c-ink-2); }
+.pstep__item { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 2rem; font-weight: var(--fw-medium); }
+.pstep__n {
+  display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: var(--r-pill);
+  border: 1px solid var(--c-line-strong); background: var(--c-surface); font-weight: var(--fw-bold); font-size: var(--fs-xs);
+}
+.pstep__n .icon { width: 1rem; height: 1rem; }
+.pstep__item--now { color: var(--c-ink); font-weight: var(--fw-bold); }
+.pstep__item--now .pstep__n { background: var(--c-accent); border-color: var(--c-accent); color: var(--c-on-accent); }
+.pstep__item--done .pstep__n { background: var(--c-accent-soft); border-color: var(--c-accent); color: var(--c-accent-ink); }
+
+/* дополнительные поля формы */
+.more-fields { border: 1px solid var(--c-line); border-radius: var(--r-card); background: var(--c-surface); }
+.more-fields__sum { display: flex; align-items: center; gap: var(--sp-2); min-height: var(--tap); padding: 0 var(--sp-5); cursor: pointer; font-weight: var(--fw-bold); list-style: none; }
+.more-fields__sum::-webkit-details-marker { display: none; }
+.more-fields[open] > .more-fields__sum { border-bottom: 1px solid var(--c-line); }
+.more-fields__body { display: grid; gap: var(--sp-4); padding: var(--sp-5); }
+.check--top { align-items: flex-start; }
+.check--top input { margin-top: 0.2rem; }
+
+/* код из письма */
+.code-form { max-width: 28rem; }
+.input--code { font-size: var(--fs-2xl); letter-spacing: 0.3em; text-align: center; font-variant-numeric: tabular-nums; min-height: 3.5rem; }
+.code-resend { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+.code-resend p { flex-basis: 100%; }
+
+/* «Готово» */
+.ready__status { display: grid; gap: var(--sp-3); }
+.ready__row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+.ready__actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+.ready__actions form { display: contents; }
+.ready__wait { display: inline-flex; align-items: flex-start; gap: var(--sp-2); color: var(--c-ink-2); font-size: var(--fs-sm); }
+.ready__wait .icon { margin-top: 0.15rem; flex: none; }
+.ready__next { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+.tips { display: grid; gap: var(--sp-3); }
+.tips__item { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-3); padding: var(--sp-4); background: var(--c-surface); border: 1px solid var(--c-line); border-radius: var(--r-card); }
+.tips__item p { color: var(--c-ink-2); font-size: var(--fs-sm); }
+.tips__ico { display: inline-grid; place-items: center; width: 2.5rem; height: 2.5rem; border-radius: var(--r-ctl); background: var(--c-accent-soft); color: var(--c-accent-ink); }
+
+/* логотип в кабинете */
+.logo-form { display: grid; gap: var(--sp-3); padding-top: var(--sp-3); border-top: 1px solid var(--c-line); }
+.logo-form form { display: grid; gap: var(--sp-3); }
+.logo-form .btn { justify-self: start; }
+
+@media (min-width: 640px) {
+  .tips { grid-template-columns: 1fr 1fr; }
+}
+
+.auto-note { margin: var(--sp-2) 0 0; }
+.claim-box { margin-bottom: var(--sp-4); }
+.claim-box p { margin: 0 0 var(--sp-3); font-weight: var(--fw-regular, 400); }
+
+.company-archive { margin: 0 0 var(--sp-3); }

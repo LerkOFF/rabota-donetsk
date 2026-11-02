@@ -181,3 +181,21 @@ button[aria-busy="true"]::after {
   .filters-bar { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
   .msg { max-width: 70%; }
 }
+
+/* ---------- ход отклика: отправлен, просмотрен, приглашение или отказ, с датами ---------- */
+.steps { display: grid; gap: var(--sp-2); margin-block: var(--sp-2); }
+.steps__item { display: flex; align-items: flex-start; gap: var(--sp-2); min-width: 0; }
+.steps__dot { display: grid; place-items: center; width: 1.6rem; height: 1.6rem; border-radius: var(--r-pill); flex: none; background: var(--c-surface-2); color: var(--c-ink-2); }
+.steps__dot .icon { width: 1.1rem; height: 1.1rem; }
+.steps__text { display: grid; line-height: var(--lh-snug); font-size: var(--fs-sm); }
+.steps__when { color: var(--c-ink-2); font-size: var(--fs-xs); font-variant-numeric: tabular-nums; }
+.steps__item--done .steps__dot { background: var(--c-accent-soft); color: var(--c-accent-ink); }
+.steps__item--now .steps__dot { background: var(--c-accent); color: var(--c-on-accent); }
+.steps__item--invited.steps__item--now .steps__dot { background: var(--c-accent); color: var(--c-on-accent); }
+.steps__item--rejected.steps__item--now .steps__dot { background: var(--c-danger-soft); color: var(--c-danger); outline: 1px solid var(--c-danger); }
+.steps__item--withdrawn.steps__item--now .steps__dot { background: var(--c-surface); color: var(--c-ink-2); outline: 1px dashed var(--c-line-strong); }
+.steps__item--next { color: var(--c-ink-2); }
+.steps__item--next .steps__dot { border: 1px dashed var(--c-line-strong); background: transparent; }
+@media (min-width: 40rem) {
+  .steps { grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--sp-3); }
+}

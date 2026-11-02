@@ -6,7 +6,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, FastAPI, Request
@@ -29,9 +29,12 @@ from rabota.accounts.mailer import Mail, send_safely
 from rabota.messaging import notify, rules
 from rabota.messaging import service as msg
 from rabota.messaging.rules import MessagingError, NotFound
+from rabota.resumes import service as resume_service
+from rabota.resumes.service import ResumeError
 from rabota.web import format as fmt
 from rabota.web import queries
 from rabota.web.auth_routes import render
+from rabota.web.response_status import timeline as response_timeline
 
 router = APIRouter()
 Participant = Annotated[dict[str, Any], Depends(require_role("job_seeker", "employer"))]
@@ -157,6 +160,7 @@ def _decorate_response(row: dict[str, Any], now: datetime, viewer: str) -> dict[
     row["phone_pretty"] = fmt.phone_pretty(row["contact_phone"]) if row.get("contact_phone") else ""
     row["phone_href"] = fmt.phone_href(row["contact_phone"]) if row.get("contact_phone") else ""
     row["initial"] = (row.get("seeker_name") or row.get("employer_name") or "?")[:1].upper()
+    row.update(response_timeline(row, lambda value: _full_stamp(value, now), viewer))
     return row
 
 
@@ -193,9 +197,12 @@ def _vacancy_card(conn: Any, vacancy_id: int, now: datetime) -> dict[str, Any] |
 def _apply_page(
     request: Request, user: dict[str, Any], vacancy: dict[str, Any], *, form: dict[str, Any] | None = None,
     error: str = "", field_errors: dict[str, str] | None = None, status: int = 200, already: dict[str, Any] | None = None,
+    resumes: list[dict[str, Any]] | None = None,
 ) -> Response:
+    resumes = resumes or []
+    default_form = {"share_phone": bool(user.get("phone")), "resume_id": resumes[0]["id"] if resumes else None}
     return _view(request, "apply.html", {
-        "v": vacancy, "form": form or {"share_phone": bool(user.get("phone"))}, "error": error,
+        "v": vacancy, "form": form or default_form, "error": error, "resumes": resumes,
         "errors": field_errors or {}, "already": already, "max_cover": rules.MAX_COVER,
         "phone_pretty": fmt.phone_pretty(user["phone"]) if user.get("phone") else "",
     }, f"Отклик на вакансию: {vacancy['profession_title']}",
@@ -207,18 +214,19 @@ async def apply_form(request: Request, vacancy_id: str, user: Verified) -> Respo
     acc, vid = _acc(request), _id(vacancy_id)
     now = acc.now()
 
-    def work(conn: Any) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    def work(conn: Any) -> tuple[dict[str, Any] | None, dict[str, Any] | None, list[dict[str, Any]]]:
         card = _vacancy_card(conn, vid, now)
-        state = msg.apply_state(conn, vid, user["id"]) if card and user["role"] == "job_seeker" else None
-        return card, state
+        seeker = bool(card) and user["role"] == "job_seeker"
+        state = msg.apply_state(conn, vid, user["id"]) if seeker else None
+        return card, state, (resume_service.apply_options(conn, user["id"], now) if seeker else [])
 
-    card, state = await _db(acc, work)
+    card, state, resumes = await _db(acc, work)
     if card is None:
         raise HTTPException(404)
     if user["role"] != "job_seeker":
         return _view(request, "apply_denied.html", {"v": card}, "Откликнуться могут соискатели",
                      "Откликаться на вакансии могут соискатели. Работодатели получают отклики в своём кабинете.", 403)
-    return _apply_page(request, user, card, already=state)
+    return _apply_page(request, user, card, already=state, resumes=resumes)
 
 
 @router.post("/vacancy/{vacancy_id}/apply")
@@ -231,6 +239,8 @@ async def apply_submit(request: Request, vacancy_id: str, user: Verified) -> Res
         raise HTTPException(429)
     now = acc.now()
     cover, share = form.get("cover", ""), form.get("share_phone") == "1"
+    resume_raw = form.get("resume_id", "")
+    resume_id = _int_or_none(resume_raw)
 
     def work(conn: Any) -> tuple[dict[str, Any], MessagingError | None, Any, dict[str, Any] | None]:
         card = _vacancy_card(conn, vid, now)
@@ -238,8 +248,13 @@ async def apply_submit(request: Request, vacancy_id: str, user: Verified) -> Res
             raise NotFound("Вакансия не найдена")
         if form.get("website"):  # ловушка для ботов: делаем вид, что приняли
             return card, None, None, None
+        if resume_id is not None:  # приложить можно только своё открытое резюме
+            try:
+                resume_service.check_for_apply(conn, resume_id, user["id"])
+            except ResumeError as bad:
+                return card, MessagingError(bad.code, bad.text), None, None
         try:
-            res = msg.apply(conn, vacancy_id=vid, user=user, cover=cover, share_phone=share, now=now)
+            res = msg.apply(conn, vacancy_id=vid, user=user, cover=cover, share_phone=share, now=now, resume_id=resume_id)
         except NotFound:
             raise
         except MessagingError as exc:
@@ -256,9 +271,11 @@ async def apply_submit(request: Request, vacancy_id: str, user: Verified) -> Res
         raise HTTPException(404) from None
     if exc is not None:
         field = {"cover": exc.text} if exc.code in ("too_long", "too_many_links") else {}
+        resumes = await _db(acc, lambda conn: resume_service.apply_options(conn, user["id"], now))
         return _apply_page(
-            request, user, card, form={"cover": cover, "share_phone": share},
+            request, user, card, form={"cover": cover, "share_phone": share, "resume_id": resume_id},
             error="Отклик не отправлен: исправьте сообщение ниже." if field else exc.text, field_errors=field, status=_status_for(exc), already=state,
+            resumes=resumes,
         )
     if done is None:
         return _redirect("/responses")
@@ -312,6 +329,7 @@ async def response_card(request: Request, application_id: str, user: Participant
             return None
         if user["role"] == "employer" and msg.mark_viewed(conn, aid, user["id"], now):
             row = msg.get_response(conn, aid, user)
+        row["resume"] = resume_service.application_resume(conn, aid, user, now) if row.get("resume_id") else None
         return row
 
     row = await _db(acc, work)
@@ -653,7 +671,15 @@ def apply_box(db_path: Any, vacancy_id: int, user: dict[str, Any] | None) -> dic
     finally:
         conn.close()
     phone = row["phone"] if row else None
-    return {"mode": "applied" if state else "seeker", "state": state, "phone": fmt.phone_pretty(phone) if phone else ""}
+    resumes: list[dict[str, Any]] = []
+    if not state:
+        conn = service.open_db(db_path)
+        try:
+            resumes = resume_service.apply_options(conn, user["id"], datetime.now(UTC))
+        finally:
+            conn.close()
+    return {"mode": "applied" if state else "seeker", "state": state, "phone": fmt.phone_pretty(phone) if phone else "",
+            "resumes": resumes}
 
 
 def install(app: FastAPI, *, templates: Any | None = None) -> None:

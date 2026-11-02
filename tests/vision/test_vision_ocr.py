@@ -50,11 +50,16 @@ def test_missing_tesseract_is_provider_error(monkeypatch):
         ocr.ocr_text(png())
 
 
-def test_prepare_upscales_small_and_inverts_dark():
+def test_prepare_upscales_small_to_working_width():
     small = Image.open(io.BytesIO(ocr.prepare(png(size=(300, 200)))))
-    assert max(small.size) >= ocr.MIN_SIDE
-    dark = Image.open(io.BytesIO(ocr.prepare(png(color=20))))
-    assert dark.getpixel((5, 5)) > 128  # тёмный фон стал светлым
+    assert small.width >= 2000 and small.mode == "L"
+
+
+def test_variants_have_original_inverted_flat_and_binary_forms():
+    v = ocr.build_variants(png(color=20, size=(300, 200)))
+    assert set(v) == {"orig", "inv", "flat", "flatinv", "bin", "bininv"}
+    assert v["inv"].getpixel((5, 5)) > 128  # тёмный фон в инверсии стал светлым
+    assert set(v["bin"].getextrema()) <= {0, 255}
 
 
 def test_provider_from_env_ocr(monkeypatch):

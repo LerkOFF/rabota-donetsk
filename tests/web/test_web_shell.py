@@ -143,21 +143,24 @@ def test_search_inputs_have_unique_ids_and_labels(client, add):
             assert f'for="{fid}"' in html
 
 
-def test_search_datalists_offer_professions_and_places(db_path, add):
+def test_search_inputs_use_suggest_endpoint_not_datalists(db_path, add):
+    """Подсказки идут через /suggest, а не списком внутри каждой страницы: страница не раздувается."""
     add(profession="бариста", district="Ворошиловский")
     add(profession="кассир", city="Макеевка")
     app = create_app(db_path, site_url="https://example.test", now=lambda: NOW)
     html = TestClient(app).get("/").text
-    prof = re.search(r'<datalist id="hero-prof">(.*?)</datalist>', html, re.DOTALL).group(1)
-    place = re.search(r'<datalist id="hero-place">(.*?)</datalist>', html, re.DOTALL).group(1)
-    assert 'value="Бариста"' in prof and 'value="Кассир"' in prof
-    assert 'value="Донецк"' in place and 'value="Макеевка"' in place and 'value="Ворошиловский район"' in place
+    assert "<datalist" not in html and 'data-suggest="q"' in html and 'data-suggest="where"' in html
+    c = TestClient(app)
+    profs = [i["label"] for i in c.get("/suggest?f=q").json()["items"]]
+    assert "Бариста" in profs and "Кассир" in profs
+    places = [i["label"] for i in c.get("/suggest?f=where").json()["items"]]
+    assert "Донецк" in places and "Макеевка" in places and "Ворошиловский район" in places
 
 
 def test_footer_has_legal_links_sections_and_contacts(client):
     html = client.get("/about").text
     foot = html.split("<footer", 1)[1]
-    for href in ("/legal/privacy", "/legal/terms", "/legal/consent", "/razmestit", "/employers", "/about#contacts", "/vacancies?daily=1"):
+    for href in ("/legal/privacy", "/legal/terms", "/legal/consent", "/razmestit", "/employers", "/about#contacts", "/podborki/ezhednevnaya-vyplata"):
         assert f'href="{href}"' in foot, href
     for title in ("Соискателям", "Работодателям", "О сайте"):
         assert title in foot

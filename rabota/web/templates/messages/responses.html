@@ -1,5 +1,6 @@
 {% extends 'messages/layout.html' %}
 {% from 'messages/_parts.html' import status as status_badge, info, crumbs %}
+{% from 'messages/_timeline.html' import timeline %}
 {% from '_macros.html' import icon, logo_tile, pager, empty_state %}
 {% block msg_body %}
 <div class="wrap msg-page">
@@ -45,6 +46,7 @@
         <p class="rcard__sub">
           {% if is_employer %}Вакансия: {{ r.vacancy_title }}{% if r.vacancy_city %}, {{ r.vacancy_city }}{% endif %}{% else %}{{ r.employer_name }}{% if r.vacancy_city %}, {{ r.vacancy_city }}{% endif %}{% endif %}
         </p>
+        {{ timeline(r) }}
         {% if r.excerpt %}<p class="rcard__excerpt">{{ r.excerpt }}</p>{% else %}<p class="rcard__excerpt muted">Без сопроводительного сообщения</p>{% endif %}
         <p class="rcard__foot">
           <time datetime="{{ r.created_at }}">{{ r.when }}</time>

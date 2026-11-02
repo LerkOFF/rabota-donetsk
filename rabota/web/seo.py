@@ -38,9 +38,12 @@ DEFAULT_IMAGE = "/static/og.png"
 # Служебные разделы: на них всегда noindex, даже если страница забыла его указать
 PRIVATE_PREFIXES = (
     "/login", "/register", "/logout", "/verify", "/forgot", "/reset", "/account", "/cabinet", "/email",
-    "/admin", "/messages", "/notifications", "/responses", "/razmestit/spasibo",
+    "/admin", "/messages", "/notifications", "/alerts", "/responses", "/razmestit/spasibo", "/razmestit/kod", "/razmestit/gotovo", "/employers/resumes",
 )
-PRIVATE_PATTERNS = (re.compile(r"^/vacancy/[^/]+/(complaint|apply|respond|favorite)(/|$)"),)
+PRIVATE_PATTERNS = (
+    re.compile(r"^/vacancy/[^/]+/(complaint|apply|respond|favorite)(/|$)"),
+    re.compile(r"^/company/[^/]+/claim(/|$)"),
+)
 
 DESC_PADS = (
     "Вакансии Донецка и ДНР с оплатой, графиком, районом и телефоном.",
@@ -484,8 +487,13 @@ def robots_txt(site_url: str) -> str:
         "Disallow: /email",
         "Disallow: /admin",
         "Disallow: /razmestit/spasibo",
+        "Disallow: /razmestit/kod",
+        "Disallow: /razmestit/gotovo",
+        "Disallow: /suggest",
+        "Disallow: /offline",
         "Disallow: /vacancy/*/complaint",
         "Disallow: /vacancy/*/apply",
+        "Disallow: /employers/resumes",
         "",
         "# Яндекс: параметры сортировки и подстановок не создают новых страниц",
         "Clean-param: sort&pay_from&where /vacancies",

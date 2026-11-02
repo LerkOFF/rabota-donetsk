@@ -1,0 +1,78 @@
+{% extends 'alerts/layout.html' %}
+{% from 'auth/_forms.html' import csrf, info %}
+{% from 'messages/_parts.html' import crumbs %}
+{% from '_macros.html' import icon %}
+{% block alerts_body %}
+<div class="wrap alerts">
+  <header class="page-head">
+    {{ crumbs([('Подписки на вакансии', '')]) }}
+    <h1 class="h1 h1--page">Подписки на вакансии</h1>
+    <p class="lead">Сохранённые поиски: когда появляются новые подходящие вакансии, мы пишем на почту или в Telegram.</p>
+  </header>
+
+  {% if guest %}
+  <div class="state">
+    <span class="state__ico">{{ icon('bell') }}</span>
+    <h2 class="h3">Как подписаться</h2>
+    <p>Задайте поиск на странице вакансий и нажмите «Подписаться на такие вакансии». Войти для этого не обязательно. Управлять списком подписок, ставить их на паузу и удалять можно после входа. Отписаться без входа можно по ссылке из любого письма.</p>
+    <div class="state__actions">
+      <a class="btn btn--primary" href="/vacancies">Найти вакансии</a>
+      <a class="btn btn--ghost" href="/login?next=/alerts">Войти</a>
+    </div>
+  </div>
+  {% else %}
+  {{ info(flash) }}
+  {% if items %}
+  <p class="hint" role="status">Подписок: {{ active_count }} из {{ limit }}.</p>
+  <ul class="sub-list">
+    {% for s in items %}
+    <li class="sub sub--{{ s.status }}">
+      <div class="sub__main">
+        <h2 class="sub__title">{{ s.title | ucfirst }}</h2>
+        <p class="sub__meta">
+          <span class="chip">{% if s.channel == 'telegram' %}{{ icon('telegram-logo') }}Telegram{% else %}{{ icon('envelope-simple') }}Почта{% endif %}</span>
+          <span class="chip chip--status-{{ s.status }}">{{ s.status_label }}</span>
+          <span class="muted">{{ s.frequency_label }}{% if s.sent_count %}, отправок: {{ s.sent_count }}{% endif %}</span>
+        </p>
+        {% if s.last_error and s.status == 'paused' %}<p class="error">{{ icon('warning') }}<span>Подписку остановили после неудачных отправок. Включите её снова, когда адрес заработает.</span></p>{% endif %}
+        {% if s.waiting_chat %}
+        <p class="hint">Ждёт подключения чата в Telegram.</p>
+        {% endif %}
+      </div>
+      <div class="sub__actions">
+        <a class="btn btn--ghost btn--sm" href="{{ s.url }}">Вакансии</a>
+        {% if s.waiting_chat %}
+        <form method="post" action="/alerts/telegram/{{ s.ref }}">{{ csrf(csrf_token) }}<button class="btn btn--primary btn--sm" type="submit">{{ icon('telegram-logo') }}Подключить</button></form>
+        {% elif s.status == 'active' %}
+        <form method="post" action="/alerts/{{ s.id }}/pause">{{ csrf(csrf_token) }}<button class="btn btn--ghost btn--sm" type="submit">Пауза</button></form>
+        {% else %}
+        <form method="post" action="/alerts/{{ s.id }}/resume">{{ csrf(csrf_token) }}<button class="btn btn--soft btn--sm" type="submit">Включить</button></form>
+        {% endif %}
+        <form method="post" action="/alerts/{{ s.id }}/frequency" class="sub__freq">
+          {{ csrf(csrf_token) }}
+          <label class="visually-hidden" for="fr-{{ s.id }}">Частота</label>
+          <select class="input input--sm" id="fr-{{ s.id }}" name="frequency">
+            <option value="daily"{% if s.frequency == 'daily' %} selected{% endif %}>Раз в день</option>
+            <option value="instant"{% if s.frequency == 'instant' %} selected{% endif %}>Сразу</option>
+          </select>
+          <button class="btn btn--ghost btn--sm" type="submit">Сохранить</button>
+        </form>
+        {% if tg_enabled and s.channel == 'email' %}
+        <form method="post" action="/alerts/{{ s.id }}/telegram">{{ csrf(csrf_token) }}<button class="btn btn--ghost btn--sm" type="submit">{{ icon('telegram-logo') }}Ещё и в Telegram</button></form>
+        {% endif %}
+        <form method="post" action="/alerts/{{ s.id }}/delete">{{ csrf(csrf_token) }}<button class="btn btn--danger btn--sm" type="submit" aria-label="Удалить подписку {{ s.title }}">{{ icon('trash') }}Удалить</button></form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="state">
+    <span class="state__ico">{{ icon('bell') }}</span>
+    <h2 class="h3">Подписок пока нет</h2>
+    <p>Задайте поиск на странице вакансий и нажмите «Подписаться на такие вакансии»: например, бариста в Донецке или подработка без опыта.</p>
+    <div class="state__actions"><a class="btn btn--primary" href="/vacancies">Найти вакансии</a></div>
+  </div>
+  {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

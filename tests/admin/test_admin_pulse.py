@@ -236,7 +236,9 @@ def test_admin_page_renders_tiles_tabs_and_headers(env):
     assert 'data-sortable="pulse-tiles"' in r.text
     for key in ("new", "moderation", "hidden", "expired", "registrations", "responses", "complaints"):
         assert f'data-key="{key}"' in r.text
-    assert r.text.count('draggable="true"') == 7
+    tiles_html, index_html = r.text.split('data-sortable="pulse-index"')
+    assert tiles_html.count('draggable="true"') == 7
+    assert index_html.count('draggable="true"') == 5  # блок «Страницы в индексе»: подборки, профессии, зарплаты, статьи, районы
     assert "<svg" in r.text and "—" not in r.text
     assert 'aria-current="page"' in r.text and 'href="/admin/pulse"' in r.text  # пункт меню
 

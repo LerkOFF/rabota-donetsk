@@ -1,4 +1,4 @@
-"""Кабинеты работодателя и соискателя: сводка вместо заглушек, меню без резюме и избранного, все пункты меню открываются."""
+"""Кабинеты работодателя и соискателя: сводка вместо заглушек, меню без избранного, все пункты меню открываются."""
 from __future__ import annotations
 
 import re
@@ -13,7 +13,7 @@ from tests.messaging.webkit import apply_as_seeker, make_world, second_visitor
 
 env = pytest.fixture(env_impl)
 
-BANNED = ("резюме", "избранн", "в разработке")
+BANNED = ("избранн", "в разработке")  # резюме теперь есть: docs/RESUMES.md
 
 
 def visible_text(html: str) -> str:
@@ -22,11 +22,11 @@ def visible_text(html: str) -> str:
     return re.sub(r"<[^>]+>", " ", body).lower()
 
 
-def test_menus_have_no_resume_or_favorites():
+def test_menus_have_no_favorites():
     for menu in (SEEKER_MENU, EMPLOYER_MENU):
         for key, label, href, *_ in menu:
-            assert key not in ("resume", "favorites") and "резюме" not in label.lower() and "избранн" not in label.lower(), label
-            assert href not in ("/cabinet/resume", "/cabinet/favorites")
+            assert key != "favorites" and "избранн" not in label.lower(), label
+            assert href != "/cabinet/favorites"
 
 
 @pytest.mark.parametrize("role", ["job_seeker", "employer"])
@@ -88,15 +88,15 @@ def test_dashboards_for_wrong_roles(env):
 
 
 @pytest.mark.parametrize("path", ["/", "/employers", "/about", "/vacancies", "/register", "/login", "/razmestit"])
-def test_public_pages_do_not_promise_resumes_or_favorites(env, path):
+def test_public_pages_do_not_promise_favorites(env, path):
+    """Резюме на сайте теперь есть, а избранного нет: обещать его на публичных страницах нельзя."""
     text = visible_text(env.client.get(path).text)
-    for banned in ("резюме", "избранн"):
-        assert banned not in text, f"{path}: {banned}"
+    assert "избранн" not in text, path
 
 
 def test_account_page_and_home_copy(env):
     login_as(env, "s@example.test", role="job_seeker", name="М")
-    assert "резюме" not in visible_text(env.client.get("/account").text)
+    assert "избранн" not in visible_text(env.client.get("/account").text)
     anon = second_visitor(env)
     home = anon.client.get("/").text
     assert "Отклик на вакансию работодателя в одно нажатие" in home and "Создать аккаунт" in home

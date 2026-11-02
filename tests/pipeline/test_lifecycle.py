@@ -118,7 +118,7 @@ def test_in_memory_batch_updates_last_seen():
     assert a.duplicate_of is None and a.last_seen_at == _iso(1)
 
 
-def test_purge_removes_long_expired_with_duplicates_and_raw(conn):
+def test_purge_archives_first_then_removes_with_duplicates_and_raw(conn):
     conn.execute(
         "INSERT INTO raw_posts(source_type,source,external_id,url,text) VALUES ('telegram','a','1','u','t')"
     )
@@ -128,11 +128,26 @@ def test_purge_removes_long_expired_with_duplicates_and_raw(conn):
     conn.execute("INSERT INTO complaints(vacancy_id, reason) VALUES (?, 'x')", (main,))
     recent = save_vacancy(conn, _vac(30, chan="c", ext="3", profession="повар"))  # истёк, но ещё в хранении
     conn.commit()
-    assert lifecycle.purge(conn, 21, 30, NOW) == 2
+    # первый проход: старое уходит в архив, а не в корзину
+    assert lifecycle.purge(conn, 21, 30, NOW, archive_days=365) == 0
+    assert _status(conn, main)["status"] == "archived" and _status(conn, recent)["status"] != "archived"
+    assert conn.execute("SELECT COUNT(*) FROM raw_posts").fetchone()[0] == 1
+    # срок архива прошёл: удаляется главная вместе с дублем, жалобой и сырым постом
+    later = NOW + timedelta(days=366)
+    assert lifecycle.purge(conn, 21, 30, later, archive_days=365) == 2
     ids = {r[0] for r in conn.execute("SELECT id FROM vacancies")}
     assert ids == {recent}
     assert conn.execute("SELECT COUNT(*) FROM raw_posts").fetchone()[0] == 0
     assert conn.execute("SELECT COUNT(*) FROM complaints").fetchone()[0] == 0
+
+
+def test_archive_moves_only_long_hidden(conn):
+    old = save_vacancy(conn, _vac(100, chan="a", ext="1"))
+    mid = save_vacancy(conn, _vac(30, chan="b", ext="2", profession="повар"))
+    fresh = save_vacancy(conn, _vac(1, chan="c", ext="3", profession="продавец"))
+    lifecycle.expire(conn, 21, NOW)
+    assert lifecycle.archive(conn, 21, 30, NOW) == 1
+    assert [_status(conn, v)["status"] for v in (old, mid, fresh)] == ["archived", "expired", "active"]
 
 
 def test_migration_adds_column_to_old_database(tmp_path):

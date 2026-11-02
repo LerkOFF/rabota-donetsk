@@ -7,8 +7,10 @@ from xml.etree import ElementTree
 import pytest
 from fastapi.testclient import TestClient
 
+from rabota.accounts.mailer import MemoryMailer
 from rabota.web.app import create_app
 from tests.web.conftest import NOW
+from tests.web.postkit import Poster, csrf
 
 ORIGIN = {"Origin": "http://testserver"}
 
@@ -399,37 +401,62 @@ VALID = {
 }
 
 
+@pytest.fixture
+def make_poster(db_path):
+    """Фабрика гостя с почтовым ящиком в памяти: make_poster(premoderate=False, rate_limits=...)."""
+
+    def make(**kw):
+        mailer = MemoryMailer()
+        app = create_app(db_path, site_url="https://example.test", now=lambda: NOW, auth_options={"mailer": mailer}, **kw)
+        client = TestClient(app, base_url="http://testserver")
+        client.__enter__()
+        made.append(client)
+        return Poster(client, mailer)
+
+    made: list[TestClient] = []
+    yield make
+    for c in made:
+        c.__exit__(None, None, None)
+
+
+@pytest.fixture
+def poster(make_poster):
+    return make_poster()
+
+
 def test_post_form_renders(client):
     r = client.get("/razmestit")
     assert r.status_code == 200
-    for name in ("profession", "category", "pay_min", "pay_period", "phone", "summary", "website"):
+    for name in ("profession", "pay_min", "pay_period", "phone", "summary", "website", "account_email", "consent"):
         assert f'name="{name}"' in r.text
     # у каждого поля есть подпись
-    assert r.text.count("<label") >= 15
+    assert r.text.count("<label") >= 10
 
 
-def test_post_valid_saves_hidden_for_moderation(client, conn):
-    r = client.post("/razmestit", data=VALID, headers=ORIGIN, follow_redirects=False)
-    assert r.status_code == 303 and r.headers["location"] == "/razmestit/spasibo"
+def test_post_valid_saves_hidden_for_moderation(poster, conn):
+    r = poster.submit(VALID)
+    token = poster.token_of(r)
+    assert conn.execute("SELECT COUNT(*) FROM vacancies").fetchone()[0] == 0  # до кода вакансии нет
+    final = poster.confirm(token)
+    assert final.status_code == 303 and final.headers["location"].startswith("/razmestit/gotovo/")
     row = conn.execute("SELECT * FROM vacancies").fetchone()
     assert row["source_type"] == "site" and row["status"] == "hidden" and row["kind"] == "vacancy"
     assert row["profession"] == "бариста" and row["pay_min"] == 3500 and row["pay_max"] == 4000
     assert row["pay_period"] == "смена" and row["pay_daily"] == 1 and row["experience"] == "не нужен"
     assert json.loads(row["contacts"]) == {"phones": ["+79490000077"], "telegram": "@zerno_hr", "email": "hr@zerno.example"}
     assert row["published_at"] and row["external_id"] and row["dedupe_key"]
-    assert client.get("/vacancies").text.count("vcard__link") == 0  # до проверки в ленте нет
-    assert "Вакансия отправлена" in client.get("/razmestit/spasibo").text
+    assert poster.client.get("/vacancies").text.count("vcard__link") == 0  # до проверки в ленте нет
+    assert "Вакансия" in poster.client.get(final.headers["location"]).text
 
 
-def test_post_valid_without_moderation_is_published(db_path, conn):
-    app = create_app(db_path, site_url="https://example.test", premoderate=False, now=lambda: NOW)
-    with TestClient(app) as c:
-        r = c.post("/razmestit", data=VALID, headers=ORIGIN, follow_redirects=False)
-        vid = int(r.headers["location"].rsplit("/", 1)[1])
-        page = c.get(f"/vacancy/{vid}")
-        assert page.status_code == 200 and "Бариста" in page.text
-        assert "Оригинал вакансии" not in page.text  # у размещённой вакансии оригинала нет
-        assert titles(c.get("/vacancies").text) == ["Бариста"]
+def test_post_valid_without_moderation_is_published(make_poster):
+    p = make_poster(premoderate=False)
+    final = p.publish(VALID)
+    vid = int(final.headers["location"].split("/gotovo/")[1].split("?")[0])
+    page = p.client.get(f"/vacancy/{vid}")
+    assert page.status_code == 200 and "Бариста" in page.text
+    assert "Оригинал вакансии" not in page.text  # у размещённой вакансии оригинала нет
+    assert titles(p.client.get("/vacancies").text) == ["Бариста"]
 
 
 @pytest.mark.parametrize(
@@ -437,12 +464,9 @@ def test_post_valid_without_moderation_is_published(db_path, conn):
     [
         ({"profession": ""}, "profession"),
         ({"profession": "аб"}, "profession"),
-        ({"category": "космос"}, "category"),
-        ({"category": ""}, "category"),
         ({"work_format": "на луне"}, "work_format"),
         ({"employment": "вечно"}, "employment"),
         ({"pay_period": "век"}, "pay_period"),
-        ({"pay_period": ""}, "pay_period"),
         ({"pay_min": "5000", "pay_max": "4000"}, "pay_max"),
         ({"pay_min": "99999999"}, "pay_min"),
         ({"age_min": "5"}, "age_min"),
@@ -453,55 +477,60 @@ def test_post_valid_without_moderation_is_published(db_path, conn):
         ({"summary": "коротко"}, "summary"),
     ],
 )
-def test_post_validation_errors(client, conn, change, field):
-    data = {**VALID, **change}
-    r = client.post("/razmestit", data=data, headers=ORIGIN)
+def test_post_validation_errors(poster, conn, change, field):
+    r = poster.submit({**VALID, **change})
     assert r.status_code == 422
     assert f'id="err-{field}"' in r.text and "Нужно поправить" in r.text
     assert f'href="#p-{field}"' in r.text
     assert conn.execute("SELECT COUNT(*) FROM vacancies").fetchone()[0] == 0
+    assert poster.mailer.outbox == []  # письмо с кодом не уходит, пока форма с ошибками
     # введённое не теряется
     assert 'value="Ворошиловский"' in r.text
 
 
-def test_post_errors_keep_values_and_escape(client):
-    r = client.post("/razmestit", data={**VALID, "profession": '"><script>alert(1)</script>', "summary": "x"}, headers=ORIGIN)
+def test_post_errors_keep_values_and_escape(poster):
+    r = poster.submit({**VALID, "profession": '"><script>alert(1)</script>', "summary": "x"})
     assert r.status_code == 422
     assert "<script>alert(1)" not in r.text
     assert "&#34;&gt;&lt;script&gt;" in r.text
 
 
-def test_post_limits_field_length(client, conn):
+def test_post_limits_field_length(poster, conn):
     data = {**VALID, "profession": "а" * 300, "summary": "я" * 2500, "employer": "ы" * 400}
-    r = client.post("/razmestit", data=data, headers=ORIGIN, follow_redirects=False)
+    r = poster.publish(data)
     assert r.status_code == 303
     row = conn.execute("SELECT * FROM vacancies").fetchone()
     assert len(row["profession"]) == 80 and len(row["summary"]) == 1000 and len(row["employer"]) == 120
 
 
-def test_post_honeypot(client, conn):
-    r = client.post("/razmestit", data={**VALID, "website": "http://spam"}, headers=ORIGIN, follow_redirects=False)
-    assert r.status_code == 303
+def test_post_honeypot(poster, conn):
+    r = poster.submit({**VALID, "website": "http://spam"})
+    assert r.status_code == 303 and r.headers["location"] == "/razmestit/spasibo"
     assert conn.execute("SELECT COUNT(*) FROM vacancies").fetchone()[0] == 0
+    assert poster.mailer.outbox == []
 
 
-def test_post_rate_limit(db_path, conn):
-    app = create_app(db_path, site_url="https://example.test", rate_limits={"post": (2, 3600)}, now=lambda: NOW)
-    with TestClient(app) as c:
-        codes = [c.post("/razmestit", data=VALID, headers=ORIGIN, follow_redirects=False).status_code for _ in range(3)]
+def test_post_rate_limit(make_poster, conn):
+    p = make_poster(rate_limits={"post": (2, 3600)})
+    codes = [p.submit(VALID).status_code for _ in range(3)]
     assert codes == [303, 303, 429]
-    assert conn.execute("SELECT COUNT(*) FROM vacancies").fetchone()[0] == 2
 
 
-def test_post_cross_site_rejected(client, conn):
-    r = client.post("/razmestit", data=VALID, headers={"Origin": "https://evil.example"})
+def test_post_cross_site_rejected(poster, conn):
+    data = {"csrf_token": csrf(poster.client), "account_email": "boss@example.test", "consent": "1", **VALID}
+    r = poster.client.post("/razmestit", data=data, headers={"Origin": "https://evil.example"})
     assert r.status_code == 403
     assert conn.execute("SELECT COUNT(*) FROM vacancies").fetchone()[0] == 0
 
 
-def test_post_sql_injection_is_stored_as_text(client, conn):
-    r = client.post("/razmestit", data={**VALID, "profession": "'); DROP TABLE vacancies;--"}, headers=ORIGIN,
-                    follow_redirects=False)
+def test_post_without_csrf_rejected(client, conn):
+    r = client.post("/razmestit", data={**VALID, "account_email": "boss@example.test", "consent": "1"}, headers=ORIGIN)
+    assert r.status_code == 403
+    assert conn.execute("SELECT COUNT(*) FROM vacancies").fetchone()[0] == 0
+
+
+def test_post_sql_injection_is_stored_as_text(poster, conn):
+    r = poster.publish({**VALID, "profession": "'); DROP TABLE vacancies;--"})
     assert r.status_code == 303
     assert conn.execute("SELECT profession FROM vacancies").fetchone()[0].startswith("'); drop table")
 

@@ -1,0 +1,187 @@
+{% extends 'resumes/layout.html' %}
+{% from '_macros.html' import icon, field_error %}
+{% from 'messages/_parts.html' import crumbs %}
+{% from 'resumes/_parts.html' import meter %}
+{% macro text_field(name, label, hint='', placeholder='', maxlength=80, type='text', inputmode='', autocomplete='off', list='', required=False, value=None) -%}
+<div class="field{% if errors.get(name) %} field--invalid{% endif %}">
+  <label for="rs-{{ name }}">{{ label }}{% if required %} <span class="muted">(обязательно)</span>{% endif %}</label>
+  {% if hint %}<p class="hint" id="hint-{{ name }}">{{ hint }}</p>{% endif %}
+  <input class="input" id="rs-{{ name }}" name="{{ name }}" type="{{ type }}" value="{{ value if value is not none else form.get(name, '') }}" maxlength="{{ maxlength }}"
+         placeholder="{{ placeholder }}"{% if inputmode %} inputmode="{{ inputmode }}"{% endif %} autocomplete="{{ autocomplete }}"{% if list %} list="{{ list }}"{% endif %}
+         spellcheck="{{ 'false' if type in ('tel',) or name in ('contact_telegram',) else 'true' }}"{% if required %} required{% endif %}
+         {% set d = [] %}{% if hint %}{% set _ = d.append('hint-' ~ name) %}{% endif %}{% if errors.get(name) %}{% set _ = d.append('err-' ~ name) %}{% endif %}
+         {% if errors.get(name) %}aria-invalid="true"{% endif %}{% if d %} aria-describedby="{{ d | join(' ') }}"{% endif %}>
+  {{ field_error(errors, name) }}
+</div>
+{%- endmacro %}
+
+{% block rs_body %}
+<div class="wrap cab rs-page">
+  <header class="page-head">
+    {{ crumbs([('Кабинет соискателя', '/cabinet/seeker'), ('Мои резюме', '/cabinet/resumes'), ('Новое резюме' if not resume else 'Редактирование', '')]) }}
+    <h1 class="h1 h1--page">{% if resume %}Редактирование резюме{% else %}Новое резюме{% endif %}</h1>
+    <p class="lead">Заполните главное, остальное можно добавить позже. Обязательна только профессия.</p>
+  </header>
+
+  {% if errors %}
+  <div class="error-summary" role="alert" tabindex="-1" id="error-summary">
+    <h2>Нужно поправить {{ plural(errors | length, 'поле', 'поля', 'полей') }}</h2>
+    <ul>
+      {% for name, text in errors.items() %}<li><a href="#rs-{{ name }}">{{ text }}</a></li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <div class="cab__split rs-split">
+    <form class="form-grid rs-form" method="post" action="{% if resume %}/cabinet/resumes/{{ resume.id }}/edit{% else %}/cabinet/resumes/new{% endif %}" novalidate data-busy-form data-resume-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <div class="hp" aria-hidden="true"><label>Не заполняйте это поле<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+      <section class="form-section" aria-labelledby="rs-s-work">
+        <h2 id="rs-s-work">Кем хотите работать</h2>
+        {{ text_field('profession', 'Профессия или должность', required=True, placeholder='Например: бариста', maxlength=80, list='rs-professions', hint='Начните вводить: подскажем знакомые названия.') }}
+        <datalist id="rs-professions">{% for name in lists.professions %}<option value="{{ name[:1] | upper }}{{ name[1:] }}"></option>{% endfor %}</datalist>
+        <div class="form-row form-row--2">
+          {{ text_field('pay_min', 'Желаемая зарплата, ₽', placeholder='30000', maxlength=9, inputmode='numeric', hint='От какой суммы рассматриваете работу.') }}
+          <div class="field{% if errors.get('pay_period') %} field--invalid{% endif %}">
+            <label for="rs-pay_period">За что</label>
+            <p class="hint">&nbsp;</p>
+            <select class="input" id="rs-pay_period" name="pay_period"{% if errors.get('pay_period') %} aria-invalid="true" aria-describedby="err-pay_period"{% endif %}>
+              <option value="">Не указывать</option>
+              {% for key, text in lists.pay_periods %}<option value="{{ key }}"{% if form.get('pay_period') == key %} selected{% endif %}>{{ text }}</option>{% endfor %}
+            </select>
+            {{ field_error(errors, 'pay_period') }}
+          </div>
+        </div>
+      </section>
+
+      <section class="form-section" aria-labelledby="rs-s-where">
+        <h2 id="rs-s-where">Где и как</h2>
+        <div class="form-row form-row--2">
+          {{ text_field('city', 'Город', maxlength=60, autocomplete='address-level2') }}
+          {{ text_field('district', 'Район', maxlength=60, list='rs-districts', placeholder='Ворошиловский') }}
+        </div>
+        <datalist id="rs-districts">{% for name in lists.districts %}<option value="{{ name }}"></option>{% endfor %}</datalist>
+        <div class="rs-checks">
+          <label class="check"><input type="checkbox" name="relocate" value="1"{% if form.get('relocate') %} checked{% endif %}><span>Готов к переезду</span></label>
+          <label class="check"><input type="checkbox" name="remote" value="1"{% if form.get('remote') %} checked{% endif %}><span>Готов работать удалённо</span></label>
+        </div>
+        <fieldset class="fieldset">
+          <legend>Формат работы</legend>
+          <div class="rs-options">
+            {% for key, text in lists.formats %}<label class="rs-option"><input type="checkbox" name="work_formats" value="{{ key }}"{% if key in form.get('work_formats', []) %} checked{% endif %}><span>{{ text }}</span></label>{% endfor %}
+          </div>
+        </fieldset>
+        <fieldset class="fieldset">
+          <legend>Занятость</legend>
+          <div class="rs-options">
+            {% for key, text in lists.employments %}<label class="rs-option"><input type="checkbox" name="employments" value="{{ key }}"{% if key in form.get('employments', []) %} checked{% endif %}><span>{{ text }}</span></label>{% endfor %}
+          </div>
+        </fieldset>
+        {{ text_field('schedule', 'Удобный график', placeholder='5/2, 2/2, по утрам', maxlength=60) }}
+      </section>
+
+      <section class="form-section" aria-labelledby="rs-s-exp">
+        <h2 id="rs-s-exp">Опыт</h2>
+        {{ text_field('experience_years', 'Стаж, лет', placeholder='0 если опыта нет', maxlength=2, inputmode='numeric', hint='Общий стаж по профессии.') }}
+        <p class="hint">Последние места работы, коротко (до 3):</p>
+        {% for p in form.places %}
+        {% set i = loop.index %}
+        <div class="rs-place{% if errors.get('place_' ~ i) %} field--invalid{% endif %}">
+          <div class="form-row form-row--3">
+            <div class="field"><label for="rs-place_{{ i }}">Где {{ i }}</label>
+              <input class="input" id="rs-place_{{ i }}" name="place_{{ i }}" type="text" maxlength="80" value="{{ p.place }}" placeholder="Кофейня «Зерно»" autocomplete="off"{% if errors.get('place_' ~ i) %} aria-invalid="true" aria-describedby="err-place_{{ i }}"{% endif %}></div>
+            <div class="field"><label for="rs-role_{{ i }}">Должность</label>
+              <input class="input" id="rs-role_{{ i }}" name="role_{{ i }}" type="text" maxlength="80" value="{{ p.role }}" placeholder="Бариста" autocomplete="off"></div>
+            <div class="field"><label for="rs-period_{{ i }}">Когда</label>
+              <input class="input" id="rs-period_{{ i }}" name="period_{{ i }}" type="text" maxlength="40" value="{{ p.period }}" placeholder="2022-2024" autocomplete="off"></div>
+          </div>
+          {{ field_error(errors, 'place_' ~ i) }}
+        </div>
+        {% endfor %}
+      </section>
+
+      <section class="form-section" aria-labelledby="rs-s-skills">
+        <h2 id="rs-s-skills">Навыки и о себе</h2>
+        <div class="field{% if errors.get('skills') %} field--invalid{% endif %}">
+          <label for="rs-skills">Навыки <span class="muted">(через запятую, до {{ limits.skills }})</span></label>
+          <p class="hint" id="hint-skills">Например: работа с кассой, 1С, водительские права B. Три и больше заметно поднимают резюме в поиске.</p>
+          <input class="input" id="rs-skills" name="skills" type="text" value="{{ form.get('skills', '') }}" maxlength="400" autocomplete="off" data-tags="rs-tags-preview"
+                 aria-describedby="hint-skills{% if errors.get('skills') %} err-skills{% endif %}"{% if errors.get('skills') %} aria-invalid="true"{% endif %}>
+          <ul class="rs-tags" id="rs-tags-preview" aria-label="Навыки, как их увидит работодатель" aria-live="polite"></ul>
+          {{ field_error(errors, 'skills') }}
+        </div>
+        <div class="field{% if errors.get('about') %} field--invalid{% endif %}">
+          <label for="rs-about">О себе</label>
+          <p class="hint" id="hint-about">Пара предложений: чем вы полезны, что умеете, когда готовы выйти. Без ссылок и контактов, для них есть поля ниже.</p>
+          <textarea class="input" id="rs-about" name="about" rows="5" maxlength="{{ limits.about }}" data-counter="rs-about-count"
+                    aria-describedby="hint-about rs-about-count{% if errors.get('about') %} err-about{% endif %}"{% if errors.get('about') %} aria-invalid="true"{% endif %}>{{ form.get('about', '') }}</textarea>
+          <p class="counter" id="rs-about-count" aria-live="off"><span data-count>{{ (form.get('about', '') or '') | length }}</span> из {{ limits.about }}</p>
+          {{ field_error(errors, 'about') }}
+        </div>
+      </section>
+
+      <section class="form-section" aria-labelledby="rs-s-contact">
+        <h2 id="rs-s-contact">Как с вами связаться</h2>
+        <p class="hint">Работодатель увидит эти контакты только после нажатия кнопки «Показать контакты». Можно не указывать: тогда он напишет вам приглашение на сайте.</p>
+        <div class="form-row form-row--2">
+          {{ text_field('contact_phone', 'Телефон', type='tel', inputmode='tel', placeholder='+7 949 000-00-00', maxlength=40, autocomplete='tel') }}
+          {{ text_field('contact_telegram', 'Telegram', placeholder='@nickname', maxlength=64) }}
+        </div>
+      </section>
+
+      <section class="form-section" aria-labelledby="rs-s-vis">
+        <h2 id="rs-s-vis">Кому показывать</h2>
+        <fieldset class="fieldset{% if errors.get('visibility') %} field--invalid{% endif %}">
+          <legend class="visually-hidden">Видимость резюме</legend>
+          <div class="rs-choices">
+            {% for key, label, hint in lists.visibilities %}
+            <label class="rs-choice">
+              <input type="radio" name="visibility" value="{{ key }}"{% if form.get('visibility', 'public') == key %} checked{% endif %}>
+              <span class="rs-choice__body"><strong>{{ label }}</strong><span class="muted">{{ hint }}</span></span>
+            </label>
+            {% endfor %}
+          </div>
+          {{ field_error(errors, 'visibility') }}
+        </fieldset>
+
+        <div class="rs-consent{% if errors.get('consent') %} field--invalid{% endif %}" data-consent-box>
+          <label class="check" for="rs-consent">
+            <input id="rs-consent" type="checkbox" name="consent" value="1"{% if form.get('consent') %} checked{% endif %}{% if errors.get('consent') %} aria-invalid="true" aria-describedby="err-consent"{% endif %}>
+            <span>Согласен на показ резюме работодателям и передачу им моих данных (<a href="/legal/resume" target="_blank" rel="noopener">текст согласия</a>, редакция {{ consent_version.split(' ', 1)[1] }}). Нужно для вариантов «Всем работодателям» и «Только по отклику».</span>
+          </label>
+          {{ field_error(errors, 'consent') }}
+          <details class="rs-consent__text">
+            <summary>Прочитать согласие здесь</summary>
+            <div class="legal">{{ consent_html | safe }}</div>
+          </details>
+          <p class="hint">Время и редакция согласия сохраняются. Скрыв или удалив резюме, вы отзываете согласие.</p>
+        </div>
+      </section>
+
+      <div class="form-actions">
+        <button class="btn btn--primary btn--lg" type="submit" data-busy-text="Сохраняем…">Сохранить резюме</button>
+        <a class="btn btn--ghost btn--lg" href="/cabinet/resumes">Отмена</a>
+      </div>
+    </form>
+
+    <aside class="panel cab__aside rs-aside" aria-labelledby="rs-aside-h">
+      <h2 id="rs-aside-h" class="h3">Как заметнее</h2>
+      {% if resume %}
+      {{ meter(resume.percent) }}
+      {% if resume.tips %}
+      <ul class="rs-tips-list">{% for t in resume.tips[:5] %}<li><strong>+{{ t.points }}%</strong> {{ t.text }}</li>{% endfor %}</ul>
+      {% else %}<p class="muted">Всё заполнено.</p>{% endif %}
+      {% else %}
+      <p>Резюме с зарплатой, районом, стажем и тремя навыками работодатели находят и открывают намного чаще.</p>
+      <ul class="rs-tips-list">
+        <li><strong>+15%</strong> последнее место работы</li>
+        <li><strong>+15%</strong> три и больше навыков</li>
+        <li><strong>+10%</strong> зарплата, стаж, контакты</li>
+      </ul>
+      {% endif %}
+      <p class="hint">Не указывайте паспортные данные, адрес, карту и коды из СМС. Они работодателю не нужны.</p>
+    </aside>
+  </div>
+</div>
+{% endblock %}

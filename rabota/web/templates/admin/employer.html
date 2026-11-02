@@ -1,0 +1,122 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon, logo_tile %}
+{% from 'admin/_macros.html' import page_head, chip, csrf %}
+{% set c = d.company %}
+{% block content %}
+<nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/admin">Админка</a></li><li><a href="/admin/employers">Работодатели</a></li><li>{{ c.name }}</li></ol></nav>
+
+{% call page_head(c.name, 'Компания №' ~ c.id ~ ', зарегистрирована ' ~ (c.created_at | dt)) %}
+<p class="adm-head__chips">
+  {% if c.blocked_at %}{{ chip('Заблокирован', 'danger', 'lock-key') }}{% endif %}
+  {% if c.verified_at %}{{ chip('Проверенный работодатель с ' ~ (c.verified_at | date), 'ok', 'seal-check') }}{% else %}{{ chip('Не проверен', 'mute', 'clock') }}{% endif %}
+  {% if c.vacancies_pending %}{{ chip('Вакансий на проверке: ' ~ c.vacancies_pending, 'warn', 'clock') }}{% endif %}
+  {% if c.complaints_open %}{{ chip('Открытых жалоб: ' ~ c.complaints_open, 'warn', 'flag') }}{% endif %}
+</p>
+{% endcall %}
+
+{% if error_text %}<div class="notice notice--warn" role="alert">{{ icon('warning') }}<span>{{ error_text }}</span></div>{% endif %}
+{% if c.blocked_at %}<p class="notice notice--warn">{{ icon('lock-key') }}<span>Заблокирован {{ c.blocked_at | dt }}: {{ c.blocked_note }}. Аккаунт владельца закрыт, вакансии скрыты, страница компании не открывается.</span></p>{% endif %}
+
+<div class="adm-split">
+  <div class="adm-split__main" data-sortable="employer-main">
+    <section class="panel" aria-labelledby="h-about" data-key="about" draggable="true">
+      <h2 id="h-about">Компания</h2>
+      <div class="emp-admin-head">
+        {% if d.logo_url %}<img class="logo-tile logo-tile--lg logo-tile--img" src="{{ d.logo_url }}" alt="" width="64" height="64">{% else %}{{ logo_tile(c.name, 'lg') }}{% endif %}
+        <p class="muted">{{ c.city or 'Донецк' }}</p>
+      </div>
+      <dl class="facts adm-facts">
+        <div><dt>Владелец</dt><dd>{{ c.owner_name or 'Без имени' }}, {{ c.owner_email or 'почты нет' }}{% if c.owner_status == 'blocked' %} (аккаунт закрыт){% endif %}</dd></div>
+        <div><dt>Сайт</dt><dd>{% if c.site %}<a href="{{ c.site }}" target="_blank" rel="noopener nofollow ugc">{{ c.site }} {{ icon('arrow-square-out') }}</a>{% else %}<span class="muted">не указан</span>{% endif %}</dd></div>
+        <div><dt>Телефон</dt><dd>{% if c.phone %}{{ phone_pretty(c.phone) }}{% else %}<span class="muted">не указан</span>{% endif %}</dd></div>
+        <div><dt>Почта для вакансий</dt><dd>{{ c.contact_email or '-' }}</dd></div>
+        <div><dt>Проверка</dt><dd>{% if c.verified_at %}Отмечен {{ c.verified_at | dt }}{% if c.verify_note %}: {{ c.verify_note }}{% endif %}{% else %}Не проходил{% if c.verify_note %} (прошлая отметка снята: {{ c.verify_note }}){% endif %}{% endif %}</dd></div>
+        <div><dt>Отклики</dt><dd>{% if d.stats.show_responses %}получено за 90 дней: {{ d.stats.responses }}{% if d.stats.show_reply_time %}, отвечает {{ d.stats.reply_text }}{% endif %}{% else %}<span class="muted">данных нет</span>{% endif %}</dd></div>
+      </dl>
+      {% if c.description %}<div class="prose"><p>{{ c.description }}</p></div>{% endif %}
+      <p><a class="link-arrow" href="/company/{{ c.id }}">Страница компании на сайте{{ icon('arrow-right') }}</a></p>
+    </section>
+
+    <section class="panel" aria-labelledby="h-vac" data-key="vacancies" draggable="true">
+      <h2 id="h-vac">Вакансии ({{ d.vacancies | length }})</h2>
+      {% if d.vacancies %}
+      <ul class="adm-list emp-list">
+        {% for v in d.vacancies %}
+        <li>
+          <a href="/admin/vacancies/{{ v.id }}">№{{ v.id }} {{ v.profession | ucfirst }}</a>
+          {% if v.moderation_status == 'pending' %}{{ chip('На проверке', 'warn', 'clock') }}{% elif v.moderation_status == 'rejected' %}{{ chip('Отклонена', 'danger', 'x-circle') }}{% elif v.status == 'active' %}{{ chip('В выдаче', 'ok', 'check-circle') }}{% else %}{{ chip(v.status, 'mute') }}{% endif %}
+          {% for f in v.flags %}{{ chip(f, 'warn', 'shield-warning') }}{% endfor %}
+          <span class="muted">{{ v.created_at | dt }}</span>
+          {% if v.moderation_note %}<span class="adm-list__err">{{ v.moderation_note }}</span>{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="muted">Вакансий пока нет.</p>{% endif %}
+    </section>
+
+    <section class="panel" aria-labelledby="h-comp" data-key="complaints" draggable="true">
+      <h2 id="h-comp">Жалобы на вакансии компании</h2>
+      {% if d.complaints %}
+      <ul class="adm-list emp-list">
+        {% for k in d.complaints %}
+        <li><a href="/admin/complaints/{{ k.id }}">№{{ k.id }}</a> <span class="muted">вакансия {{ k.vacancy_id }}, {{ k.created_at | dt }}{% if k.status != 'new' %}, закрыта{% endif %}</span><span class="adm-list__err">{{ k.reason }}</span></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="muted">Жалоб нет.</p>{% endif %}
+    </section>
+
+    <section class="panel" aria-labelledby="h-log" data-key="journal" draggable="true">
+      <h2 id="h-log">Журнал по компании</h2>
+      {% if d.journal %}
+      <ul class="adm-list emp-list">
+        {% for row in d.journal %}
+        <li>{{ row.label }} <span class="muted">{{ row.at | dt }}, {{ row.actor_email }}</span>{% if row.details and row.details != '{}' %}<span class="adm-list__err">{{ row.details }}</span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="muted">Действий пока не было.</p>{% endif %}
+    </section>
+  </div>
+
+  <aside class="adm-split__side" aria-label="Решение по работодателю" data-sortable="employer-side">
+    <section class="panel" aria-labelledby="h-ver" data-key="verify" draggable="true">
+      <h2 id="h-ver">Проверка работодателя</h2>
+      {% if c.verified_at %}
+      <p class="hint">Значок «Проверенный работодатель» виден на странице компании и в вакансиях, вакансии без подозрительных признаков публикуются сразу.</p>
+      <form class="adm-form" method="post" action="/admin/employers/{{ c.id }}/unverify">
+        {{ csrf() }}
+        <div class="field"><label for="v-note">Причина (по желанию)</label>
+          <input class="input input--sm" id="v-note" name="note" maxlength="300" autocomplete="off"></div>
+        <button class="btn btn--ghost btn--block" type="submit" data-confirm="Снять отметку о проверке?">{{ icon('x-circle') }}Снять проверку</button>
+      </form>
+      {% else %}
+      <p class="hint">Отметьте после проверки телефона или документов. Что именно проверили, запишите в примечание: оно останется в журнале.</p>
+      <form class="adm-form" method="post" action="/admin/employers/{{ c.id }}/verify">
+        {{ csrf() }}
+        <div class="field"><label for="v-note">Что проверено</label>
+          <input class="input input--sm" id="v-note" name="note" maxlength="300" placeholder="Позвонили на телефон, видели вывеску" autocomplete="off"></div>
+        <button class="btn btn--primary btn--block" type="submit"{% if c.blocked_at %} disabled{% endif %}>{{ icon('seal-check') }}Проверить работодателя</button>
+      </form>
+      {% endif %}
+    </section>
+
+    <section class="panel" aria-labelledby="h-blk" data-key="block" draggable="true">
+      <h2 id="h-blk">Блокировка</h2>
+      {% if c.blocked_at %}
+      <p class="hint">Снятие блокировки открывает аккаунт и возвращает вакансии, которые скрыла сама блокировка.</p>
+      <form class="adm-form" method="post" action="/admin/employers/{{ c.id }}/unblock">
+        {{ csrf() }}
+        <button class="btn btn--primary btn--block" type="submit">{{ icon('lock-key') }}Снять блокировку</button>
+      </form>
+      {% else %}
+      <p class="hint">Аккаунт владельца закроется, сессии прервутся, вакансии компании скроются, отметка о проверке снимется.</p>
+      <form class="adm-form" method="post" action="/admin/employers/{{ c.id }}/block">
+        {{ csrf() }}
+        <div class="field"><label for="b-reason">Причина (обязательно)</label>
+          <textarea class="input" id="b-reason" name="reason" rows="3" maxlength="300" required></textarea></div>
+        <button class="btn btn--danger btn--block" type="submit" data-confirm="Заблокировать работодателя и скрыть его вакансии?">{{ icon('lock-key') }}Заблокировать</button>
+      </form>
+      {% endif %}
+    </section>
+  </aside>
+</div>
+{% endblock %}

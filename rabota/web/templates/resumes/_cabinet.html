@@ -1,0 +1,24 @@
+{% from '_macros.html' import icon %}
+{% if cabinet_resumes is defined %}
+{% set cr = cabinet_resumes(me) %}
+{% if cr.ok %}
+<link rel="stylesheet" href="{{ asset('resumes.css') }}">
+<section class="cab-msg rs-cab" aria-labelledby="rs-cab-h" data-cabinet-resumes>
+  <h2 id="rs-cab-h" class="cab-msg__title">Мои резюме</h2>
+  {% if cr.items %}
+  <ul class="stats">
+    <li><a class="stat" href="/cabinet/resumes" data-resume-count="{{ cr.count }}"><span class="stat__n">{{ cr.count }}</span><span class="stat__l">Резюме из {{ cr.limit }}</span></a></li>
+    <li><a class="stat" href="/cabinet/resumes"><span class="stat__n">{{ cr.best.percent }}%</span><span class="stat__l">Заполнено лучшее</span></a></li>
+    <li><a class="stat" href="/cabinet/resumes"><span class="stat__n">{{ cr.views }}</span><span class="stat__l">Просмотров работодателями</span></a></li>
+  </ul>
+  {% if cr.best.tips %}<p class="muted">Чтобы резюме «{{ cr.best.title }}» заметили: {{ cr.best.tips[0].text | lower }}.</p>{% endif %}
+  {% else %}
+  <p class="muted">Резюме пока нет. Составьте его за пару минут: работодатели найдут вас сами, а откликаться на вакансии станет проще.</p>
+  {% endif %}
+  <div class="state__actions">
+    {% if cr.items %}<a class="btn btn--primary btn--sm" href="/cabinet/resumes">Мои резюме</a>{% endif %}
+    {% if cr.count < cr.limit %}<a class="btn {% if cr.items %}btn--ghost{% else %}btn--primary{% endif %} btn--sm" href="/cabinet/resumes/new">{{ icon('plus') }}Составить резюме</a>{% endif %}
+  </div>
+</section>
+{% endif %}
+{% endif %}

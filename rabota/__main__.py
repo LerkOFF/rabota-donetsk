@@ -11,6 +11,8 @@
     python -m rabota health [--json]                                          свежесть источников, код 1 при просрочке
     python -m rabota mail-check [--send-to адрес]                             проверка почты: письмо с кодом собирается, SMTP отвечает
     python -m rabota tg-login                                                 один раз: вход в Telegram для слушателя
+    python -m rabota quality-sweep [--dry-run]                                скрыть активные вакансии с мусорным названием (на проверку)
+    python -m rabota reparse-posters [--dry-run] [--source X]                 перечитать афиши постов с мусорной или несозданной вакансией
 """
 from __future__ import annotations
 
@@ -84,10 +86,10 @@ def cmd_process(conn: sqlite3.Connection) -> dict:
                 "SELECT profession FROM vacancies WHERE source=? AND external_id=?", (raw.source, raw.external_id)
             )
         }
-        kept, dropped = filter_vacancies(conn, new_image_vacancies(raw, provider, have))  # стоп-лист
+        kept, dropped = filter_vacancies(conn, new_image_vacancies(raw, provider, have, conn))  # стоп-лист
         stats["stoplisted"] = stats.get("stoplisted", 0) + dropped
         for vac in kept:
-            save_vacancy(conn, vac)
+            save_vacancy(conn, vac, check_quality=True)
             from_images += 1
     if from_images:
         from rabota.pipeline.dedupe import dedupe
@@ -95,7 +97,53 @@ def cmd_process(conn: sqlite3.Connection) -> dict:
         stats["duplicates"] = dedupe(conn)
     stats["from_images"] = from_images
     stats["expired"] = expire(conn)
+    from rabota.employers_auto.jobs import attach_new
+
+    stats["employers"] = attach_new(conn)
     return stats
+
+
+def cmd_employers_backfill(conn: sqlite3.Connection, dry_run: bool, recheck: bool = False) -> int:
+    """Завести карточки работодателей по всем сохранённым вакансиям и напечатать отчёт. Повторный запуск безопасен."""
+    from rabota.employers_auto import cards
+    from rabota.employers_auto.names import REASONS
+
+    report = cards.backfill(conn, dry_run=dry_run, recheck=recheck)
+    print("пробный прогон, в базе ничего не изменено" if dry_run else "карточки работодателей заведены")
+    print(f"просмотрено вакансий: {report.scanned}")
+    print(f"привязано к существующим карточкам: {report.linked}")
+    print(f"{'была бы заведена' if dry_run else 'заведено'} новых карточек: {report.created}")
+    print(f"пропущено вакансий: {sum(report.skipped.values())}")
+    for reason, n in report.skipped.most_common():
+        sample = "; ".join(report.examples.get(reason, [])[:3])
+        print(f"  {REASONS.get(reason, reason)}: {n}" + (f" (например: {sample})" if sample else ""))
+    return 0
+
+
+def cmd_quality_sweep(conn: sqlite3.Connection, *, dry_run: bool = False) -> int:
+    """Скрыть активные вакансии с мусорным названием: на проверку с причиной. Повторный запуск ничего не меняет."""
+    from rabota.ops.quality_sweep import sweep
+
+    res = sweep(conn, dry_run=dry_run)
+    for item in res["items"]:
+        print(f"  {item['id']}: «{item['profession']}» - {item['reason']}")
+    print(f"проверено {res['checked']}, мусорных {res['junk']}, скрыто {res['hidden']}" + (" (пробный запуск)" if dry_run else ""))
+    return 0
+
+
+def cmd_reparse_posters(conn: sqlite3.Connection, *, dry_run: bool = False, source: str | None = None) -> int:
+    """Перечитать посты с афишами: мусорная вакансия или афиша не прочиталась. Нужен LLM_PROVIDER=ocr или другой провайдер картинок."""
+    from rabota.ops.poster_reparse import reparse
+
+    res = reparse(conn, _vision_provider(), source=source, dry_run=dry_run)
+    for item in res["items"]:
+        found = ", ".join(item["professions"]) or ("не прочитано" if item.get("unread") else "ничего нового")
+        print(f"  {item['post']} ({item['reason']}): {item.get('error') or found}")
+    print(
+        f"кандидатов {res['candidates']}, перечитано {res['reparsed']}, создано {res['created']}, "
+        f"заменено мусорных {res['replaced']}, всё ещё нечитаемых {res['still_unread']}" + (" (пробный запуск)" if dry_run else "")
+    )
+    return 0
 
 
 def cmd_stats(conn: sqlite3.Connection) -> None:
@@ -132,6 +180,9 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("--source", action="append", default=[], choices=COLLECTORS)
     sub.add_parser("process")
     sub.add_parser("expire", help="скрыть вакансии старше срока жизни и удалить давно скрытые")
+    backfill = sub.add_parser("employers-backfill", help="завести карточки работодателей по всем сохранённым вакансиям")
+    backfill.add_argument("--dry-run", action="store_true", help="только посчитать, ничего не записывать")
+    backfill.add_argument("--recheck", action="store_true", help="заново проверить вакансии, которым раньше отказали")
     sub.add_parser("stats")
     serve = sub.add_parser("serve")
     serve.add_argument("--port", type=int, default=8000)
@@ -143,6 +194,11 @@ def main(argv: list[str] | None = None) -> int:
     mc = sub.add_parser("mail-check", help="проверить почту: собрать письмо с кодом и проверить SMTP, ничего не отправляя")
     mc.add_argument("--send-to", help="отправить одно проверочное письмо на этот адрес")
     sub.add_parser("tg-login", help="интерактивный вход в Telegram (телефон, код, пароль), сессия в файл")
+    qs = sub.add_parser("quality-sweep", help="найти активные вакансии с мусорным названием и скрыть их (на проверку)")
+    qs.add_argument("--dry-run", action="store_true", help="только показать, ничего не менять")
+    rp = sub.add_parser("reparse-posters", help="перечитать афиши постов, у которых вакансия мусорная или не создалась")
+    rp.add_argument("--dry-run", action="store_true", help="распознать и показать, ничего не сохранять")
+    rp.add_argument("--source", help="только этот источник (канал или тип источника)")
     args = parser.parse_args(argv)
 
     if args.cmd == "worker":
@@ -172,12 +228,20 @@ def main(argv: list[str] | None = None) -> int:
     conn = connect(Path(config.DB_PATH))
     if args.cmd == "make-admin":
         return cmd_make_admin(conn, args.email)
+    if args.cmd == "quality-sweep":
+        return cmd_quality_sweep(conn, dry_run=args.dry_run)
+    if args.cmd == "reparse-posters":
+        return cmd_reparse_posters(conn, dry_run=args.dry_run, source=args.source)
     if args.cmd in ("collect", "run"):
         cmd_collect(conn, args.limit, args.source)
     if args.cmd in ("process", "run"):
         print("разбор:", cmd_process(conn))
     if args.cmd == "expire":
-        print({"скрыто": expire(conn), "удалено": purge(conn)})
+        from rabota.lifecycle import archive as archive_expired
+
+        print({"скрыто": expire(conn), "в архив": archive_expired(conn), "удалено": purge(conn)})
+    if args.cmd == "employers-backfill":
+        return cmd_employers_backfill(conn, args.dry_run, args.recheck)
     if args.cmd in ("stats", "run"):
         cmd_stats(conn)
     return 0

@@ -3,10 +3,13 @@
 Запуск только их: .venv/bin/pytest -m e2e
 """
 import importlib.util
+import re
 import socket
 import sqlite3
 import threading
 import time
+from email import policy
+from email.parser import BytesParser
 from pathlib import Path
 
 import pytest
@@ -295,21 +298,29 @@ def test_complaint_validation_error_is_shown(page, db_file):
 
 def test_post_form_errors_then_success(page, db_file):
     visit(page, "/razmestit")
-    page.get_by_role("button", name="Отправить на проверку").click()
+    page.get_by_role("button", name="Получить код на почту").click()
     summary = page.locator("#error-summary")
     assert summary.is_visible()
     assert page.evaluate("document.activeElement.id") == "error-summary"
     assert page.locator(".error").count() >= 3
 
     page.fill("#p-profession", "Курьер")
-    page.select_option("#p-category", "транспорт")
     page.fill("#p-pay_min", "2500")
     page.select_option("#p-pay_period", "смена")
     page.fill("#p-phone", "+7 949 000-00-55")
     page.fill("#p-summary", "Развозить заказы по центру города на велосипеде.")
-    page.get_by_role("button", name="Отправить на проверку").click()
-    page.wait_for_url("**/razmestit/spasibo")
-    assert page.get_by_text("Вакансия отправлена").is_visible()
+    page.fill("#p-account_email", "kurier@example.test")
+    page.check("#p-consent")
+    page.get_by_role("button", name="Получить код на почту").click()
+    page.wait_for_url("**/razmestit/kod/*")
+    letters = sorted((Path(db_file).parent / "outbox").glob("*kurier@example.test*.eml"), key=lambda f: f.stat().st_mtime_ns)
+    assert letters, "письмо с кодом не отправлено"
+    body = BytesParser(policy=policy.default).parsebytes(letters[-1].read_bytes()).get_body(("plain",)).get_content()
+    code = re.search(r"(?<!\d)(\d{6})(?!\d)", body).group(1)
+    page.fill("#p-code", code)
+    page.get_by_role("button", name="Опубликовать вакансию").click()
+    page.wait_for_url("**/razmestit/gotovo/*")
+    assert page.get_by_text("Вакансия принята").first.is_visible()
     conn = sqlite3.connect(db_file)
     row = conn.execute("SELECT status, source_type FROM vacancies WHERE profession='курьер' AND source_type='site'").fetchone()
     conn.close()
@@ -378,11 +389,14 @@ def test_keyboard_skip_link_and_focus_ring(make_page):
 def test_tab_order_reaches_call_button(make_page):
     page = make_page(DESKTOP)
     visit(page, "/")
-    seen = set()
-    for _ in range(40):
+    reached = None
+    for step in range(1, 61):
         page.keyboard.press("Tab")
-        seen.add(page.evaluate("document.activeElement.textContent.trim()"))
-    assert "Позвонить" in seen
+        if page.evaluate("document.activeElement.textContent.trim()") == "Позвонить":
+            reached = step
+            break
+    print("Tab до кнопки Позвонить:", reached)
+    assert reached is not None, "кнопка Позвонить недостижима за 60 нажатий Tab"
 
 
 # ---------------------------------------------------------------- доступность
@@ -461,7 +475,7 @@ def test_accessibility_audit_with_open_forms(make_page, db_file, scheme):
     page.get_by_text("Пожаловаться на вакансию").click()
     assert page.evaluate(AUDIT_JS) == []
     visit(page, "/razmestit")
-    page.get_by_role("button", name="Отправить на проверку").click()
+    page.get_by_role("button", name="Получить код на почту").click()
     assert page.evaluate(AUDIT_JS) == []
 
 

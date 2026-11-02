@@ -1,0 +1,79 @@
+{% extends 'resumes/layout.html' %}
+{% from '_macros.html' import icon, pager, empty_state %}
+{% from 'messages/_parts.html' import crumbs %}
+{% from 'resumes/_parts.html' import facts, skills %}
+{% macro opt(value, text, current) -%}<option value="{{ value }}"{% if value == current %} selected{% endif %}>{{ text }}</option>{%- endmacro %}
+{% block rs_body %}
+<div class="wrap cab rs-page">
+  <header class="page-head cab__head">
+    {{ crumbs([('Кабинет работодателя', '/cabinet/employer'), ('Поиск резюме', '')]) }}
+    <h1 class="h1 h1--page">Поиск резюме</h1>
+    <p class="lead">Соискатели Донецка, которые открыли резюме работодателям. Контакты открываются по кнопке, сайт учитывает просмотры.</p>
+  </header>
+
+  <form class="rs-filter" method="get" action="/employers/resumes" role="search" aria-label="Фильтры поиска резюме">
+    <div class="rs-filter__row">
+      <div class="field"><label for="f-q">Профессия или навык</label>
+        <input class="input" id="f-q" name="q" type="search" value="{{ f.q }}" maxlength="80" placeholder="Бариста, кассир, 1С" list="f-prof" autocomplete="off" enterkeyhint="search"></div>
+      <datalist id="f-prof">{% for name in lists.professions %}<option value="{{ name[:1] | upper }}{{ name[1:] }}"></option>{% endfor %}</datalist>
+      <div class="field"><label for="f-district">Район</label>
+        <select class="input" id="f-district" name="district"><option value="">Любой</option>{% for name in lists.districts %}{{ opt(name, name, f.district) }}{% endfor %}</select></div>
+    </div>
+    <details class="rs-filter__more"{% if f.pay_to or f.exp or f.employment or f.format or f.sort != 'fresh' %} open{% endif %}>
+      <summary>{{ icon('funnel') }}Ещё фильтры</summary>
+      <div class="rs-filter__row rs-filter__row--wide">
+        <div class="field"><label for="f-pay">Зарплата до, ₽</label>
+          <div class="rs-inline">
+            <input class="input" id="f-pay" name="pay_to" type="text" inputmode="numeric" value="{{ f.pay_to or '' }}" maxlength="9" placeholder="40000">
+            <select class="input" name="period" aria-label="За что">{% for key, text in lists.pay_periods %}{{ opt(key, text, f.period) }}{% endfor %}</select>
+          </div></div>
+        <div class="field"><label for="f-exp">Опыт</label>
+          <select class="input" id="f-exp" name="exp">{% for key, text in experience_filters %}{{ opt(key, text, f.exp) }}{% endfor %}</select></div>
+        <div class="field"><label for="f-emp">Занятость</label>
+          <select class="input" id="f-emp" name="employment"><option value="">Любая</option>{% for key, text in lists.employments %}{{ opt(key, text, f.employment) }}{% endfor %}</select></div>
+        <div class="field"><label for="f-fmt">Формат</label>
+          <select class="input" id="f-fmt" name="format"><option value="">Любой</option>{% for key, text in lists.formats %}{{ opt(key, text, f.format) }}{% endfor %}</select></div>
+        <div class="field"><label for="f-sort">Сортировка</label>
+          <select class="input" id="f-sort" name="sort">{% for key, text in sorts %}{{ opt(key, text, f.sort) }}{% endfor %}</select></div>
+      </div>
+    </details>
+    <div class="rs-filter__actions">
+      <button class="btn btn--primary" type="submit">{{ icon('magnifying-glass') }}Найти</button>
+      {% if active %}<a class="btn btn--ghost" href="/employers/resumes">Сбросить</a>{% endif %}
+      <p class="rs-found" role="status">Найдено: {{ page.total }}</p>
+    </div>
+  </form>
+
+  {% if items %}
+  <ul class="rs-list">
+    {% for r in items %}
+    <li class="rs-item rs-item--search" data-resume-id="{{ r.id }}">
+      <article aria-labelledby="rs-r-{{ r.id }}">
+        <div class="rs-item__head">
+          <h2 class="rs-item__title" id="rs-r-{{ r.id }}"><a href="/employers/resumes/{{ r.id }}">{{ r.title }}</a></h2>
+          <span class="rs-name">{{ icon('user-circle') }}{{ r.display_name }}</span>
+        </div>
+        {{ facts(r) }}
+        {{ skills(r.skills, 5) }}
+        {% if r.about %}<p class="rs-item__about">{{ r.about[:180] }}{% if r.about | length > 180 %}…{% endif %}</p>{% endif %}
+        <p class="rs-item__stats muted">Обновлено {{ r.updated_label }}{% if r.flags %} · {{ r.flags | join(', ') }}{% endif %}</p>
+        <div class="rs-item__actions"><a class="btn btn--primary btn--sm" href="/employers/resumes/{{ r.id }}">Открыть резюме</a></div>
+      </article>
+    </li>
+    {% endfor %}
+  </ul>
+  {{ pager(page, '/employers/resumes', query) }}
+  {% elif active %}
+  {% call empty_state('magnifying-glass', 'Подходящих резюме нет', 'Попробуйте убрать часть фильтров, указать другую профессию или более высокую зарплату.') %}
+  <a class="btn btn--primary" href="/employers/resumes">Сбросить фильтры</a>
+  {% endcall %}
+  {% else %}
+  {% call empty_state('user-circle', 'Открытых резюме пока нет', 'Как только соискатели откроют резюме работодателям, они появятся здесь. А пока разместите вакансию: отклики придут в кабинет.') %}
+  <a class="btn btn--primary" href="/razmestit">Разместить вакансию</a>
+  <a class="btn btn--ghost" href="/responses">Отклики</a>
+  {% endcall %}
+  {% endif %}
+
+  <p class="hint rs-privacy">{{ icon('shield-check') }}<span>Резюме нельзя копировать, выгружать и передавать третьим лицам, контакты используйте только для подбора на ваши вакансии. <a href="/legal/employers">Правила для работодателей</a></span></p>
+</div>
+{% endblock %}

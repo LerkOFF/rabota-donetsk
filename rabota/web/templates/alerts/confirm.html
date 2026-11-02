@@ -1,0 +1,25 @@
+{% extends 'alerts/layout.html' %}
+{% from 'auth/_forms.html' import csrf %}
+{% from '_macros.html' import icon %}
+{% block alerts_body %}
+<div class="wrap auth">
+  <div class="auth__card">
+    <div class="auth__done">
+      {% if row %}
+      <span class="state__ico">{{ icon('bell') }}</span>
+      <h1 class="h2">Подтвердите подписку</h1>
+      <p>Новые вакансии: {{ row.title }}. Нажмите кнопку, и письма начнут приходить на ваш адрес.</p>
+      <form method="post" action="{{ action }}">
+        {{ csrf(csrf_token) }}
+        <button class="btn btn--primary btn--lg" type="submit">Подтвердить подписку</button>
+      </form>
+      {% else %}
+      <span class="state__ico">{{ icon('warning') }}</span>
+      <h1 class="h2">Ссылка не подошла</h1>
+      <p>Ссылка подтверждения устарела или набрана с ошибкой. Задайте поиск и оформите подписку заново.</p>
+      <div class="state__actions"><a class="btn btn--primary" href="/vacancies">К вакансиям</a></div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

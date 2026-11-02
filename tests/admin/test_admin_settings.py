@@ -128,9 +128,14 @@ def test_lifecycle_purge_uses_keep_days(conn, add):
     old = (NOW - timedelta(days=40)).isoformat()
     vid = add(last_seen_at=old, published_at=old)
     lifecycle.expire(conn, ttl_days=21, now=NOW)
-    assert lifecycle.purge(conn, now=NOW) == 0  # 21 + 30 = 51 дней, прошло 40
+    assert lifecycle.purge(conn, now=NOW) == 0  # 21 + 30 = 51 дней, прошло 40: ещё просто скрыта
+    assert conn.execute("SELECT status FROM vacancies WHERE id=?", (vid,)).fetchone()[0] == "expired"
     settings.save(conn, ADMIN, {"expired_keep_days": "10"}, now=NOW)
-    assert lifecycle.purge(conn, now=NOW) == 1
+    assert lifecycle.purge(conn, now=NOW) == 0  # ушла в архив, а не в корзину
+    assert conn.execute("SELECT status FROM vacancies WHERE id=?", (vid,)).fetchone()[0] == "archived"
+    settings.save(conn, ADMIN, {"archive_keep_days": "30"}, now=NOW)
+    assert lifecycle.purge(conn, now=NOW) == 0
+    assert lifecycle.purge(conn, now=NOW + timedelta(days=31)) == 1
     assert conn.execute("SELECT COUNT(*) FROM vacancies WHERE id=?", (vid,)).fetchone()[0] == 0
 
 

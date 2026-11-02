@@ -1,0 +1,181 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, field_error %}
+{% from 'messages/_parts.html' import crumbs, info, alert %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('claim.css') }}">
+{% set c = company %}
+{% set cl = claim %}
+{% set open_claim = cl and cl.status in ('sent', 'review') %}
+<div class="wrap claim">
+  <header class="page-head">
+    {{ crumbs([(c.name, '/company/' ~ c.id), ('Заявка на карточку', '')]) }}
+    <h1 class="h1 h1--page">Это моя компания</h1>
+    <p class="lead">Заявка на карточку «{{ c.name }}». Мы собрали её из открытых вакансий. Когда вы подтвердите, что компания ваша, карточка станет проверенной, а вакансии появятся в вашем кабинете.</p>
+  </header>
+
+  {{ info(flash) }}
+  {% if error %}{{ alert(error) }}{% endif %}
+
+  <div class="claim__grid">
+    <div class="claim__main">
+      {% if is_owner %}
+      <section class="panel claim__state claim__state--ok" aria-labelledby="st-h">
+        <h2 id="st-h">{{ icon('seal-check') }}Эта карточка уже ваша</h2>
+        <p>Описание, логотип и вакансии настраиваются в кабинете.</p>
+        <div class="claim__actions"><a class="btn btn--primary" href="/cabinet/company">Открыть кабинет</a><a class="btn btn--ghost" href="/company/{{ c.id }}">Страница компании</a></div>
+      </section>
+
+      {% elif not me %}
+      <section class="panel" aria-labelledby="guest-h">
+        <h2 id="guest-h">Войдите, чтобы отправить заявку</h2>
+        <p>Заявку подаёт работодатель с подтверждённой почтой. Есть аккаунт работодателя: войдите, и вы вернётесь на эту страницу. Нет аккаунта: зарегистрируйтесь как работодатель, подтвердите почту и вернитесь сюда.</p>
+        <div class="claim__actions">
+          <a class="btn btn--primary" href="{{ login_href }}">Войти</a>
+          <a class="btn btn--ghost" href="/register">Зарегистрироваться</a>
+        </div>
+        <p class="hint">После регистрации откройте эту страницу снова: <span class="mono">/company/{{ c.id }}/claim</span>.</p>
+      </section>
+
+      {% elif not me_employer %}
+      <section class="panel claim__state claim__state--warn" aria-labelledby="role-h">
+        <h2 id="role-h">{{ icon('info') }}Нужен аккаунт работодателя</h2>
+        <p>Вы вошли как {% if me.role == 'admin' %}администратор{% else %}соискатель{% endif %}. Карточку компании забирает работодатель: зарегистрируйте для этого отдельный аккаунт работодателя на другую почту.</p>
+        <div class="claim__actions"><a class="btn btn--ghost" href="/company/{{ c.id }}">Страница компании</a></div>
+      </section>
+
+      {% elif open_claim %}
+      <section class="panel claim__state" aria-labelledby="st-h">
+        <h2 id="st-h">{{ icon('clock') }}Заявка: {{ statuses[cl.status]|lower }}</h2>
+        <p class="claim__chips"><span class="claim-chip claim-chip--{{ cl.status }}">{{ statuses[cl.status] }}</span>{% if cl.dispute %}<span class="claim-chip claim-chip--dispute">Спор: проверим вручную</span>{% endif %}</p>
+        {% if cl.status == 'sent' %}
+        <p>Мы отправили шестизначный код на <strong>{{ cl.contact }}</strong>. Введите его, чтобы заявка ушла на проверку администратору. Код действует 15 минут.</p>
+        <form class="claim__code" method="post" action="/company/{{ c.id }}/claim/code" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="field{% if errors.get('code') %} field--invalid{% endif %}">
+            <label for="cl-code">Код из письма</label>
+            <input class="input input--code" id="cl-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="12" required aria-describedby="cl-code-hint{% if errors.get('code') %} err-code{% endif %}"{% if errors.get('code') %} aria-invalid="true"{% endif %}>
+            <p class="hint" id="cl-code-hint">Шесть цифр. Письмо может прийти в течение минуты.</p>
+            {{ field_error(errors, 'code') }}
+          </div>
+          <button class="btn btn--primary" type="submit">Подтвердить почту</button>
+        </form>
+        <form class="claim__inline" method="post" action="/company/{{ c.id }}/claim/resend">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn--ghost" type="submit">Отправить код ещё раз</button>
+        </form>
+        {% else %}
+        <p>{% if cl.method == 'email' %}Почта {{ cl.contact }} подтверждена.{% else %}Телефон {{ cl.contact }} указан для проверки.{% endif %} Администратор рассматривает заявку{% if cl.method == 'phone' %} и свяжется с вами по этому номеру{% endif %}. Обычно это занимает один-два рабочих дня, ответ придёт на почту аккаунта.</p>
+        {% if cl.docs_requested_at %}
+        <div class="notice notice--warn" role="status">{{ icon('info') }}<span>Администратор просит пояснения: {{ cl.docs_note }}</span></div>
+        {% endif %}
+        <form class="claim__note" method="post" action="/company/{{ c.id }}/claim/note" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <div class="field{% if errors.get('note') %} field--invalid{% endif %}">
+            <label for="cl-note">Дополнить заявку</label>
+            <textarea class="input" id="cl-note" name="note" rows="3" maxlength="{{ limit_message }}" aria-describedby="cl-note-hint{% if errors.get('note') %} err-note{% endif %}"></textarea>
+            <p class="hint" id="cl-note-hint">Должность в компании, ИНН, ссылка на страницу компании с вашим именем. Не присылайте паспортные данные.</p>
+            {{ field_error(errors, 'note') }}
+          </div>
+          <button class="btn btn--ghost" type="submit">Отправить дополнение</button>
+        </form>
+        {% endif %}
+        <form class="claim__inline" method="post" action="/company/{{ c.id }}/claim/cancel">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn--text" type="submit">Отозвать заявку</button>
+        </form>
+      </section>
+
+      {% elif cl and cl.status == 'confirmed' %}
+      <section class="panel claim__state claim__state--ok" aria-labelledby="st-h">
+        <h2 id="st-h">{{ icon('seal-check') }}Заявка подтверждена</h2>
+        <p class="claim__chips"><span class="claim-chip claim-chip--confirmed">Подтверждена</span></p>
+        <p>Карточка отмечена как проверенный работодатель. Вакансии компании теперь в разделе «Мои вакансии».</p>
+        <div class="claim__actions"><a class="btn btn--primary" href="/cabinet/vacancies">Мои вакансии</a><a class="btn btn--ghost" href="/cabinet/company">Карточка компании</a></div>
+      </section>
+
+      {% else %}
+      {% if cl and cl.status == 'rejected' %}
+      <section class="panel claim__state claim__state--warn" aria-labelledby="rej-h">
+        <h2 id="rej-h">{{ icon('x-circle') }}Прошлую заявку отклонили</h2>
+        <p class="claim__chips"><span class="claim-chip claim-chip--rejected">Отклонена</span></p>
+        {% if cl.admin_note %}<p>Причина: {{ cl.admin_note }}</p>{% endif %}
+        <p>Новую заявку на эту компанию можно подать через неделю после отказа. Если связь с компанией можно подтвердить документами, опишите это в поле «Пояснение».</p>
+      </section>
+      {% endif %}
+      {% if owned_by_other %}
+      <p class="notice notice--warn" role="status">{{ icon('info') }}<span>У этой карточки уже есть владелец. Ваша заявка уйдёт на ручную проверку: администратор свяжется с обеими сторонами.</span></p>
+      {% endif %}
+
+      {% if errors %}
+      <div class="error-summary" role="alert" tabindex="-1" id="error-summary">
+        <h2>Нужно поправить {{ plural(errors | length, 'поле', 'поля', 'полей') }}</h2>
+        <ul>{% for name, text in errors.items() %}<li><a href="#cl-{{ name }}">{{ text }}</a></li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+
+      <form class="panel claim-form form-grid" method="post" action="/company/{{ c.id }}/claim" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <h2>Как подтвердить, что компания ваша</h2>
+        <fieldset class="claim-method{% if errors.get('method') %} field--invalid{% endif %}">
+          <legend class="visually-hidden">Способ подтверждения</legend>
+          <label class="role-pick__item claim-method__item">
+            <input type="radio" name="method" id="m-email" value="email"{% if form.get('method', 'email') == 'email' %} checked{% endif %}>
+            <span><span class="role-pick__title">Рабочая почта</span><span class="role-pick__text">Пришлём код на адрес компании. Быстрее всего.</span></span>
+          </label>
+          <label class="role-pick__item claim-method__item">
+            <input type="radio" name="method" id="m-phone" value="phone"{% if form.get('method') == 'phone' %} checked{% endif %}>
+            <span><span class="role-pick__title">Телефон</span><span class="role-pick__text">Администратор позвонит или напишет на номер из вакансий.</span></span>
+          </label>
+          {{ field_error(errors, 'method') }}
+        </fieldset>
+
+        <div class="field claim-field claim-field--email{% if errors.get('email') %} field--invalid{% endif %}">
+          <label for="cl-email">Рабочая почта на домене компании</label>
+          <input class="input" id="cl-email" name="email" type="email" inputmode="email" autocomplete="email" maxlength="120" value="{{ form.get('email', '') }}" placeholder="name@company.ru" aria-describedby="cl-email-hint{% if errors.get('email') %} err-email{% endif %}"{% if errors.get('email') %} aria-invalid="true"{% endif %}>
+          <p class="hint" id="cl-email-hint">{% if domains %}Подойдёт адрес на домене: {{ domains | join(', ') }}.{% else %}Адрес на домене вашей компании, не mail.ru и не gmail.com.{% endif %}</p>
+          {{ field_error(errors, 'email') }}
+        </div>
+        <div class="field claim-field claim-field--phone{% if errors.get('phone') %} field--invalid{% endif %}">
+          <label for="cl-phone">Телефон для связи</label>
+          <input class="input" id="cl-phone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="40" value="{{ form.get('phone', '') }}" placeholder="+7 949 000-00-00" aria-describedby="cl-phone-hint{% if errors.get('phone') %} err-phone{% endif %}"{% if errors.get('phone') %} aria-invalid="true"{% endif %}>
+          <p class="hint" id="cl-phone-hint">{% if phones_known %}Номер должен совпадать с телефоном из вакансий компании.{% else %}Номер, по которому с вами можно связаться и убедиться, что вы из компании.{% endif %}</p>
+          {{ field_error(errors, 'phone') }}
+        </div>
+        <div class="field">
+          <label for="cl-message">Пояснение <span class="muted">(по желанию)</span></label>
+          <textarea class="input" id="cl-message" name="message" rows="3" maxlength="{{ limit_message }}" placeholder="Ваша должность, ИНН компании, как с вами связаться">{{ form.get('message', '') }}</textarea>
+        </div>
+        <div class="field{% if errors.get('consent') %} field--invalid{% endif %}">
+          <label class="check check--top" for="cl-consent">
+            <input type="checkbox" id="cl-consent" name="consent" value="1"{% if form.get('consent') == '1' %} checked{% endif %}{% if errors.get('consent') %} aria-invalid="true"{% endif %}>
+            <span>Согласен, что почта или телефон будут использованы только для проверки заявки. <a href="/legal/privacy">Политика обработки данных</a></span>
+          </label>
+          {{ field_error(errors, 'consent') }}
+        </div>
+        <button class="btn btn--primary" type="submit">Отправить заявку</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <aside class="claim__side" aria-label="О заявке">
+      <section class="panel">
+        <h2>Что изменится</h2>
+        <ul class="claim__list">
+          <li>{{ icon('seal-check') }}<span>Карточка получит значок «проверенный работодатель».</span></li>
+          <li>{{ icon('briefcase') }}<span>Вакансии компании появятся в «Мои вакансии»: их можно править, закрывать и поднимать.</span></li>
+          <li>{{ icon('pencil-simple') }}<span>Вы добавите логотип, описание и сайт. Поля, которые вы поправили, сборщик больше не затирает.</span></li>
+        </ul>
+      </section>
+      <section class="panel">
+        <h2>Как проверяем</h2>
+        <ol class="claim__steps">
+          <li>Вы указываете рабочую почту на домене компании или телефон из вакансий.</li>
+          <li>На почту приходит код. Телефон администратор проверяет звонком или сообщением.</li>
+          <li>Администратор подтверждает заявку, и карточка ваша. Это бесплатно.</li>
+        </ol>
+        <p class="hint">Одна карточка - один владелец. Если на неё уже претендует кто-то ещё, решаем вручную.</p>
+      </section>
+    </aside>
+  </div>
+</div>
+{% endblock %}

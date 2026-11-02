@@ -47,20 +47,30 @@ def default_provider():
     return SidecarProvider()
 
 
-def new_image_vacancies(raw: RawPost, provider: Any, have: set[str]) -> list[Vacancy]:
+def new_image_vacancies(
+    raw: RawPost, provider: Any, have: set[str], conn: sqlite3.Connection | None = None, *, fetch: Any = None, cache: Any = None,
+) -> list[Vacancy]:
     """Вакансии с картинок поста, кроме профессий, которые уже есть у этого поста (have меняется).
 
     Общая логика для `python -m rabota process` и приёма в реальном времени. Сбой распознавания не роняет разбор.
+    Если передано соединение, пост без вакансии и с нечитаемой афишей помечается «нужна афиша» (см. ops.poster_reparse).
     """
-    from rabota.vision.extract import vacancies_from_images
+    from rabota.vision.extract import scan_images
 
     try:
-        found = vacancies_from_images(raw, provider)
+        scan = scan_images(raw, provider, fetch=fetch, cache=cache)
     except Exception as exc:  # noqa: BLE001 - картинка не должна ломать разбор текста
         log.warning("картинки %s: %s", raw.url, exc)
         return []
+    if conn is not None:
+        try:
+            from rabota.ops.poster_reparse import record_scan
+
+            record_scan(conn, raw, scan, has_text_vacancies=bool(have))
+        except sqlite3.Error as exc:
+            log.warning("метка афиши %s: %s", raw.url, exc)
     out: list[Vacancy] = []
-    for vac in found:
+    for vac in scan.vacancies:
         if vac.profession in have:
             continue
         have.add(vac.profession)
@@ -84,6 +94,10 @@ def ingest_post(
         "SELECT 1 FROM raw_posts WHERE source = ? AND external_id = ?", (raw.source, raw.external_id)
     ).fetchone()
     if exists:
+        from rabota.employers_auto.archive import revive_seen
+
+        # та же вакансия собрана снова с более новой датой: возвращаем её из архива без дубля
+        stats["revived"] = revive_seen(conn, raw.source, raw.external_id, raw.published_at)
         return stats
 
     # сначала всё, что может быть долгим или упасть (разбор, картинки), потом короткая запись в базу
@@ -91,7 +105,7 @@ def ingest_post(
     have = {v.profession for v in analysis.vacancies}
     from_images: list[Vacancy] = []
     if raw.image_urls:
-        from_images = new_image_vacancies(raw, provider if provider is not None else default_provider(), have)
+        from_images = new_image_vacancies(raw, provider if provider is not None else default_provider(), have, conn)
 
     if not save_raw(conn, raw):
         return stats  # другой процесс успел раньше
@@ -99,11 +113,14 @@ def ingest_post(
     stats["kind"] = analysis.kind if not from_images else "vacancy"
     kept, stats["stoplisted"] = filter_vacancies(conn, analysis.vacancies + from_images)  # стоп-лист
     for vac in kept:
-        save_vacancy(conn, vac)
+        save_vacancy(conn, vac, check_quality=True)
         stats["vacancies"] += 1
     stats["from_images"] = len([v for v in kept if v in from_images])
     if stats["vacancies"] and run_dedupe:
         stats["duplicates"] = dedupe(conn)
+        from rabota.employers_auto.jobs import attach_new
+
+        attach_new(conn, 200)  # карточка работодателя для новой вакансии
     return stats
 
 
@@ -173,6 +190,9 @@ class Ingestor:
                 saved += res["vacancies"]
             if saved:
                 totals["duplicates"] = dedupe(conn)
+                from rabota.employers_auto.jobs import attach_new
+
+                attach_new(conn, 2000)
         return totals
 
     async def aingest_many(self, posts: Iterable[RawPost]) -> dict[str, int]:

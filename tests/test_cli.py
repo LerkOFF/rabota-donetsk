@@ -57,7 +57,7 @@ def test_stats_prints(conn, capsys):
     assert "на сайте: 0" in capsys.readouterr().out
 
 
-def test_expire_command_hides_and_purges(conn, capsys, monkeypatch):
+def test_expire_command_hides_and_archives(conn, capsys, monkeypatch):
     from rabota.db import save_vacancy
     from rabota.models import Vacancy
 
@@ -65,5 +65,6 @@ def test_expire_command_hides_and_purges(conn, capsys, monkeypatch):
     monkeypatch.setattr(cli, "connect", lambda path=None: conn)
     assert cli.main(["expire"]) == 0
     out = capsys.readouterr().out
-    assert "удалено" in out
-    assert conn.execute("SELECT COUNT(*) FROM vacancies WHERE id=?", (vid,)).fetchone()[0] == 0
+    assert "в архив" in out and "удалено" in out
+    # давно скрытая вакансия уходит в архив, а не удаляется
+    assert conn.execute("SELECT status FROM vacancies WHERE id=?", (vid,)).fetchone()[0] == "archived"

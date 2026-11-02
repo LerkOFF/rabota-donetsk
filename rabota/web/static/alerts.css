@@ -1,0 +1,34 @@
+/* Подписки на вакансии. Только токены из tokens.css. Мобильный экран первичен, шире - через min-width. */
+
+.alert-cta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); }
+.alert-cta__hint { margin: 0; }
+
+.alert-query { display: grid; gap: var(--sp-1); padding: var(--sp-4); background: var(--c-accent-soft); border-radius: var(--r-ctl); }
+.alert-query__label { font-size: var(--fs-xs); font-weight: var(--fw-semibold); color: var(--c-accent-ink); text-transform: uppercase; letter-spacing: 0.04em; margin: 0; }
+.alert-query__title { font-size: var(--fs-lg); font-weight: var(--fw-bold); color: var(--c-ink); overflow-wrap: anywhere; }
+
+.alert-steps { display: grid; gap: var(--sp-2); padding-left: var(--sp-5); color: var(--c-ink-2); }
+.alert-steps li::marker { font-weight: var(--fw-bold); color: var(--c-accent-ink); }
+
+.alerts { padding-bottom: var(--sp-12); display: grid; gap: var(--sp-4); align-content: start; }
+.alerts > .notice { margin: 0; }
+.sub-list { display: grid; gap: var(--sp-3); }
+.sub {
+  display: grid; gap: var(--sp-3); padding: var(--sp-4); background: var(--c-surface);
+  border: 1px solid var(--c-line); border-radius: var(--r-card);
+}
+.sub--paused, .sub--unsubscribed { background: var(--c-surface-2); }
+.sub__main { display: grid; gap: var(--sp-2); min-width: 0; }
+.sub__title { font-size: var(--fs-md); font-weight: var(--fw-bold); line-height: var(--lh-snug); overflow-wrap: anywhere; margin: 0; }
+.sub__meta { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); }
+.sub__actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); align-items: center; }
+.sub__actions form { margin: 0; }
+.sub__freq { display: flex; gap: var(--sp-2); align-items: center; }
+.chip--status-active { background: var(--c-accent-soft); border-color: var(--c-accent); color: var(--c-accent-ink); }
+.chip--status-pending { border-style: dashed; }
+.chip--status-paused, .chip--status-unsubscribed { color: var(--c-ink-2); }
+
+@media (min-width: 48rem) {
+  .sub { grid-template-columns: minmax(0, 1fr) auto; align-items: start; }
+  .sub__actions { justify-content: flex-end; max-width: 26rem; }
+}

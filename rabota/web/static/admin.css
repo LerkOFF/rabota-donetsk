@@ -320,3 +320,24 @@ textarea.input { min-height: 5rem; }
 @media (min-width: 40rem) {
   .adm-set__head { grid-template-columns: minmax(0, 1fr) minmax(0, 16rem); align-items: center; }
 }
+
+/* работодатели: шапка карточки компании */
+.emp-admin-head { display: flex; align-items: center; gap: var(--sp-3); margin-bottom: var(--sp-3); }
+
+/* Страницы в индексе: подзаголовок под плитками пульса */
+.pulse-sub { margin: var(--sp-6) 0 var(--sp-1); font-size: var(--fs-lg); font-weight: var(--fw-bold); }
+.emp-list > li > a { display: inline-flex; align-items: center; min-height: 2.75rem; }
+
+/* заявки на карточки: дубли и текст заявителя */
+.adm-cards { display: grid; gap: var(--sp-4); margin-top: var(--sp-4); }
+.dupe { display: grid; gap: var(--sp-3); }
+.dupe__pair { display: grid; gap: var(--sp-3); }
+.dupe__side { padding: var(--sp-3) var(--sp-4); border: 1px solid var(--c-line); border-radius: var(--r-ctl); background: var(--c-surface-2); overflow-wrap: anywhere; }
+.dupe__side p { margin: 0; }
+.dupe__role { font-size: var(--fs-xs); color: var(--c-ink-2); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: var(--sp-1) !important; }
+.dupe__actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.prewrap { white-space: pre-wrap; overflow-wrap: anywhere; }
+.adm-form .check--top { display: flex; align-items: flex-start; gap: var(--sp-2); min-height: 2.75rem; font-size: var(--fs-sm); }
+@media (min-width: 48rem) {
+  .dupe__pair { grid-template-columns: 1fr 1fr; }
+}

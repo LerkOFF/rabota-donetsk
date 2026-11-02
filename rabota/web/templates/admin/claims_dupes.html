@@ -1,0 +1,44 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, chip, csrf, empty %}
+{% from 'admin/_claims_tabs.html' import claims_tabs %}
+{% block content %}
+{{ page_head('Дубли карточек', 'Похожие карточки работодателей. Выберите главную: вакансии, заявки и данные второй перейдут в неё, а старый адрес будет вести на главную.') }}
+{{ claims_tabs(tabs) }}
+{% if error_text %}<div class="notice notice--warn" role="alert">{{ icon('warning') }}<span>{{ error_text }}</span></div>{% endif %}
+
+{% if pairs %}
+<div class="adm-cards" data-sortable="dupes-list">
+  {% for p in pairs %}
+  <section class="panel dupe" data-key="pair-{{ p.main.id }}-{{ p.dup.id }}" draggable="true" aria-label="{{ p.reason }}: {{ p.main.name }} и {{ p.dup.name }}">
+    <p class="adm-head__chips">{{ chip(p.reason, 'info', 'copy') }}{% if p.blocked %}{{ chip('Разные владельцы', 'danger', 'lock-key') }}{% endif %}</p>
+    <div class="dupe__pair">
+      {% for c, role in [(p.main, 'Главная'), (p.dup, 'Будет влита')] %}
+      <div class="dupe__side">
+        <p class="dupe__role">{{ role }}</p>
+        <p><a class="atable__main" href="/admin/employers/{{ c.id }}">{{ c.name }}</a></p>
+        <p class="muted">№{{ c.id }}, {{ c.city or 'город не указан' }}, вакансий {{ c.vacancies }}, {{ 'автокарточка' if c.origin == 'auto' else 'завёл работодатель' }}{% if c.verified_at %}, проверен{% endif %}{% if c.owner_user_id %}, есть владелец{% endif %}</p>
+      </div>
+      {% endfor %}
+    </div>
+    {% if not p.blocked %}
+    <div class="dupe__actions">
+      <form class="adm-form adm-form--row" method="post" action="/admin/claims/merge">
+        {{ csrf() }}
+        <input type="hidden" name="main" value="{{ p.main.id }}"><input type="hidden" name="dup" value="{{ p.dup.id }}">
+        <button class="btn btn--primary btn--sm" type="submit" data-confirm="Влить «{{ p.dup.name }}» в «{{ p.main.name }}»?">{{ icon('copy') }}Влить вторую в главную</button>
+      </form>
+      <form class="adm-form adm-form--row" method="post" action="/admin/claims/merge">
+        {{ csrf() }}
+        <input type="hidden" name="main" value="{{ p.dup.id }}"><input type="hidden" name="dup" value="{{ p.main.id }}">
+        <button class="btn btn--ghost btn--sm" type="submit" data-confirm="Влить «{{ p.main.name }}» в «{{ p.dup.name }}»?">Наоборот: главной сделать вторую</button>
+      </form>
+    </div>
+    {% endif %}
+  </section>
+  {% endfor %}
+</div>
+{% else %}
+{% call empty('Дублей не найдено', 'Карточки с одинаковыми или очень похожими названиями появятся здесь.', 'check-circle') %}{% endcall %}
+{% endif %}
+{% endblock %}

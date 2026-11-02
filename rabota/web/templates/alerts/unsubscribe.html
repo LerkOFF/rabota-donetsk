@@ -1,0 +1,28 @@
+{% extends 'alerts/layout.html' %}
+{% from 'auth/_forms.html' import csrf %}
+{% from '_macros.html' import icon %}
+{% block alerts_body %}
+<div class="wrap auth">
+  <div class="auth__card">
+    <div class="auth__done">
+      {% if done %}
+      <span class="state__ico">{{ icon('check-circle') }}</span>
+      <h1 class="h2">Вы отписались</h1>
+      <p>{% if row %}Подписка «{{ row.title }}» отключена, письма по ней приходить не будут.{% else %}Эта подписка уже удалена, письма по ней не приходят.{% endif %} Другие подписки не затронуты.</p>
+      <div class="state__actions">
+        <a class="btn btn--primary" href="{% if logged_in %}/alerts{% else %}/login?next=/alerts{% endif %}">Мои подписки</a>
+        <a class="btn btn--ghost" href="/vacancies">К вакансиям</a>
+      </div>
+      {% else %}
+      <span class="state__ico">{{ icon('bell') }}</span>
+      <h1 class="h2">Отписаться от вакансий</h1>
+      <p>Перестанем присылать письма по подписке «{{ row.title }}». Саму подписку можно будет включить снова в аккаунте.</p>
+      <form method="post" action="{{ action }}">
+        {{ csrf(csrf_token) }}
+        <button class="btn btn--primary" type="submit">Отписаться</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,48 @@
+{% extends 'alerts/layout.html' %}
+{% from 'auth/_forms.html' import csrf, alert, info %}
+{% from '_macros.html' import icon %}
+{% block alerts_body %}
+<div class="wrap auth">
+  <div class="auth__card">
+    {% if connected %}
+    <div class="auth__done">
+      <span class="state__ico">{{ icon('check-circle') }}</span>
+      <h1 class="h2">Telegram подключён</h1>
+      <p>Подписка «{{ row.title }}» работает: новые вакансии придут в чат с ботом. Управлять подписками можно командами /list и /stop.</p>
+      <div class="state__actions">
+        <a class="btn btn--primary" href="/vacancies">К вакансиям</a>
+        <a class="btn btn--ghost" href="/alerts">Мои подписки</a>
+      </div>
+    </div>
+    {% elif not bot_ready %}
+    <div class="auth__done">
+      <span class="state__ico">{{ icon('warning') }}</span>
+      <h1 class="h2">Telegram сейчас недоступен</h1>
+      <p>Бот временно не настроен. Подпишитесь на почту или загляните позже.</p>
+      <div class="state__actions"><a class="btn btn--primary" href="/vacancies">К вакансиям</a></div>
+    </div>
+    {% else %}
+    <div class="auth__head">
+      <h1>Подключите Telegram</h1>
+      <p>Подписка «{{ row.title }}» заработает, когда вы откроете бота и нажмёте Start.</p>
+    </div>
+    {% if link %}
+    <ol class="alert-steps">
+      <li>Нажмите кнопку ниже, откроется чат с ботом @{{ bot_name }}.</li>
+      <li>Нажмите в Telegram «Запустить» (Start).</li>
+      <li>Вернитесь сюда и проверьте подключение.</li>
+    </ol>
+    <a class="btn btn--primary btn--lg" href="{{ link }}" rel="noopener" target="_blank">{{ icon('telegram-logo') }}Открыть Telegram</a>
+    <a class="btn btn--ghost" href="/alerts/telegram/{{ ref }}?c={{ link.rsplit('=', 1)[1] }}">Я нажал Start, проверить</a>
+    <p class="hint">Ссылка одноразовая и действует сутки. Бот пришлёт подтверждение в чат.</p>
+    {% else %}
+    {{ alert('Ссылка подключения устарела или уже использована.') }}
+    <form class="auth__form" method="post" action="/alerts/telegram/{{ ref }}">
+      {{ csrf(csrf_token) }}
+      <button class="btn btn--primary" type="submit">{{ icon('telegram-logo') }}Получить новую ссылку</button>
+    </form>
+    {% endif %}
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

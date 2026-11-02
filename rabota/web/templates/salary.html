@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, vcard, crumbs, empty_state %}
+{% from '_content_macros.html' import salary_cards, article_card %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('content.css') }}">
+<div class="wrap">
+  <header class="page-head">
+    {{ crumbs(seo.breadcrumbs) }}
+    <h1 class="h1 h1--page">Зарплата: {{ label }} в Донецке</h1>
+    {% if main %}
+    <p class="lead">Средняя зарплата по вакансиям сайта: медиана {{ money(main.median) }}&nbsp;₽ {{ main.period_text }}. Посчитано по {{ main.n }}&nbsp;{{ plural(main.n, 'вакансии', 'вакансиям', 'вакансиям') }} на {{ date }}.</p>
+    {% endif %}
+  </header>
+
+  {% if main %}
+  <section class="sal sal--page" aria-label="Цифры">
+    <div class="sal__head"><h2 class="h3">Сколько платят</h2><p class="sal__upd">Обновлено {{ date }}</p></div>
+    {{ salary_cards(stats, date) }}
+  </section>
+
+  <section class="section section--tight prose" aria-labelledby="how">
+    <h2 class="h2 section__title" id="how">Как мы считаем</h2>
+    <p>Берём открытые вакансии профессии «{{ name }}» с указанной оплатой. Для каждой берём одно число: середину вилки, а если указана одна граница, её. Явные опечатки и выбросы отбрасываем, затем показываем медиану (середину списка) и типичную вилку: от нижней до верхней четверти. Показываем цифры, только если вакансий не меньше {{ min_sample }}.</p>
+    <p>Это оплата из объявлений. Реальные выплаты зависят от графика, процента, премий и оформления, поэтому уточняйте условия у работодателя.</p>
+  </section>
+
+  {% if faq %}
+  <section class="section section--tight" aria-labelledby="faq">
+    <h2 class="h2 section__title" id="faq">Частые вопросы</h2>
+    <div class="faq">
+      {% for q, a in faq %}
+      <details class="faq__item"><summary>{{ q }}{{ icon('caret-down') }}</summary><p>{{ a }}</p></details>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if sample %}
+  <section class="section section--tight" aria-labelledby="fresh">
+    <h2 class="h2 section__title" id="fresh">Свежие вакансии с оплатой</h2>
+    <div class="vlist">{% for v in sample %}{{ vcard(v, 'h3') }}{% endfor %}</div>
+  </section>
+  {% endif %}
+  {% else %}
+  <div class="state">
+    <span class="state__ico">{{ icon('currency-rub') }}</span>
+    <h2 class="h3">Пока мало данных для честной цифры</h2>
+    <p>По профессии «{{ name }}» меньше {{ min_sample }} вакансий с указанной оплатой. Мы не показываем среднюю зарплату по двум-трём объявлениям: она ничего не скажет. Загляните позже или посмотрите вакансии и уточните оплату по телефону.</p>
+    <div class="state__actions">
+      <a class="btn btn--primary" href="/vacancies?q={{ name | quote }}">Смотреть вакансии</a>
+      <a class="btn btn--ghost" href="/zarplaty">Зарплаты по другим профессиям</a>
+    </div>
+  </div>
+  {% endif %}
+
+  <section class="section link-groups" aria-labelledby="more">
+    <h2 class="h2 section__title" id="more">Смотрите также</h2>
+    <ul class="chip-row">
+      {% if has_page %}<li><a class="chip" href="/profession/{{ name | quote }}">{{ icon('briefcase') }}Вакансии: {{ label }}</a></li>{% endif %}
+      <li><a class="chip" href="/zarplaty">{{ icon('currency-rub') }}Все зарплаты</a></li>
+      <li><a class="chip" href="/podborki">{{ icon('funnel') }}Подборки вакансий</a></li>
+    </ul>
+    {% if others %}
+    <h3 class="link-group__title spaced" id="others">Зарплаты по другим профессиям</h3>
+    <ul class="chip-row" aria-labelledby="others">
+      {% for e in others %}<li><a class="chip" href="/zarplaty/{{ e.name | quote }}">{{ e.name | ucfirst }} <span class="chip__n">{{ money(e.main.median) }}&nbsp;₽</span></a></li>{% endfor %}
+    </ul>
+    {% endif %}
+    {% if articles %}
+    <h3 class="link-group__title spaced">Читайте также</h3>
+    <ul class="chip-row">
+      {% for a in articles %}<li><a class="chip chip--wrap" href="{{ a.path }}">{{ icon('file-text') }}{{ a.title }}</a></li>{% endfor %}
+    </ul>
+    {% endif %}
+  </section>
+</div>
+{% endblock %}

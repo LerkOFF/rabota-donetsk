@@ -172,7 +172,7 @@ def test_health_heartbeat_path_override(monkeypatch, tmp_path):
 
 def test_build_jobs_without_vk_and_with_everything(tmp_path, ingestor, monkeypatch):
     names = [j.name for j in worker.build_jobs(ingestor, {})]
-    assert names == ["heartbeat", "trudvsem", "hh", "mczn", "telegram", "max", "avito", "expire"]
+    assert names == ["heartbeat", "trudvsem", "hh", "mczn", "telegram", "max", "avito", "expire", "employers"]
     monkeypatch.setenv("VK_ACCESS_TOKEN", "x")
     jobs = worker.build_jobs(ingestor, {})
     assert [j.name for j in jobs][:2] == ["heartbeat", "vk"]
@@ -212,7 +212,7 @@ def old_vacancy(conn):
     return save_vacancy(conn, Vacancy(profession="бариста", published_at="2020-01-01T00:00:00+00:00"))
 
 
-def test_expire_job_hides_purges_and_cleans_media(tmp_path, db_path):
+def test_expire_job_hides_archives_and_cleans_media(tmp_path, db_path):
     c = connect(db_path)
     fresh = save_vacancy(c, Vacancy(profession="повар", published_at=datetime.now(UTC).isoformat()))
     old = old_vacancy(c)
@@ -224,7 +224,9 @@ def test_expire_job_hides_purges_and_cleans_media(tmp_path, db_path):
     os.utime(media / "old.jpg", (ancient, ancient))
     res = worker.expire_job(c, media)
     assert res["фото"] == 1 and not (media / "old.jpg").exists() and (media / "new.jpg").exists()
-    assert res["удалено"] == 1 and c.execute("SELECT COUNT(*) FROM vacancies WHERE id=?", (old,)).fetchone()[0] == 0
+    # старая вакансия не удаляется, а уходит в архив: строка остаётся
+    assert res["в архив"] == 1 and res["удалено"] == 0
+    assert c.execute("SELECT status FROM vacancies WHERE id=?", (old,)).fetchone()[0] == "archived"
     assert c.execute("SELECT status FROM vacancies WHERE id=?", (fresh,)).fetchone()[0] == "active"
     c.close()
 
@@ -236,7 +238,7 @@ def test_expire_job_runs_through_ingestor(ingestor, db_path):
     job = next(j for j in worker.build_jobs(ingestor, {}) if j.name == "expire")
     asyncio.run(job.run())
     c = sqlite3.connect(db_path)
-    assert c.execute("SELECT COUNT(*) FROM vacancies WHERE id=?", (vid,)).fetchone()[0] == 0
+    assert c.execute("SELECT status FROM vacancies WHERE id=?", (vid,)).fetchone()[0] == "archived"
 
 
 def test_cleanup_media_missing_dir(tmp_path):

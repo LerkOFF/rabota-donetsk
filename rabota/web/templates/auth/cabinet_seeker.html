@@ -9,15 +9,18 @@
     <p class="lead">Здравствуйте, {{ me.name }}! Здесь ваши отклики и переписка с работодателями.</p>
   </header>
 
+  {% include 'resumes/_cabinet.html' %}
   {% include 'messages/_cabinet.html' %}
 
   <section class="cab__section" aria-labelledby="cab-go">
     <h2 id="cab-go" class="h3">Быстрые ссылки</h2>
     <ul class="quick">
       <li><a class="quick__item quick__item--main" href="/vacancies?direct=1">{{ icon('magnifying-glass') }}<span><strong>Найти вакансию</strong><span class="muted">Только от работодателей: откликнуться можно на сайте</span></span></a></li>
+      <li><a class="quick__item" href="/cabinet/resumes">{{ icon('user-circle') }}<span><strong>Мои резюме</strong><span class="muted">Анкета, видимость и подсказки, что добавить</span></span></a></li>
       <li><a class="quick__item" href="/vacancies">{{ icon('briefcase') }}<span><strong>Все вакансии</strong><span class="muted">Из каналов и сайтов, с телефоном и ссылкой на оригинал</span></span></a></li>
       <li><a class="quick__item" href="/responses">{{ icon('paper-plane-tilt') }}<span><strong>Мои отклики</strong><span class="muted">Статусы и ответы работодателей</span></span></a></li>
       <li><a class="quick__item" href="/messages">{{ icon('chat-circle-dots') }}<span><strong>Сообщения</strong><span class="muted">Переписка с работодателями</span></span></a></li>
+      <li><a class="quick__item" href="/alerts">{{ icon('bell') }}<span><strong>Подписки на вакансии</strong><span class="muted">Новые вакансии по вашему поиску на почту и в Telegram</span></span></a></li>
       <li><a class="quick__item" href="/notifications">{{ icon('bell') }}<span><strong>Уведомления по почте</strong><span class="muted">О новых ответах и сообщениях</span></span></a></li>
       <li><a class="quick__item" href="/account">{{ icon('user-circle') }}<span><strong>Настройки аккаунта</strong><span class="muted">Имя, телефон, пароль, почта</span></span></a></li>
     </ul>

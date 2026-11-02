@@ -49,7 +49,7 @@ def build_csp(metrika: bool = False, upgrade: bool = False) -> str:
         policy["connect-src"] += [*METRIKA_HOSTS, *(h.replace("https://", "wss://") for h in METRIKA_HOSTS)]
         policy["frame-src"] = list(METRIKA_HOSTS)
         policy["child-src"] = ["blob:", *METRIKA_HOSTS]
-        policy["worker-src"] = ["blob:"]
+        policy["worker-src"] = ["'self'", "blob:"]  # 'self': service worker сайта (/sw.js)
     parts = [f"{name} {' '.join(values)}" for name, values in policy.items()]
     if upgrade:
         parts.append("upgrade-insecure-requests")

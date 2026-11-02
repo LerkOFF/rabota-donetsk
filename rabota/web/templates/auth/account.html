@@ -58,6 +58,7 @@
       <h2 id="a-notify-h">Уведомления</h2>
       <p class="hint">Письма о новых откликах и сообщениях: {% if me.role == 'employer' %}отклики {% if me.notify_responses %}включены{% else %}отключены{% endif %}, {% endif %}сообщения {% if me.notify_messages %}включены{% else %}отключены{% endif %}.</p>
       <a class="btn btn--ghost" href="/notifications">Настроить уведомления</a>
+      <a class="btn btn--ghost" href="/alerts">Подписки на вакансии</a>
     </section>
     {% endif %}
 
@@ -66,7 +67,7 @@
       {% if me.is_admin %}
       <p class="hint">Аккаунт администратора через сайт удалить нельзя.</p>
       {% else %}
-      <p class="hint">Аккаунт и всё, что с ним связано: отклики, переписка, ваши вакансии, будет удалено без возможности восстановить.</p>
+      <p class="hint">Аккаунт и всё, что с ним связано: резюме, отклики, переписка, ваши вакансии, будет удалено без возможности восстановить.</p>
       {{ summary(errors.get('delete', {}), 'd') }}
       <form class="auth__form" method="post" action="/account/delete" novalidate>
         {{ csrf(csrf_token) }}

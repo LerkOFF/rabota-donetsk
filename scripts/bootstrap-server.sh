@@ -45,7 +45,8 @@ esac
 
 # ---------- 1. пакеты (только недостающие)
 missing=()
-for pkg in git curl ca-certificates python3 python3-venv rsync sqlite3 openssl; do
+# tesseract-ocr и tesseract-ocr-rus: чтение афиш-картинок без платной модели (LLM_PROVIDER=ocr), русский язык обязателен
+for pkg in git curl ca-certificates python3 python3-venv rsync sqlite3 openssl tesseract-ocr tesseract-ocr-rus; do
   dpkg -s "$pkg" >/dev/null 2>&1 || missing+=("$pkg")
 done
 if [ "${#missing[@]}" -gt 0 ]; then
@@ -53,6 +54,7 @@ if [ "${#missing[@]}" -gt 0 ]; then
   DEBIAN_FRONTEND=noninteractive apt-get update -qq
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq --no-install-recommends "${missing[@]}"
 fi
+tesseract --list-langs 2>/dev/null | grep -qx rus || warn "tesseract без языка rus: афиши читаться не будут (apt-get install tesseract-ocr-rus)"
 command -v nginx >/dev/null 2>&1 || die "nginx не найден: этот сценарий свой nginx не ставит"
 [ "$(python3 -c 'import sys; print(sys.version_info >= (3, 12))')" = "True" ] \
   || die "нужен системный Python 3.12 или новее, сейчас $(python3 -V)"

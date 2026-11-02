@@ -1,0 +1,131 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, chip, csrf %}
+{% from 'admin/_claims_tabs.html' import claims_tabs %}
+{% block content %}
+{% set k = d.claim %}
+{% set c = d.company %}
+<nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/admin">Админка</a></li><li><a href="/admin/claims">Заявки на карточки</a></li><li>№{{ k.id }}</li></ol></nav>
+
+{% call page_head('Заявка №' ~ k.id ~ ': ' ~ k.company_name, 'Подана ' ~ (k.created_at | dt) ~ ', заявитель ' ~ k.user_email) %}
+<p class="adm-head__chips">
+  {% if k.status == 'sent' %}{{ chip('Ждёт код из письма', 'mute', 'clock') }}{% elif k.status == 'review' %}{{ chip('На проверке', 'warn', 'hourglass') }}{% elif k.status == 'confirmed' %}{{ chip('Подтверждена', 'ok', 'seal-check') }}{% else %}{{ chip('Отклонена', 'danger', 'x-circle') }}{% endif %}
+  {% if k.dispute %}{{ chip('Спор', 'danger', 'flag') }}{% endif %}
+  {% if k.code_ok_at %}{{ chip('Код из письма введён', 'ok', 'check-circle') }}{% endif %}
+  {% if k.domain_match %}{{ chip('Домен почты совпадает с компанией', 'ok', 'globe') }}{% elif k.method == 'email' %}{{ chip('Домен компании неизвестен', 'mute', 'globe') }}{% endif %}
+  {% if k.phone_match %}{{ chip('Телефон есть в вакансиях', 'ok', 'phone') }}{% elif k.method == 'phone' %}{{ chip('Телефона нет в вакансиях', 'warn', 'phone') }}{% endif %}
+</p>
+{% endcall %}
+{{ claims_tabs(tabs) }}
+
+{% if error_text %}<div class="notice notice--warn" role="alert">{{ icon('warning') }}<span>{{ error_text }}</span></div>{% endif %}
+{% if k.dispute and k.status in ('sent', 'review') %}
+<p class="notice notice--warn">{{ icon('flag') }}<span>Спор: {% if d.owner %}у карточки уже есть владелец ({{ d.owner.email }}).{% endif %}{% if d.others %} На неё подали заявки ещё {{ d.others | length }}.{% endif %} Свяжитесь со сторонами и решайте вручную. Чтобы передать карточку заявителю, отметьте передачу.</span></p>
+{% endif %}
+
+<div class="adm-split">
+  <div class="adm-split__main" data-sortable="claim-main">
+    <section class="panel" aria-labelledby="h-claim" data-key="claim" draggable="true">
+      <h2 id="h-claim">Заявка</h2>
+      <dl class="facts adm-facts">
+        <div><dt>Способ</dt><dd>{{ 'Рабочая почта' if k.method == 'email' else 'Телефон' }}: <strong>{{ k.contact }}</strong></dd></div>
+        <div><dt>Код из письма</dt><dd>{% if k.method != 'email' %}<span class="muted">не нужен</span>{% elif k.code_ok_at %}введён {{ k.code_ok_at | dt }}{% else %}ещё не введён (отправлено кодов: {{ k.code_sent_count }}){% endif %}</dd></div>
+        <div><dt>Заявитель</dt><dd>{{ d.user.name or 'Без имени' }}, {{ d.user.email }}{% if d.user.phone %}, {{ phone_pretty(d.user.phone) }}{% endif %}<span class="atable__sub">на сайте с {{ d.user.created_at | date }}</span></dd></div>
+        <div><dt>Пояснение</dt><dd>{% if k.message %}<span class="prewrap">{{ k.message }}</span>{% else %}<span class="muted">не указано</span>{% endif %}</dd></div>
+        {% if k.docs_requested_at %}<div><dt>Запрошено</dt><dd>{{ k.docs_note }} <span class="muted">({{ k.docs_requested_at | dt }})</span></dd></div>{% endif %}
+        {% if k.decided_at %}<div><dt>Решение</dt><dd>{{ k.decided_at | dt }}{% if k.admin_note %}: {{ k.admin_note }}{% endif %}</dd></div>{% endif %}
+        <div><dt>IP заявки</dt><dd class="mono">{{ k.ip or '-' }}</dd></div>
+      </dl>
+    </section>
+
+    <section class="panel" aria-labelledby="h-comp" data-key="company" draggable="true">
+      <h2 id="h-comp">Компания</h2>
+      <dl class="facts adm-facts">
+        <div><dt>Карточка</dt><dd><a href="/admin/employers/{{ c.id }}">{{ c.name }}</a> <a href="/company/{{ c.id }}" target="_blank" rel="noopener">на сайте {{ icon('arrow-square-out') }}</a></dd></div>
+        <div><dt>Происхождение</dt><dd>{{ 'Автокарточка из вакансий' if c.origin == 'auto' else 'Завёл работодатель' }}{% if c.legal_form %}, {{ c.legal_form }}{% endif %}{% if c.source_kind %}, источник {{ c.source_kind }}{% endif %}</dd></div>
+        <div><dt>Вакансии</dt><dd>открытых {{ d.counts.visible }}, в архиве {{ d.counts.archived }}</dd></div>
+        <div><dt>Домены</dt><dd>{% if d.domains %}{{ d.domains | join(', ') }}{% else %}<span class="muted">неизвестны</span>{% endif %}</dd></div>
+        <div><dt>Телефоны</dt><dd>{% if d.phones %}{% for p in d.phones %}{{ phone_pretty(p) }}{% if not loop.last %}, {% endif %}{% endfor %}{% else %}<span class="muted">неизвестны</span>{% endif %}</dd></div>
+        <div><dt>Владелец</dt><dd>{% if d.owner %}{{ d.owner.email }}{% else %}<span class="muted">нет</span>{% endif %}</dd></div>
+        {% if d.own_company %}<div><dt>Своя карточка заявителя</dt><dd><a href="/admin/employers/{{ d.own_company.id }}">{{ d.own_company.name }}</a><span class="atable__sub">При подтверждении автокарточка вольётся в неё.</span></dd></div>{% endif %}
+      </dl>
+    </section>
+
+    <section class="panel" aria-labelledby="h-vac" data-key="vacancies" draggable="true">
+      <h2 id="h-vac">Вакансии компании</h2>
+      {% if d.vacancies %}
+      <ul class="adm-list">
+        {% for v in d.vacancies %}<li><a href="/admin/vacancies/{{ v.id }}">№{{ v.id }} {{ v.profession | ucfirst }}</a> <span class="muted">{{ v.source_type }}, {{ v.status }}, {{ v.published_at | date }}</span></li>{% endfor %}
+      </ul>
+      {% else %}<p class="muted">Вакансий нет.</p>{% endif %}
+    </section>
+
+    {% if d.others %}
+    <section class="panel" aria-labelledby="h-oth" data-key="others" draggable="true">
+      <h2 id="h-oth">Другие заявки на эту компанию</h2>
+      <ul class="adm-list">
+        {% for o in d.others %}<li><a href="/admin/claims/{{ o.id }}">№{{ o.id }}</a> {{ o.user_email }} <span class="muted">{{ o.contact }}, {{ o.created_at | dt }}</span></li>{% endfor %}
+      </ul>
+    </section>
+    {% endif %}
+
+    <section class="panel" aria-labelledby="h-log" data-key="journal" draggable="true">
+      <h2 id="h-log">Журнал по заявке</h2>
+      {% if d.journal %}
+      <ul class="adm-list">
+        {% for row in d.journal %}<li>{{ row.label }} <span class="muted">{{ row.at | dt }}, {{ row.actor_email }}</span></li>{% endfor %}
+      </ul>
+      {% else %}<p class="muted">Действий пока не было.</p>{% endif %}
+    </section>
+  </div>
+
+  <aside class="adm-split__side" aria-label="Решение по заявке" data-sortable="claim-side">
+    {% if k.status in ('sent', 'review') %}
+    <section class="panel" aria-labelledby="h-ok" data-key="approve" draggable="true">
+      <h2 id="h-ok">Подтвердить</h2>
+      {% if k.status == 'sent' %}
+      <p class="hint">Заявитель ещё не ввёл код из письма. Подтверждать можно только заявки «на проверке».</p>
+      {% else %}
+      <p class="hint">Компания получит владельца, значок проверенного работодателя, а её вакансии появятся в кабинете заявителя.</p>
+      <form class="adm-form" method="post" action="/admin/claims/{{ k.id }}/approve">
+        {{ csrf() }}
+        <div class="field"><label for="a-note">Что проверено</label>
+          <input class="input input--sm" id="a-note" name="note" maxlength="300" placeholder="Позвонили на номер из вакансий, сотрудник подтвердил" autocomplete="off"></div>
+        {% if d.owner and d.owner.id != k.user_id %}
+        <label class="check check--top"><input type="checkbox" name="transfer" value="1"><span>Передать карточку от {{ d.owner.email }} этому заявителю</span></label>
+        {% endif %}
+        <button class="btn btn--primary btn--block" type="submit" data-confirm="Закрепить карточку за заявителем?">{{ icon('seal-check') }}Подтвердить заявку</button>
+      </form>
+      {% endif %}
+    </section>
+
+    <section class="panel" aria-labelledby="h-docs" data-key="docs" draggable="true">
+      <h2 id="h-docs">Запросить пояснения</h2>
+      <p class="hint">Заявитель получит письмо и сможет дописать ответ на странице заявки.</p>
+      <form class="adm-form" method="post" action="/admin/claims/{{ k.id }}/docs">
+        {{ csrf() }}
+        <div class="field"><label for="d-text">Что нужно прислать</label>
+          <textarea class="input" id="d-text" name="docs" rows="3" maxlength="500" required placeholder="ИНН компании и вашу должность"></textarea></div>
+        <button class="btn btn--ghost btn--block" type="submit">{{ icon('envelope-simple') }}Запросить</button>
+      </form>
+    </section>
+
+    <section class="panel" aria-labelledby="h-no" data-key="reject" draggable="true">
+      <h2 id="h-no">Отклонить</h2>
+      <p class="hint">Причину увидит заявитель. Новую заявку на эту компанию он сможет подать через неделю.</p>
+      <form class="adm-form" method="post" action="/admin/claims/{{ k.id }}/reject">
+        {{ csrf() }}
+        <div class="field"><label for="r-reason">Причина (обязательно)</label>
+          <textarea class="input" id="r-reason" name="reason" rows="3" maxlength="500" required></textarea></div>
+        <button class="btn btn--danger btn--block" type="submit" data-confirm="Отклонить заявку?">{{ icon('x-circle') }}Отклонить заявку</button>
+      </form>
+    </section>
+    {% else %}
+    <section class="panel" aria-labelledby="h-done" data-key="done" draggable="true">
+      <h2 id="h-done">Решение принято</h2>
+      <p class="hint">Заявка закрыта: {{ 'подтверждена' if k.status == 'confirmed' else 'отклонена' }} {{ k.decided_at | dt }}.</p>
+    </section>
+    {% endif %}
+  </aside>
+</div>
+{% endblock %}

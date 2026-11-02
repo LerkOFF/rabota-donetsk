@@ -9,6 +9,15 @@
         <h1 class="h1" id="hero-title">Найдите работу в Донецке</h1>
         <p class="hero__lead">{{ count_label(stats.total, 'актуальная вакансия', 'актуальные вакансии', 'актуальных вакансий') }} от работодателей и из открытых источников. Оплата, район и телефон в каждой карточке.</p>
         {{ search_bar('hero', big=True) }}
+        {% set quick = quick_selections() if quick_selections is defined else [] %}
+        {% if quick %}
+        <div class="hero__popular">
+          <p id="hero-quick">Быстрый выбор</p>
+          <ul class="chip-row chip-row--scroll" aria-labelledby="hero-quick">
+            {% for c in quick %}<li><a class="chip chip--on-brand" href="{{ c.href }}">{{ icon(c.icon) }}{{ c.label }}</a></li>{% endfor %}
+          </ul>
+        </div>
+        {% endif %}
         {% if professions %}
         <div class="hero__popular">
           <p id="hero-pop">Популярные профессии</p>
@@ -89,6 +98,17 @@
   </div>
 </section>
 {% endif %}
+
+<section class="section section--tight" aria-labelledby="useful">
+  <div class="wrap">
+    <h2 class="h2 section__title" id="useful">Полезное для соискателей</h2>
+    <ul class="chip-row">
+      <li><a class="chip" href="/zarplaty">{{ icon('currency-rub') }}Сколько платят по профессиям</a></li>
+      <li><a class="chip" href="/podborki">{{ icon('funnel') }}Подборки вакансий</a></li>
+      {% for a in (latest_articles(3) if latest_articles is defined else []) %}<li><a class="chip chip--wrap" href="{{ a.path }}">{{ icon('file-text') }}{{ a.title }}</a></li>{% endfor %}
+    </ul>
+  </div>
+</section>
 
 <section class="section" aria-label="Для работодателей и соискателей">
   <div class="wrap audience">

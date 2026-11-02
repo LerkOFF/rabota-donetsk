@@ -1,0 +1,12 @@
+{# Кнопка «Подписаться» в шапке выдачи. Гость идёт на страницу подписки, вошедший подписывается сразу (форма ниже по странице). #}
+{% from '_macros.html' import icon %}
+{% if flt.q or flt.active_count %}
+<div class="alert-cta">
+  {% if user %}
+  <button class="btn btn--soft btn--sm" type="submit" form="alert-sub-form">{{ icon('bell') }}Подписаться на такие вакансии</button>
+  {% else %}
+  <a class="btn btn--soft btn--sm" href="/alerts/new?{{ base_qs }}" rel="nofollow">{{ icon('bell') }}Подписаться на такие вакансии</a>
+  {% endif %}
+  <span class="hint alert-cta__hint">Новые вакансии по этому поиску придут на почту или в Telegram.</span>
+</div>
+{% endif %}

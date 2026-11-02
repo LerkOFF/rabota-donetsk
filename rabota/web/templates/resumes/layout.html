@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{# Общая обёртка страниц резюме: свои стили и скрипт подключаются здесь, общие файлы не затрагиваются #}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('cabinet.css') }}">
+<link rel="stylesheet" href="{{ asset('messages.css') }}">
+<link rel="stylesheet" href="{{ asset('resumes.css') }}">
+{% block rs_body %}{% endblock %}
+<script src="{{ asset('messages.js') }}" defer></script>
+<script src="{{ asset('resumes.js') }}" defer></script>
+{% endblock %}

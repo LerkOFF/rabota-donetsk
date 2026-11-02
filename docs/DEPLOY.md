@@ -24,6 +24,7 @@
 | --- | --- |
 | Сервер Ubuntu 24.04 или Debian 12+, 1 vCPU, 1 ГБ свободной памяти, 5 ГБ диска | сайт, воркер, база, копии |
 | Системный Python 3.12 или новее | запуск приложения |
+| `tesseract-ocr` и `tesseract-ocr-rus` | чтение афиш-картинок без платной модели (`LLM_PROVIDER=ocr`); `bootstrap-server.sh` их ставит, проверка: `tesseract --list-langs` показывает `rus` и `eng` |
 | nginx, certbot, git | ставятся заранее, установочный скрипт их не ставит и чужие сайты не трогает |
 | Домен и DNS | `работа-донецк.рф` и `www` указывают на IP сервера (A, при IPv6 ещё AAAA) |
 | Почтовый сервис с SMTP | письма с кодом подтверждения при регистрации и кодом сброса пароля, см. раздел "Почта" |
@@ -96,7 +97,9 @@
 | `VK_ACCESS_TOKEN` | чтение стен VK | для VK |
 | `TG_API_ID`, `TG_API_HASH`, `TG_SESSION_PATH`, `TG_CHANNELS_FILE`, `TG_SWEEP_SECONDS` | слушатель Telegram | для Telegram |
 | `TELEGRAM_PROXY` | `socks5://host:port` или `socks5://user:pass@host:port`; используется слушателем, сборщиком страниц t.me и уведомлениями. Старое имя `TG_PROXY` тоже читается | если Telegram с сервера закрыт |
-| `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL_TEXT`, `LLM_MODEL_VISION` | разбор афиш-картинок | для картинок |
+| `TG_BOT_TOKEN`, `TG_BOT_USERNAME`, `TG_CHANNEL_ID`, `TG_CHANNEL_USERNAME` | бот и канал для подписок: только Bot API, ответы бота и автопостинг идут из воркера через `TELEGRAM_PROXY`. Пустой токен: всё выключено | для Telegram-подписок |
+| `ALERTS_MAIL_PER_HOUR`, `ALERTS_MAIL_PAUSE`, `ALERTS_MAX_PER_USER`, `CHANNEL_POSTS_PER_HOUR` | стартовые значения лимитов подписок и канала, дальше правятся в админке | нет |
+| `LLM_PROVIDER`, `LLM_API_KEY`, `LLM_MODEL_TEXT`, `LLM_MODEL_VISION` | разбор афиш-картинок; `LLM_PROVIDER=ocr` читает афиши Tesseract без ключа (на 1 vCPU один постер читается 30-70 секунд) | для картинок |
 | `HH_CLIENT_ID`, `HH_CLIENT_SECRET`, `HH_USER_AGENT` | hh.ru | нет |
 | `MEDIA_DIR`, `HEARTBEAT_PATH`, `WORKER_EXPIRE` | служебные пути воркера | нет |
 | `VACANCY_TTL_DAYS`, `EXPIRED_KEEP_DAYS` | срок жизни вакансии и хранение скрытых | нет |
@@ -115,7 +118,7 @@
 
 ## Почта
 
-Сайт отправляет служебные письма: шестизначный код при регистрации и при сбросе пароля, уведомления об изменении пароля и почты, о новых откликах и сообщениях. Письма идут только по запросу человека, поэтому заголовков `List-Unsubscribe` и `Reply-To` нет. Каждое письмо двухчастное (текст и HTML), в UTF-8, с `Date`, `Message-ID` на домене отправителя, заголовками `Auto-Submitted: auto-generated` и `X-Auto-Response-Suppress: All`. Имя отправителя "Работа Донецк". Домены с кириллицей (`SMTP_FROM`, адрес получателя) отправляются в punycode.
+Сайт отправляет служебные письма: шестизначный код при регистрации и при сбросе пароля, уведомления об изменении пароля и почты, о новых откликах и сообщениях. Служебные письма идут только по запросу человека, поэтому в них нет `List-Unsubscribe` и `Reply-To`. Исключение: рассылка новых вакансий по подписке (см. `docs/ALERTS.md`), у неё есть `List-Unsubscribe` с одним щелчком и `Precedence: bulk`. Каждое письмо двухчастное (текст и HTML), в UTF-8, с `Date`, `Message-ID` на домене отправителя, заголовками `Auto-Submitted: auto-generated` и `X-Auto-Response-Suppress: All`. Имя отправителя "Работа Донецк". Домены с кириллицей (`SMTP_FROM`, адрес получателя) отправляются в punycode.
 
 ### Переменные
 
@@ -284,6 +287,8 @@ sudo /var/www/rabota/scripts/deploy.sh --smoke https://xn----7sbadrg9awfdp1a2d.x
 | Не приходят письма | `MAIL_BACKEND=smtp`, `SMTP_*`, `journalctl -u rabota-web`; `python -m rabota mail-check`; `preflight.py`; у получателя письмо может лежать в папке "Спам" (проверить SPF, DKIM, DMARC, раздел "Почта") |
 | `/healthz/deep` отдаёт 503 | воркер: `systemctl status rabota-worker`; подробности с токеном: `curl -H "X-Health-Token: ..." .../healthz/deep` |
 | Telegram молчит | `TELEGRAM_PROXY`, доступность прокси, `docs/REALTIME.md` |
+| Афиши не читаются, посты помечены «нужна афиша» | `tesseract --list-langs` должен показывать `rus`; после установки или обновления распознавания `python -m rabota reparse-posters --dry-run`, затем без `--dry-run` |
+| На сайте мусорная вакансия вместо афиши | `python -m rabota quality-sweep --dry-run`, затем без `--dry-run`: мусор уходит на проверку (раздел «Модерация») с причиной |
 | `deploy.sh` откатился | `/var/log/rabota/deploy.log` и `journalctl -u rabota-web`, причина в последних строках |
 
 ## IndexNow: Яндекс узнаёт о новых вакансиях сразу

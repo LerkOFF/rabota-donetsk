@@ -1,12 +1,23 @@
 {% extends 'base.html' %}
-{% from '_macros.html' import icon, field_error %}
+{% from '_macros.html' import icon, field_error, crumbs %}
+{% from '_post_fields.html' import text_field, select_field with context %}
+{% set more_fields = ['category', 'work_format', 'employment', 'age_min', 'requirements', 'employer', 'telegram', 'email', 'city'] %}
+{% set more_open = [] %}{% for f in more_fields %}{% if errors.get(f) %}{% set _ = more_open.append(f) %}{% endif %}{% endfor %}
 
 {% block content %}
+<link rel="stylesheet" href="{{ asset('employers.css') }}">
 <div class="wrap post">
   <header class="page-head">
-    <nav aria-label="Вы здесь"><ol class="crumbs"><li><a href="/">Главная</a></li><li>Разместить вакансию</li></ol></nav>
+    {{ crumbs(seo.breadcrumbs) }}
     <h1 class="h1 h1--page">Разместить вакансию</h1>
-    <p class="lead">Бесплатно. Заполните главное: профессию, оплату, график и как с вами связаться. Вакансия появится после короткой проверки.</p>
+    <p class="lead">Бесплатно и за минуту: профессия, район, оплата, график, телефон и пара предложений о работе.{% if not is_employer %} Почту подтвердим кодом, а кабинет работодателя создадим сами.{% endif %}</p>
+    {% if not is_employer %}
+    <ol class="pstep" aria-label="Шаги размещения">
+      <li class="pstep__item pstep__item--now" aria-current="step"><span class="pstep__n">1</span>Вакансия</li>
+      <li class="pstep__item"><span class="pstep__n">2</span>Код из письма</li>
+      <li class="pstep__item"><span class="pstep__n">3</span>Готово</li>
+    </ol>
+    {% endif %}
   </header>
 
   {% if errors %}
@@ -18,15 +29,83 @@
   </div>
   {% endif %}
 
-  {% if user and user.is_employer %}<p class="notice" role="note">{{ icon('briefcase') }}<span>Вакансия появится в вашем кабинете: там видно, на какой она стадии проверки, сколько откликов и как её поднять или закрыть.</span></p>{% endif %}
+  {% if is_employer %}<p class="notice" role="note">{{ icon('briefcase') }}<span>Вакансия появится в вашем кабинете: там видно, на какой она стадии проверки, сколько откликов и как её поднять или закрыть.</span></p>{% endif %}
 
-  <form class="form-grid" method="post" action="{{ form_action }}" novalidate>
-    {% if user and user.is_employer %}<input type="hidden" name="csrf_token" value="{{ csrf_token }}">{% else %}<div class="hp" aria-hidden="true"><label>Не заполняйте это поле<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>{% endif %}
-    {% include '_vacancy_form.html' %}
+  <form class="form-grid post-form" method="post" action="{{ form_action }}" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% if not is_employer %}<div class="hp" aria-hidden="true"><label>Не заполняйте это поле<input type="text" name="website" tabindex="-1" autocomplete="off"></label></div>{% endif %}
+
+    <section class="form-section" aria-labelledby="s-work">
+      <h2 id="s-work">Что за работа</h2>
+      {{ text_field('profession', 'Профессия или должность', required=True, placeholder='Например: бариста', maxlength=80) }}
+      {% set hints = search_hints() %}
+      {{ text_field('district', 'Район или улица', placeholder='Ворошиловский', maxlength=60, list='p-districts') }}
+      <datalist id="p-districts">{% for name in hints.districts %}<option value="{{ name }}"></option>{% endfor %}</datalist>
+    </section>
+
+    <section class="form-section" aria-labelledby="s-pay">
+      <h2 id="s-pay">Оплата и график</h2>
+      <div class="form-row form-row--3">
+        {{ text_field('pay_min', 'От, ₽', placeholder='30000', maxlength=7, inputmode='numeric') }}
+        {{ text_field('pay_max', 'До, ₽', placeholder='40000', maxlength=7, inputmode='numeric') }}
+        {{ select_field('pay_period', 'За что платите', periods, empty='Выберите') }}
+      </div>
+      {{ text_field('schedule', 'График', placeholder='2/2, с 9:00 до 18:00', maxlength=60) }}
+      <label class="check"><input type="checkbox" name="pay_daily" value="1"{% if form.get('pay_daily') %} checked{% endif %}>Выплата каждый день</label>
+    </section>
+
+    <section class="form-section" aria-labelledby="s-contact">
+      <h2 id="s-contact">Как с вами связаться</h2>
+      {{ text_field('phone', 'Телефон', hint='Нужен телефон или ник Telegram (его можно добавить в «Ещё детали»).', placeholder='+7 949 000-00-00', maxlength=30, type='tel', inputmode='tel', autocomplete='tel') }}
+    </section>
+
+    <section class="form-section" aria-labelledby="s-text">
+      <h2 id="s-text">О работе</h2>
+      <div class="field{% if errors.get('summary') %} field--invalid{% endif %}">
+        <label for="p-summary">Чем предстоит заниматься <span class="muted">(обязательно)</span></label>
+        <p class="hint" id="hint-summary">Пара предложений без капса и эмодзи. До 1000 знаков.</p>
+        <textarea class="input" id="p-summary" name="summary" maxlength="1000" rows="5" required aria-describedby="hint-summary{% if errors.get('summary') %} err-summary{% endif %}"{% if errors.get('summary') %} aria-invalid="true"{% endif %}>{{ form.get('summary', '') }}</textarea>
+        {{ field_error(errors, 'summary') }}
+      </div>
+    </section>
+
+    <details class="more-fields"{% if more_open %} open{% endif %}>
+      <summary class="more-fields__sum">{{ icon('sliders-horizontal') }}Ещё детали <span class="muted">(по желанию)</span></summary>
+      <div class="more-fields__body">
+        <div class="form-row form-row--2">
+          {{ select_field('category', 'Сфера', categories, empty='Определим по профессии') }}
+          {{ select_field('work_format', 'Где работать', work_formats) }}
+        </div>
+        <div class="form-row form-row--2">
+          {{ select_field('employment', 'Тип занятости', employments) }}
+          {{ text_field('age_min', 'Возраст от', placeholder='18', maxlength=2, inputmode='numeric') }}
+        </div>
+        <label class="check"><input type="checkbox" name="no_experience" value="1"{% if form.get('no_experience') %} checked{% endif %}>Опыт не нужен</label>
+        {{ text_field('requirements', 'Требования', placeholder='Права категории B', maxlength=400) }}
+        {{ text_field('employer', 'Название организации', placeholder='Кофейня «Зерно»', maxlength=120) }}
+        <div class="form-row form-row--2">
+          {{ text_field('telegram', 'Telegram', placeholder='@name', maxlength=64) }}
+          {{ text_field('email', 'Почта для связи', hint='Будет видна на странице вакансии.', placeholder='mail@example.ru', maxlength=120, type='email', inputmode='email', autocomplete='email') }}
+        </div>
+        {{ text_field('city', 'Город', maxlength=60) }}
+      </div>
+    </details>
+
+    {% if not is_employer %}
+    <section class="form-section" aria-labelledby="s-confirm">
+      <h2 id="s-confirm">Подтверждение</h2>
+      {{ text_field('account_email', 'Ваша почта', required=True, hint='Пришлём код для публикации. На сайте она не показывается. По ней же вы войдёте в кабинет.', placeholder='mail@example.ru', maxlength=254, type='email', inputmode='email', autocomplete='email') }}
+      <div class="field{% if errors.get('consent') %} field--invalid{% endif %}">
+        <label class="check check--top"><input type="checkbox" name="consent" value="1" id="p-consent" required{% if form.get('consent') %} checked{% endif %}{% if errors.get('consent') %} aria-invalid="true" aria-describedby="err-consent"{% endif %}>
+          <span>Я согласен на <a href="/legal/consent" target="_blank" rel="noopener">обработку персональных данных</a> и принимаю <a href="/legal/terms" target="_blank" rel="noopener">пользовательское соглашение</a></span></label>
+        {{ field_error(errors, 'consent') }}
+      </div>
+    </section>
+    {% endif %}
 
     <div class="form-actions">
-      <button class="btn btn--primary btn--lg" type="submit">Отправить на проверку</button>
-      <p class="hint">Нажимая кнопку, вы подтверждаете, что вакансия настоящая, а телефон принадлежит работодателю.</p>
+      <button class="btn btn--primary btn--lg" type="submit">{% if is_employer %}Отправить на проверку{% else %}Получить код на почту{% endif %}</button>
+      <p class="hint">Нажимая кнопку, вы подтверждаете, что вакансия настоящая, а телефон принадлежит работодателю. Просить деньги за трудоустройство запрещено.</p>
     </div>
   </form>
 </div>

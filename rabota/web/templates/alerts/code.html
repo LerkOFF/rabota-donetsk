@@ -1,0 +1,29 @@
+{% extends 'alerts/layout.html' %}
+{% from 'auth/_forms.html' import csrf, alert, info %}
+{% from '_macros.html' import icon %}
+{% block alerts_body %}
+<div class="wrap auth">
+  <div class="auth__card">
+    <div class="auth__head">
+      <h1>Введите код из письма</h1>
+      <p>Если такой адрес можно подписать, мы отправили на него шестизначный код. Он действует 30 минут. Проверьте папку «Спам».</p>
+    </div>
+    {% if sent %}{{ info('Если письмо ещё не отправлялось слишком недавно, новый код уже в пути.') }}{% endif %}
+    {{ alert(error) }}
+    <form class="auth__form" method="post" action="/alerts/code/{{ ref }}" novalidate>
+      {{ csrf(csrf_token) }}
+      <div class="field{% if error %} field--invalid{% endif %}">
+        <label for="c-code">Код</label>
+        <input class="input input--code" id="c-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code"
+               maxlength="12" placeholder="000000" autofocus required>
+      </div>
+      <button class="btn btn--primary btn--lg" type="submit">Подтвердить</button>
+    </form>
+    <form class="auth__inline" method="post" action="/alerts/code/{{ ref }}/resend">
+      {{ csrf(csrf_token) }}
+      <p>Письма нет? Код можно запросить заново, не чаще раза в минуту.</p>
+      <button class="btn btn--ghost" type="submit">Отправить код ещё раз</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

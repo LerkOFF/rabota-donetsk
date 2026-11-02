@@ -1,0 +1,93 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, pager, empty, chip %}
+{% from 'admin/_claims_tabs.html' import claims_tabs %}
+{% macro opt(value, text, current) -%}<option value="{{ value }}"{% if value == current %} selected{% endif %}>{{ text }}</option>{%- endmacro %}
+{% macro sort_th(key, label) -%}
+<a class="adm-sort" href="/admin/claims?{{ sort_links[key] }}"{% if f.sort == key %} aria-sort="{{ 'ascending' if f.dir == 'asc' else 'descending' }}"{% endif %}>{{ label }}{% if f.sort == key %}<span aria-hidden="true">{{ ' ↑' if f.dir == 'asc' else ' ↓' }}</span>{% endif %}</a>
+{%- endmacro %}
+{% macro status_chip(s) -%}
+{% if s == 'sent' %}{{ chip('Ждёт код', 'mute', 'clock') }}{% elif s == 'review' %}{{ chip('На проверке', 'warn', 'hourglass') }}{% elif s == 'confirmed' %}{{ chip('Подтверждена', 'ok', 'seal-check') }}{% else %}{{ chip('Отклонена', 'danger', 'x-circle') }}{% endif %}
+{%- endmacro %}
+
+{% block content %}
+{{ page_head('Заявки на карточки', 'Работодатели просят закрепить за собой автокарточку компании. Проверьте почту или телефон, подтвердите или отклоните заявку. Спорные заявки решаются вручную.') }}
+{{ claims_tabs(tabs) }}
+
+<section class="kpis" aria-label="Сколько заявок в каждом состоянии" data-sortable="claims-tiles">
+  {% for key, label, href in [
+    ('review', 'На проверке', 'view=open'), ('sent', 'Ждут код', 'view=open'), ('dispute', 'Споры', 'view=dispute'),
+    ('confirmed', 'Подтверждены', 'view=confirmed'), ('rejected', 'Отклонены', 'view=rejected')] %}
+  <a class="kpi" data-key="{{ key }}" draggable="true" href="/admin/claims?{{ href }}">
+    <span class="kpi__n">{{ totals[key] }}</span><span class="kpi__t">{{ label }}</span>
+  </a>
+  {% endfor %}
+</section>
+
+<nav class="adm-tabs" aria-label="Состояние заявок">
+  <ul>
+    {% for key, text in options.views.items() %}
+    <li><a href="/admin/claims?view={{ key }}"{% if key == f.view %} aria-current="page"{% endif %}>{{ text }}{% if key in totals %} <span class="count{% if key == f.view %} count--on{% endif %}">{{ totals[key] }}</span>{% endif %}</a></li>
+    {% endfor %}
+  </ul>
+</nav>
+
+<form class="adm-filter" method="get" action="/admin/claims" role="search" aria-label="Фильтры заявок">
+  <input type="hidden" name="view" value="{{ f.view }}">
+  <div class="adm-grid adm-grid--3">
+    <div class="field"><label for="f-q">Поиск</label>
+      <input class="input input--sm" id="f-q" name="q" type="search" value="{{ f.q }}" maxlength="80" placeholder="Номер, компания, почта заявителя"></div>
+    <div class="field"><label for="f-method">Способ</label>
+      <select class="input input--sm" id="f-method" name="method"><option value="">Любой</option>{% for k, t in options.methods.items() %}{{ opt(k, t, f.method) }}{% endfor %}</select></div>
+    <div class="field"><label for="f-period">Подана</label>
+      <select class="input input--sm" id="f-period" name="period">{% for k, t in options.periods.items() %}{{ opt(k, t, f.period) }}{% endfor %}</select></div>
+  </div>
+  <div class="adm-actions">
+    <button class="btn btn--primary btn--sm" type="submit">{{ icon('magnifying-glass') }}Показать</button>
+    {% if f.active %}<a class="btn btn--ghost btn--sm" href="/admin/claims?view={{ f.view }}">Сбросить фильтры</a>{% endif %}
+    <span class="adm-filter__found" role="status">Найдено: {{ page.total }}</span>
+  </div>
+</form>
+
+{% if items %}
+<div class="adm-tablewrap">
+<table class="atable">
+  <caption class="visually-hidden">Заявки на карточки, страница {{ page.page }} из {{ page.pages }}</caption>
+  <thead>
+    <tr data-sortable="claims-columns">
+      <th scope="col" data-key="id" draggable="true">№</th>
+      <th scope="col" data-key="company" draggable="true">{{ sort_th('company', 'Компания') }}</th>
+      <th scope="col" data-key="user" draggable="true">Заявитель</th>
+      <th scope="col" data-key="method" draggable="true">Способ</th>
+      <th scope="col" data-key="created" draggable="true">{{ sort_th('created', 'Подана') }}</th>
+      <th scope="col" data-key="state" draggable="true">Состояние</th>
+      <th scope="col" data-key="actions"><span class="visually-hidden">Действия</span></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for k in items %}
+    <tr>
+      <td data-label="№" data-key="id" class="mono">{{ k.id }}</td>
+      <td data-label="Компания" data-key="company"><a class="atable__main" href="/admin/claims/{{ k.id }}">{{ k.company_name }}</a>
+        <span class="atable__sub">{{ k.company_city or 'город не указан' }}, вакансий: {{ k.vacancies_total }}</span></td>
+      <td data-label="Заявитель" data-key="user">{{ k.user_email }}<span class="atable__sub">{{ k.user_name }}</span></td>
+      <td data-label="Способ" data-key="method">{{ options.methods[k.method] }}<span class="atable__sub">{{ k.contact }}</span></td>
+      <td data-label="Подана" data-key="created">{{ k.created_at | dt }}</td>
+      <td data-label="Состояние" data-key="state">{{ status_chip(k.status) }}{% if k.dispute and k.status in ('sent', 'review') %}{{ chip('Спор', 'danger', 'flag') }}{% endif %}{% if k.docs_requested_at and k.status == 'review' %}{{ chip('Ждём ответ', 'info', 'info') }}{% endif %}</td>
+      <td data-label="Действия" data-key="actions" class="atable__act"><a class="btn btn--ghost btn--sm" href="/admin/claims/{{ k.id }}">Открыть</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{{ pager(page, '/admin/claims', query) }}
+{% else %}
+  {% if f.active %}
+  {% call empty('Ничего не нашлось', 'Под выбранные фильтры заявок нет. Ослабьте условия или сбросьте фильтры.', 'magnifying-glass') %}
+    <a class="btn btn--ghost btn--sm" href="/admin/claims?view={{ f.view }}">Сбросить фильтры</a>
+  {% endcall %}
+  {% else %}
+  {% call empty('Заявок нет', 'Когда работодатель нажмёт «Это моя компания» на автокарточке, заявка появится здесь.', 'handshake') %}{% endcall %}
+  {% endif %}
+{% endif %}
+{% endblock %}

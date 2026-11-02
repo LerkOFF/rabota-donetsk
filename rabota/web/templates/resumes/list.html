@@ -1,0 +1,84 @@
+{% extends 'resumes/layout.html' %}
+{% from '_macros.html' import icon, empty_state %}
+{% from 'messages/_parts.html' import crumbs, info, alert, csrf %}
+{% from 'resumes/_parts.html' import meter, state, facts, skills %}
+{% block rs_body %}
+<div class="wrap cab rs-page">
+  <header class="page-head cab__head">
+    {{ crumbs([('Кабинет соискателя', '/cabinet/seeker'), ('Мои резюме', '')]) }}
+    <div class="cab__titlebar">
+      <div class="cab__titles">
+        <h1 class="h1 h1--page">Мои резюме</h1>
+        <p class="lead">Составьте резюме за пару минут: работодатели найдут вас сами, а откликаться на вакансии станет в одно нажатие. Можно хранить до {{ limit }} резюме.</p>
+      </div>
+      {% if can_create %}<a class="btn btn--primary cab__cta" href="/cabinet/resumes/new">{{ icon('plus') }}Новое резюме</a>{% endif %}
+    </div>
+  </header>
+
+  {{ info(flash) }}
+  {{ alert(problem) }}
+
+  {% if items %}
+  <ul class="rs-list">
+    {% for r in items %}
+    <li class="rs-item{% if r.admin_hidden %} rs-item--blocked{% endif %}" data-resume-id="{{ r.id }}">
+      <article aria-labelledby="rs-t-{{ r.id }}">
+        <div class="rs-item__head">
+          <h2 class="rs-item__title" id="rs-t-{{ r.id }}"><a href="/cabinet/resumes/{{ r.id }}/edit">{{ r.title }}</a></h2>
+          {{ state(r) }}
+        </div>
+        {{ facts(r) }}
+        {{ skills(r.skills, 6) }}
+
+        {% if r.admin_hidden %}
+        <p class="notice notice--warn" role="status">{{ icon('shield-warning') }}<span>Модератор скрыл это резюме{% if r.admin_note %}: {{ r.admin_note }}{% endif %}. Исправьте его и напишите нам через форму обращений, мы вернём резюме в поиск.</span></p>
+        {% elif r.stale %}
+        <p class="notice notice--muted" role="status">{{ icon('hourglass') }}<span>Резюме не обновлялось больше года, поэтому работодателям оно не показывается. Нажмите «Обновить», если оно всё ещё актуально.</span></p>
+        {% endif %}
+
+        <div class="rs-item__fill">
+          {{ meter(r.percent) }}
+          {% if r.tips %}
+          <details class="rs-tips"{% if r.percent < 60 %} open{% endif %}>
+            <summary>Что добавить, чтобы резюме заметили</summary>
+            <ul>{% for t in r.tips[:4] %}<li><strong>+{{ t.points }}%</strong> {{ t.text }}</li>{% endfor %}</ul>
+          </details>
+          {% else %}
+          <p class="muted">Резюме заполнено полностью.</p>
+          {% endif %}
+        </div>
+
+        <p class="rs-item__stats muted">
+          Обновлено {{ r.updated_label }}
+          {% if r.visibility != 'hidden' %} · Просмотров: {{ r.views }} · Открыли контакты: {{ r.contacts }}{% endif %}
+        </p>
+
+        <div class="rs-item__actions">
+          <a class="btn btn--primary btn--sm" href="/cabinet/resumes/{{ r.id }}/edit">{{ icon('pencil-simple') }}Редактировать</a>
+          <form method="post" action="/cabinet/resumes/{{ r.id }}/refresh" data-busy-form>{{ csrf(csrf_token) }}
+            <button class="btn btn--ghost btn--sm" type="submit">{{ icon('arrow-fat-up') }}Обновить</button></form>
+          {% if r.visibility == 'hidden' %}
+          {% if not r.admin_hidden %}<a class="btn btn--soft btn--sm" href="/cabinet/resumes/{{ r.id }}/edit?show=1">{{ icon('check-circle') }}Показать работодателям</a>{% endif %}
+          {% else %}
+          <form method="post" action="/cabinet/resumes/{{ r.id }}/hide" data-busy-form>{{ csrf(csrf_token) }}
+            <button class="btn btn--soft btn--sm" type="submit">{{ icon('lock-simple') }}Скрыть</button></form>
+          {% endif %}
+          <a class="btn btn--danger btn--sm" href="/cabinet/resumes/{{ r.id }}/delete">{{ icon('trash') }}Удалить</a>
+        </div>
+      </article>
+    </li>
+    {% endfor %}
+  </ul>
+  {% if not can_create %}
+  <p class="notice notice--muted" role="status">{{ icon('info') }}<span>У вас {{ limit }} резюме из {{ limit }}. Чтобы добавить новое, удалите одно из существующих.</span></p>
+  {% endif %}
+  {% else %}
+  {% call empty_state('user-circle', 'Резюме пока нет', 'Укажите профессию, желаемую зарплату и район, добавьте пару навыков, и работодатели смогут найти вас. Это займёт около двух минут.') %}
+  <a class="btn btn--primary" href="/cabinet/resumes/new">{{ icon('plus') }}Составить резюме</a>
+  <a class="btn btn--ghost" href="/vacancies?direct=1">Вакансии от работодателей</a>
+  {% endcall %}
+  {% endif %}
+
+  <p class="hint rs-privacy">{{ icon('shield-check') }}<span>Контакты работодатель видит только после нажатия кнопки, а сайт показывает вам, сколько раз это было. Резюме закрыто от поисковиков и гостей. <a href="/legal/resume">Согласие и правила</a></span></p>
+</div>
+{% endblock %}

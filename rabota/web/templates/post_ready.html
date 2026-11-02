@@ -1,0 +1,66 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'cabinet/_parts.html' import state_badge %}
+{% block hsearch %}{% endblock %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('employers.css') }}">
+<div class="wrap post post--narrow ready">
+  <header class="page-head">
+    <ol class="pstep" aria-label="Шаги размещения">
+      <li class="pstep__item pstep__item--done"><span class="pstep__n">{{ icon('check') }}</span>Вакансия</li>
+      <li class="pstep__item pstep__item--done"><span class="pstep__n">{{ icon('check') }}</span>Код из письма</li>
+      <li class="pstep__item pstep__item--now" aria-current="step"><span class="pstep__n">3</span>Готово</li>
+    </ol>
+    <h1 class="h1 h1--page">{% if item.state.key == 'published' %}Вакансия опубликована{% elif item.state.key == 'rejected' %}Вакансия не принята{% else %}Вакансия принята{% endif %}</h1>
+  </header>
+
+  {% if flash %}<p class="notice" role="status">{{ icon('check-circle') }}<span>{{ flash }}</span></p>{% endif %}
+  {% if problem %}<p class="notice notice--warn" role="alert">{{ icon('warning') }}<span>{{ problem }}</span></p>{% endif %}
+
+  <section class="panel ready__status" aria-labelledby="r-status">
+    <h2 id="r-status">{{ item.title }}</h2>
+    <p class="ready__row">{{ state_badge(item.state) }}<span class="muted">{{ item.pay.main }}{% if item.pay.period %} {{ item.pay.period }}{% endif %}{% if item.location %}, {{ item.location }}{% endif %}</span></p>
+    <p>{{ item.state.note }}</p>
+    {% if manual %}<p class="muted">Вакансию проверят вручную: в тексте есть формулировки, которые мы просматриваем внимательнее. Это не отказ.</p>{% endif %}
+    {% if item.state.key == 'rejected' %}<p><a class="btn btn--primary" href="/cabinet/vacancies/{{ item.id }}/edit">Исправить вакансию</a></p>{% endif %}
+    <div class="ready__actions">
+      {% if item.state.key in ('published', 'pending') %}<a class="btn btn--ghost" href="/vacancy/{{ item.id }}">{{ icon('arrow-square-out') }}Посмотреть, как видят соискатели</a>{% endif %}
+      {% if item.can_raise %}
+        {% if item.raise_wait %}
+        <p class="ready__wait" data-raise-wait>{{ icon('hourglass') }}Поднять можно через {{ item.raise_wait }}: после этого вакансия снова станет первой в ленте.</p>
+        {% else %}
+        <form method="post" action="/razmestit/gotovo/{{ item.id }}/podnyat">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+          <button class="btn btn--primary" type="submit">{{ icon('arrow-fat-up') }}Поднять вакансию</button>
+        </form>
+        {% endif %}
+      {% else %}
+      <p class="ready__wait" data-raise-wait>{{ icon('arrow-fat-up') }}Поднять вакансию можно будет после проверки, не чаще раза в сутки.</p>
+      {% endif %}
+    </div>
+  </section>
+
+  {% if new_account %}
+  <section class="notice" aria-labelledby="r-acc">
+    {{ icon('user-circle') }}
+    <div><h2 id="r-acc" class="h3">Мы создали ваш кабинет</h2>
+    <p>Вход по почте {{ email }}. Пароль пока не задан: <a href="/forgot">задайте его</a>, когда будет удобно. До этого вы остаётесь в кабинете на этом устройстве.</p></div>
+  </section>
+  {% endif %}
+
+  <section aria-labelledby="r-tips">
+    <h2 class="h2 section__title" id="r-tips">Как получить больше откликов</h2>
+    <ul class="tips">
+      {% for t in tips %}
+      <li class="tips__item"><span class="tips__ico">{{ icon(t.icon) }}</span><div><h3 class="h3">{{ t.title }}</h3><p>{{ t.text }}</p></div></li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <div class="ready__next">
+    <a class="btn btn--primary" href="/cabinet/vacancies">Мои вакансии</a>
+    <a class="btn btn--ghost" href="/cabinet/company">Заполнить карточку компании</a>
+    <a class="btn btn--ghost" href="/razmestit">Разместить ещё одну</a>
+  </div>
+</div>
+{% endblock %}

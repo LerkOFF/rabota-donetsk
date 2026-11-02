@@ -1,0 +1,17 @@
+{% extends 'alerts/layout.html' %}
+{% from '_macros.html' import icon %}
+{% block alerts_body %}
+<div class="wrap auth">
+  <div class="auth__card">
+    <div class="auth__done">
+      <span class="state__ico">{{ icon('check-circle') }}</span>
+      <h1 class="h2">Подписка включена</h1>
+      <p>Присылаем новые вакансии: {{ title }}. Частота: {{ frequency }}. Вакансии, которые уже есть на сайте, повторно не приходят, только новые.</p>
+      <div class="state__actions">
+        <a class="btn btn--primary" href="/vacancies">К вакансиям</a>
+        <a class="btn btn--ghost" href="/alerts">Мои подписки</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

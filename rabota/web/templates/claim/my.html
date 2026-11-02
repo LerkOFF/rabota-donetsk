@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'messages/_parts.html' import crumbs %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('claim.css') }}">
+<div class="wrap claim">
+  <header class="page-head">
+    {{ crumbs([('Кабинет', '/cabinet'), ('Мои заявки', '')]) }}
+    <h1 class="h1 h1--page">Мои заявки на карточки</h1>
+    <p class="lead">Заявки «Это моя компания», которые вы подавали, и их состояние.</p>
+  </header>
+  {% if rows %}
+  <ul class="claim-list">
+    {% for r in rows %}
+    <li class="claim-list__item">
+      <div>
+        <a class="claim-list__name" href="/company/{{ r.company_id }}/claim">{{ r.company_name }}</a>
+        <span class="muted">Подана {{ r.created_label }}, {{ 'почта' if r.method == 'email' else 'телефон' }}</span>
+        {% if r.status == 'rejected' and r.admin_note %}<span class="muted">Причина: {{ r.admin_note }}</span>{% endif %}
+      </div>
+      <span class="claim-chip claim-chip--{{ r.status }}">{{ r.status_label }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <div class="state">
+    <span class="state__ico">{{ icon('buildings') }}</span>
+    <h2 class="h3">Заявок пока нет</h2>
+    <p>Найдите свою компанию среди работодателей и нажмите «Это моя компания» на её странице.</p>
+    <div class="state__actions"><a class="btn btn--primary" href="/vacancies">Смотреть вакансии</a></div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -447,7 +447,18 @@ def delete_account(conn: sqlite3.Connection, user_id: int) -> None:
     from rabota.messaging.erase import erase_user_data
 
     erase_user_data(conn, user_id)
+    from rabota.resumes.service import erase_user_data as erase_resumes
+
+    erase_resumes(conn, user_id)  # резюме, просмотры и открытые контакты
+    from rabota.employers_auto.claims import release_owner
+
+    release_owner(conn, user_id)  # собранные вакансии и автокарточка остаются на сайте без владельца
     conn.execute("DELETE FROM vacancies WHERE owner_user_id=?", (user_id,))
+    owner = conn.execute("SELECT email FROM users WHERE id=?", (user_id,)).fetchone()
+    if owner is not None:  # подписки на вакансии по этой почте, оформленные без входа
+        from rabota.alerts.service import erase_email
+
+        erase_email(conn, owner["email"])
     conn.execute("DELETE FROM users WHERE id=?", (user_id,))
     conn.commit()
 

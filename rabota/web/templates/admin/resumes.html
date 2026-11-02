@@ -1,0 +1,72 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, pager, empty, chip, tabs %}
+{% block content %}
+{{ page_head('Резюме', 'Резюме соискателей: кому они показаны, сколько просмотров и открытых контактов. Нарушающие правила можно скрыть, владелец увидит причину.') }}
+
+<section class="kpis" aria-label="Сколько резюме в каждом состоянии" data-sortable="resumes-tiles">
+  {% for key, label, href in [
+    ('all', 'Всего', ''), ('public', 'Всем работодателям', 'view=public'), ('open', 'Только по отклику', 'view=open'),
+    ('hidden', 'Скрыты владельцем', 'view=hidden'), ('admin_hidden', 'Скрыты модератором', 'view=admin_hidden'),
+    ('stale', 'Давно не обновлялись', 'view=stale'), ('owners', 'Соискателей с резюме', ''), ('contacts', 'Открытий контактов', '')] %}
+  <a class="kpi" data-key="{{ key }}" draggable="true" href="/admin/resumes{% if href %}?{{ href }}{% endif %}">
+    <span class="kpi__n">{{ totals[key] }}</span><span class="kpi__t">{{ label }}</span>
+  </a>
+  {% endfor %}
+</section>
+
+<form class="adm-filter" method="get" action="/admin/resumes" role="search" aria-label="Фильтры списка резюме">
+  <div class="adm-grid adm-grid--3">
+    <div class="field"><label for="f-q">Поиск</label>
+      <input class="input input--sm" id="f-q" name="q" type="search" value="{{ f.q }}" maxlength="80" placeholder="Номер, профессия, навык, почта владельца"></div>
+    <div class="field"><label for="f-view">Показать</label>
+      <select class="input input--sm" id="f-view" name="view">{% for k, t in views.items() %}<option value="{{ k }}"{% if k == f.view %} selected{% endif %}>{{ t }}</option>{% endfor %}</select></div>
+    <div class="field adm-actions">
+      <button class="btn btn--primary btn--sm" type="submit">{{ icon('magnifying-glass') }}Показать</button>
+      {% if f.q or f.view != 'all' %}<a class="btn btn--ghost btn--sm" href="/admin/resumes">Сбросить</a>{% endif %}
+      <span class="adm-filter__found" role="status">Найдено: {{ page.total }}</span>
+    </div>
+  </div>
+</form>
+
+{% if items %}
+<div class="adm-tablewrap">
+<table class="atable">
+  <caption class="visually-hidden">Резюме, страница {{ page.page }} из {{ page.pages }}</caption>
+  <thead>
+    <tr data-sortable="resumes-columns">
+      <th scope="col" data-key="id" draggable="true">№</th>
+      <th scope="col" data-key="resume" draggable="true">Резюме</th>
+      <th scope="col" data-key="owner" draggable="true">Владелец</th>
+      <th scope="col" data-key="visibility" draggable="true">Видимость</th>
+      <th scope="col" data-key="stats" draggable="true">Просмотры</th>
+      <th scope="col" data-key="updated" draggable="true">Обновлено</th>
+      <th scope="col" data-key="actions"><span class="visually-hidden">Действия</span></th>
+    </tr>
+  </thead>
+  <tbody>
+  {% for r in items %}
+  <tr>
+    <td data-label="№" data-key="id" class="mono">{{ r.id }}</td>
+    <td data-label="Резюме" data-key="resume"><a class="atable__main" href="/admin/resumes/{{ r.id }}">{{ r.title }}</a><span class="atable__sub">{{ r.pay_text }}, {{ r.experience_text | lower }}</span></td>
+    <td data-label="Владелец" data-key="owner">{{ r.owner_name }}<span class="atable__sub">{{ r.owner_email }}</span></td>
+    <td data-label="Видимость" data-key="visibility">
+      {% if r.admin_hidden %}{{ chip('Скрыто модератором', 'danger', 'shield-warning') }}
+      {% elif r.visibility == 'hidden' %}{{ chip('Скрыто владельцем', 'mute', 'lock-key') }}
+      {% elif r.stale %}{{ chip('Давно не обновлялось', 'warn', 'hourglass') }}
+      {% elif r.visibility == 'public' %}{{ chip('Всем работодателям', 'ok', 'check-circle') }}
+      {% else %}{{ chip('Только по отклику', 'info', 'paper-plane-tilt') }}{% endif %}
+    </td>
+    <td data-label="Просмотры" data-key="stats">{{ r.views }}<span class="atable__sub">контактов открыли: {{ r.contacts }}</span></td>
+    <td data-label="Обновлено" data-key="updated">{{ r.updated_at | dt }}</td>
+    <td data-label="Действия" data-key="actions" class="atable__act"><a class="btn btn--ghost btn--sm" href="/admin/resumes/{{ r.id }}">Открыть</a></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{{ pager(page, '/admin/resumes', query) }}
+{% else %}
+  {% call empty('Резюме не найдены', 'Под выбранные фильтры ничего не подходит. Сбросьте фильтры или измените запрос.', 'user-circle') %}{% endcall %}
+{% endif %}
+{% endblock %}

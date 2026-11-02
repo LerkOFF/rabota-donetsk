@@ -357,10 +357,11 @@ def dedupe(conn: sqlite3.Connection, threshold: float = SIMILARITY_THRESHOLD) ->
             it.vac.duplicate_of = main.key
             if merge_into(main.vac, it.vac):
                 _save_merged(conn, main)
-        if main.vac.status == "expired" and not is_stale(main.vac.last_seen_at):
-            # вакансию опубликовали снова: возвращаем её на сайт
+        if main.vac.status in ("expired", "archived") and not is_stale(main.vac.last_seen_at):
+            # вакансию опубликовали снова: возвращаем её на сайт (из архива тоже, без дубля)
             main.vac.status = "active"
             _save_merged(conn, main)
+            conn.execute("UPDATE vacancies SET archived_at = NULL WHERE id = ?", (main.key,))
         for it in group:
             if it is not main and before[it.key] != it.vac.duplicate_of:
                 conn.execute("UPDATE vacancies SET duplicate_of = ? WHERE id = ?", (it.vac.duplicate_of, it.key))
@@ -374,6 +375,11 @@ def dedupe(conn: sqlite3.Connection, threshold: float = SIMILARITY_THRESHOLD) ->
 
 def _save_merged(conn: sqlite3.Connection, main: _Item) -> None:
     v = main.vac
+    edited = conn.execute("SELECT owner_edited_at FROM vacancies WHERE id = ?", (main.key,)).fetchone()
+    if edited is not None and edited[0]:
+        # вакансию правил владелец карточки: поля сборщик не затирает, обновляются только срок и статус
+        conn.execute("UPDATE vacancies SET last_seen_at = ?, status = ? WHERE id = ?", (v.last_seen_at, v.status, main.key))
+        return
     conn.execute(
         "UPDATE vacancies SET work_format=?, employment=?, schedule=?, pay_min=?, pay_max=?, pay_period=?, pay_daily=?,"
         " pay_monthly_estimate=?, city=?, district=?, experience=?, age_min=?, requirements=?, employer=?, contacts=?,"

@@ -67,7 +67,8 @@ def blocked_pair(conn: sqlite3.Connection, user_id: int, other_id: int) -> tuple
 
 
 def apply(
-    conn: sqlite3.Connection, *, vacancy_id: int, user: dict[str, Any], cover: str, share_phone: bool, now: datetime
+    conn: sqlite3.Connection, *, vacancy_id: int, user: dict[str, Any], cover: str, share_phone: bool, now: datetime,
+    resume_id: int | None = None,
 ) -> dict[str, int]:
     """Отклик соискателя: запись отклика, переписка с ним и сопроводительное сообщение (если оно есть)."""
     if user.get("role") != "job_seeker" or user.get("status", "active") != "active":
@@ -85,9 +86,9 @@ def apply(
     phone = (user.get("phone") or None) if share_phone else None
     try:
         cur = conn.execute(
-            "INSERT INTO applications(vacancy_id, user_id, cover_letter, status, created_at, contact_name, contact_phone)"
-            " VALUES (?,?,?,?,?,?,?)",
-            (vacancy_id, user["id"], text, "new", stamp, user.get("name") or "", phone),
+            "INSERT INTO applications(vacancy_id, user_id, cover_letter, status, created_at, contact_name, contact_phone,"
+            " resume_id) VALUES (?,?,?,?,?,?,?,?)",
+            (vacancy_id, user["id"], text, "new", stamp, user.get("name") or "", phone, resume_id),
         )
         application_id = int(cur.lastrowid or 0)
         conv = conn.execute(
@@ -126,7 +127,7 @@ def apply_state(conn: sqlite3.Connection, vacancy_id: int, user_id: int) -> dict
 def _response_select() -> str:
     return (
         f"SELECT a.id, a.vacancy_id, a.user_id AS seeker_id, a.cover_letter, a.created_at, a.withdrawn_at, a.status AS raw_status,"
-        f" {EFFECTIVE_STATUS} AS status, a.status_changed_at, a.contact_phone,"
+        f" {EFFECTIVE_STATUS} AS status, a.status_changed_at, a.viewed_at, a.resume_id, a.contact_phone,"
         " COALESCE(NULLIF(a.contact_name, ''), su.name) AS seeker_name,"
         " COALESCE(v.profession, c.title, 'Вакансия') AS vacancy_title, v.city AS vacancy_city,"
         " COALESCE(NULLIF(v.employer, ''), eu.name) AS employer_name, v.owner_user_id AS employer_id,"
@@ -202,9 +203,9 @@ def get_response(conn: sqlite3.Connection, application_id: int, user: dict[str, 
 
 def mark_viewed(conn: sqlite3.Connection, application_id: int, employer_id: int, now: datetime) -> bool:
     cur = conn.execute(
-        "UPDATE applications SET status = 'viewed', status_changed_at = ? WHERE id = ? AND status = 'new'"
+        "UPDATE applications SET status = 'viewed', status_changed_at = ?, viewed_at = ? WHERE id = ? AND status = 'new'"
         " AND withdrawn_at IS NULL AND vacancy_id IN (SELECT id FROM vacancies WHERE owner_user_id = ?)",
-        (iso(now), application_id, employer_id),
+        (iso(now), iso(now), application_id, employer_id),
     )
     conn.commit()
     return cur.rowcount > 0
@@ -228,7 +229,10 @@ def set_status(conn: sqlite3.Connection, application_id: int, employer_id: int, 
         raise MessagingError("bad_status", "Выберите статус из списка.")
     if app["withdrawn_at"]:
         raise MessagingError("closed", "Соискатель отозвал отклик, статус изменить нельзя.")
-    conn.execute("UPDATE applications SET status = ?, status_changed_at = ? WHERE id = ?", (status, iso(now), application_id))
+    conn.execute(
+        "UPDATE applications SET status = ?, status_changed_at = ?, viewed_at = COALESCE(viewed_at, ?) WHERE id = ?",
+        (status, iso(now), iso(now), application_id),
+    )
     conn.commit()
 
 

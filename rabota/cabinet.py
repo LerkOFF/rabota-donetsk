@@ -106,7 +106,7 @@ def vacancy_state(row: dict[str, Any], now: datetime) -> State:
     if status == "closed":
         return State("closed", STATE_LABELS["closed"], "Вакансия закрыта и не видна соискателям.")
     stale = status == "active" and lifecycle.is_stale(row.get("last_seen_at") or row.get("published_at"), now=now)
-    if status == "expired" or stale:
+    if status in ("expired", "archived") or stale:
         return State("expired", STATE_LABELS["expired"],
                      f"Вакансии больше {config.VACANCY_TTL_DAYS} дней, поэтому её скрыли. Опубликуйте её снова.")
     if status == "hidden" or row.get("suspicious") or row.get("duplicate_of"):
@@ -274,8 +274,9 @@ def raise_vacancy(conn: sqlite3.Connection, owner_id: int, vacancy_id: int, now:
         raise CabinetError("too_soon", f"Поднимать вакансию можно раз в сутки. Попробуйте через {wait_text(wait)}.")
     stamp = _iso(now)
     conn.execute(
-        "UPDATE vacancies SET status = 'active', published_at = ?, last_seen_at = ? WHERE id = ? AND owner_user_id = ?",
-        (stamp, stamp, vacancy_id, owner_id),
+        "UPDATE vacancies SET status = 'active', archived_at = NULL, published_at = ?, last_seen_at = ?, raised_at = ?,"
+        " raise_count = COALESCE(raise_count, 0) + 1 WHERE id = ? AND owner_user_id = ?",
+        (stamp, stamp, stamp, vacancy_id, owner_id),
     )
     conn.commit()
     return "raised"
@@ -396,6 +397,8 @@ def update_vacancy(
     elif st.key == "rejected":
         values.update(moderation_status="approved", status="active", moderation_note=None, last_seen_at=_iso(now),
                       published_at=_iso(now))
+    if row.get("origin") != "direct":
+        values["owner_edited_at"] = _iso(now)  # собранную вакансию правил владелец карточки: сборщик поля не затирает
     sets = ", ".join(f"{k} = ?" for k in values)
     conn.execute(f"UPDATE vacancies SET {sets} WHERE id = ? AND owner_user_id = ?", [*values.values(), vacancy_id, owner_id])
     conn.commit()

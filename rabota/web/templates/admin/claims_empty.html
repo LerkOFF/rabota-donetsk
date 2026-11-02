@@ -1,0 +1,54 @@
+{% extends 'admin/base.html' %}
+{% from '_macros.html' import icon %}
+{% from 'admin/_macros.html' import page_head, chip, csrf, pager, empty %}
+{% from 'admin/_claims_tabs.html' import claims_tabs %}
+{% block content %}
+{{ page_head('Компании без вакансий', 'Карточки, у которых нет открытых вакансий. Пустые автокарточки без вакансий в любом статусе, владельца и заявок можно удалить.') }}
+{{ claims_tabs(tabs) }}
+
+<nav class="adm-tabs" aria-label="Какие компании показывать">
+  <ul>
+    {% for key, text in views.items() %}<li><a href="/admin/claims/empty?view={{ key }}"{% if key == view %} aria-current="page"{% endif %}>{{ text }}</a></li>{% endfor %}
+  </ul>
+</nav>
+<p class="adm-filter__found" role="status">Найдено: {{ page.total }}</p>
+
+{% if items %}
+<form method="post" action="/admin/claims/empty/delete">
+  {{ csrf() }}
+  <div class="adm-tablewrap">
+  <table class="atable">
+    <caption class="visually-hidden">Компании без вакансий, страница {{ page.page }} из {{ page.pages }}</caption>
+    <thead>
+      <tr data-sortable="empty-columns">
+        <th scope="col" data-key="pick" draggable="true"><span class="visually-hidden">Выбрать</span></th>
+        <th scope="col" data-key="id" draggable="true">№</th>
+        <th scope="col" data-key="company" draggable="true">Компания</th>
+        <th scope="col" data-key="vacancies" draggable="true">Вакансии</th>
+        <th scope="col" data-key="seen" draggable="true">Последняя вакансия</th>
+        <th scope="col" data-key="state" draggable="true">Состояние</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in items %}
+      <tr>
+        <td data-label="Выбрать" data-key="pick">{% if c.vacancies_total == 0 and c.origin == 'auto' and not c.owner_user_id %}<input type="checkbox" name="ids" value="{{ c.id }}" aria-label="Выбрать «{{ c.name }}»">{% endif %}</td>
+        <td data-label="№" data-key="id" class="mono">{{ c.id }}</td>
+        <td data-label="Компания" data-key="company"><a class="atable__main" href="/admin/employers/{{ c.id }}">{{ c.name }}</a><span class="atable__sub">{{ c.city or 'город не указан' }}</span></td>
+        <td data-label="Вакансии" data-key="vacancies">{{ c.vacancies_total }}{% if c.vacancies_archived %}<span class="atable__sub">в архиве: {{ c.vacancies_archived }}</span>{% endif %}</td>
+        <td data-label="Последняя вакансия" data-key="seen">{{ (c.last_vacancy_at | date) or '-' }}</td>
+        <td data-label="Состояние" data-key="state">{% if c.owner_user_id %}{{ chip('Есть владелец', 'ok', 'seal-check') }}{% elif c.origin == 'auto' %}{{ chip('Автокарточка', 'info', 'copy') }}{% else %}{{ chip('Завёл работодатель', 'mute', 'buildings') }}{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+  <div class="adm-actions">
+    <button class="btn btn--danger btn--sm" type="submit" data-confirm="Удалить выбранные пустые автокарточки?">{{ icon('trash') }}Удалить выбранные</button>
+  </div>
+</form>
+{{ pager(page, '/admin/claims/empty', query) }}
+{% else %}
+{% call empty('Таких компаний нет', 'Все карточки работодателей сейчас с вакансиями.', 'check-circle') %}{% endcall %}
+{% endif %}
+{% endblock %}

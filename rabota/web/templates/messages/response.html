@@ -1,5 +1,6 @@
 {% extends 'messages/layout.html' %}
 {% from 'messages/_parts.html' import csrf, status as status_badge, alert, info, crumbs %}
+{% from 'messages/_timeline.html' import timeline %}
 {% from '_macros.html' import icon, logo_tile %}
 {% block msg_body %}
 <div class="wrap msg-page">
@@ -15,7 +16,7 @@
           {% else %}{{ r.employer_name }}{% if r.vacancy_city %}, {{ r.vacancy_city }}{% endif %}{% endif %}
           · <time datetime="{{ r.created_at }}">{{ r.when_full }}</time>
         </p>
-        <p>{{ status_badge(r.status, r.status_label) }}</p>
+        <p>{{ status_badge(r.status, r.status_label) }}{% if r.status_when and r.status != 'new' %} <span class="muted">{{ r.status_when }}</span>{% endif %}</p>
       </div>
     </div>
   </header>
@@ -36,6 +37,29 @@
         {% else %}
         <p class="muted">Соискатель не показал телефон. Напишите ему в переписке на сайте.</p>
         {% endif %}
+      </section>
+      {% endif %}
+
+      <section class="panel" aria-labelledby="r-steps">
+        <h2 id="r-steps">Ход отклика</h2>
+        {{ timeline(r) }}
+      </section>
+
+      {% if is_employer %}
+      <section class="panel" aria-labelledby="r-resume">
+        <h2 id="r-resume">Резюме</h2>
+        {% if r.resume %}
+        <p><strong>{{ r.resume.title }}</strong>, {{ r.resume.pay_text }}, {{ r.resume.experience_text | lower }}</p>
+        <a class="btn btn--ghost" href="/employers/resumes/{{ r.resume.id }}">{{ icon('user-circle') }}Открыть резюме</a>
+        {% else %}
+        <p class="muted">Кандидат не приложил резюме или скрыл его.</p>
+        {% endif %}
+      </section>
+      {% elif r.resume %}
+      <section class="panel" aria-labelledby="r-resume">
+        <h2 id="r-resume">Приложенное резюме</h2>
+        <p><strong>{{ r.resume.title }}</strong>, {{ r.resume.pay_text }}</p>
+        <a class="btn btn--ghost" href="/cabinet/resumes/{{ r.resume.id }}/edit">{{ icon('pencil-simple') }}Редактировать резюме</a>
       </section>
       {% endif %}
 

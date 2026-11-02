@@ -1,0 +1,9 @@
+{# Форма для кнопки вошедшего пользователя: вне формы фильтров, связь через атрибут form #}
+{% if user and (flt.q or flt.active_count) %}
+<form id="alert-sub-form" method="post" action="/alerts/new" hidden>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <input type="hidden" name="channel" value="email">
+  <input type="hidden" name="frequency" value="daily">
+  {% for name, value in alert_fields(flt) %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
+</form>
+{% endif %}

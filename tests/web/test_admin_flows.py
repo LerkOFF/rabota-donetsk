@@ -2,9 +2,11 @@
 import re
 
 import pytest
+from fastapi.testclient import TestClient
 
 from tests.accounts.harness import csrf_of
 from tests.web.admin_harness import add_vacancy, apost, login_admin, make_env, one, rows
+from tests.web.postkit import Poster
 
 POST_FORM = {
     "profession": "Бариста", "category": "общепит", "city": "Донецк", "summary": "Готовить кофе и общаться с гостями.",
@@ -25,7 +27,9 @@ def admin(env):
 
 
 def submit_vacancy(env, **over):
-    r = env.client.post("/razmestit", data={**POST_FORM, **over}, follow_redirects=False)
+    """Гость размещает вакансию отдельным браузером (куки админа не трогаем): форма, код из письма."""
+    with TestClient(env.app, base_url="http://testserver") as guest:
+        r = Poster(guest, env.mailer).publish({**POST_FORM, **over}, email=over.get("email", POST_FORM["email"]))
     assert r.status_code == 303, r.text
     return one(env, "SELECT MAX(id) AS id FROM vacancies")["id"]
 

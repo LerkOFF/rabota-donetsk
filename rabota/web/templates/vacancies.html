@@ -84,6 +84,7 @@
             </select>
           </div>
         </div>
+        {% include 'alerts/_subscribe_button.html' %}
         {% if chips %}
         <ul class="chip-row chip-row--scroll" aria-label="Включённые фильтры">
           {% for c in chips %}<li><a class="chip chip--active chip--remove" href="{{ c.url }}" aria-label="Убрать: {{ c.label }}">{{ c.label }}{{ icon('x') }}</a></li>{% endfor %}
@@ -113,5 +114,6 @@
       {% endif %}
     </div>
   </form>
+  {% include 'alerts/_subscribe_form.html' %}
 </div>
 {% endblock %}

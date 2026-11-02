@@ -22,7 +22,7 @@ from rabota.db import save_vacancy
 from rabota.web import seo
 from rabota.web.app import create_app
 from rabota.web.queries import open_conn
-from tests.accounts.harness import build_env, login, make_user
+from tests.accounts.harness import build_env, login, make_user, post
 from tests.cabinet.conftest import make_row
 from tests.web.conftest import NOW, make_vacancy
 
@@ -36,6 +36,12 @@ URLS: dict[str, list[str]] = {
     "/profession/{name}": ["/profession/" + quote("бариста"), "/profession/" + quote("астроном")],
     "/district/{name}": ["/district/" + quote("Ворошиловский"), "/district/" + quote("Текстильщик")],
     "/city/{name}": ["/city/" + quote("Донецк")],
+    "/zarplaty/{profession}": ["/zarplaty/" + quote("официант"), "/zarplaty/" + quote("бариста")],
+    "/podborki/{slug}": ["/podborki/podrabotka-na-segodnya", "/podborki/ezhednevnaya-vyplata", "/podborki/rabota-bez-opyta",
+                         "/podborki/udalennaya-rabota", "/podborki/vahta"],
+    "/podborki/{slug}/{scope}": ["/podborki/rabota-bez-opyta/" + quote("Ворошиловский"),
+                                 "/podborki/rabota-bez-opyta/" + quote("официант")],
+    "/blog/{slug}": ["/blog/kak-sostavit-rezyume", "/blog/kak-otlichit-moshennikov"],
     "/vacancy/{vacancy_id}": ["/vacancy/{open}", "/vacancy/{closed}", "/vacancy/{pending}"],
     "/company/{company_id}": ["/company/1", "/company/2", "/company/777"],
     "/legal/{slug}": [f"/legal/{d.slug}" for d in legal.list_documents()],
@@ -48,9 +54,24 @@ URLS: dict[str, list[str]] = {
     "/messages/{thread}": ["/messages/1"],
     "/responses/{application_id}": ["/responses/1"],
     "/notifications/unsubscribe/{token}": ["/notifications/unsubscribe/not-a-real-token"],
+    "/alerts/code/{ref}": ["/alerts/code/not-a-real-token"],
+    "/alerts/confirm/{token}": ["/alerts/confirm/not-a-real-token"],
+    "/alerts/telegram/{ref}": ["/alerts/telegram/not-a-real-token"],
+    "/alerts/unsubscribe/{token}": ["/alerts/unsubscribe/not-a-real-token"],
     "/vacancy/{vacancy_id}/apply": ["/vacancy/{open}/apply"],
     "/cabinet/vacancies/{vacancy_id}/edit": ["/cabinet/vacancies/{owned}/edit"],
     "/cabinet/vacancies/{vacancy_id}/delete": ["/cabinet/vacancies/{owned}/delete"],
+    "/cabinet/resumes/{resume_id}/edit": ["/cabinet/resumes/1/edit"],
+    "/cabinet/resumes/{resume_id}/delete": ["/cabinet/resumes/1/delete"],
+    "/employers/resumes/{resume_id}": ["/employers/resumes/1"],
+    "/admin/resumes/{resume_id}": ["/admin/resumes/1"],
+    "/admin/employers/{company_id}": ["/admin/employers/1"],
+    "/razmestit/kod/{token}": ["/razmestit/kod/not-a-real-token"],
+    "/razmestit/gotovo/{vacancy_id}": ["/razmestit/gotovo/{owned}"],
+    "/company/{company_id}/logo": ["/company/1/logo"],
+    "/company/{company_id}/claim": ["/company/1/claim"],
+    "/company/{company_id}/archive": ["/company/1/archive", "/company/777/archive"],
+    "/admin/claims/{claim_id:int}": ["/admin/claims/1"],
 }
 # дополнительные адреса к маршрутам без параметров (фильтры, страницы)
 EXTRA = {
@@ -58,7 +79,7 @@ EXTRA = {
                    "/vacancies?sort=pay", "/vacancies?city=" + quote("Донецк"), "/vacancies?q=" + quote("яяяя")],
 }
 # маршруты не для поисковиков и не HTML: пропускаются
-NOT_HTML_PREFIXES = ("/robots.txt", "/sitemap", "/favicon.ico", "/healthz")
+NOT_HTML_PREFIXES = ("/robots.txt", "/sitemap", "/favicon.ico", "/healthz", "/suggest", "/manifest.webmanifest", "/sw.js")
 
 
 def is_not_html(template: str) -> bool:
@@ -73,6 +94,13 @@ POLICY: dict[str, str] = {
     "/profession/" + quote("бариста"): "index", "/profession/" + quote("астроном"): "noindex",
     "/district/" + quote("Ворошиловский"): "index", "/district/" + quote("Текстильщик"): "noindex",
     "/city/" + quote("Донецк"): "index",
+    "/zarplaty": "index", "/zarplaty/" + quote("официант"): "index", "/zarplaty/" + quote("бариста"): "noindex",
+    "/podborki": "index", "/podborki/podrabotka-na-segodnya": "index", "/podborki/ezhednevnaya-vyplata": "index",
+    "/podborki/rabota-bez-opyta": "index", "/podborki/udalennaya-rabota": "index", "/podborki/vahta": "noindex",
+    "/podborki/rabota-bez-opyta/" + quote("Ворошиловский"): "index",
+    "/podborki/rabota-bez-opyta/" + quote("официант"): "noindex",  # совпадает с выдачей профессии: дубль
+    "/blog": "index", "/blog/kak-sostavit-rezyume": "index", "/blog/kak-otlichit-moshennikov": "index",
+    "/offline": "noindex",
     "/vacancy/{open}": "index", "/vacancy/{closed}": "noindex", "/vacancy/{pending}": "noindex",
     "/company/1": "index", "/company/2": "noindex", "/company/777": "noindex",
     "/employers": "index", "/about": "index", "/razmestit": "index",
@@ -86,6 +114,9 @@ POLICY: dict[str, str] = {
     "/cabinet/messages": "noindex", "/cabinet/responses": "noindex", "/messages": "noindex", "/messages/1": "noindex",
     "/responses": "noindex", "/responses/1": "noindex", "/notifications": "noindex", "/notifications/unsubscribe/not-a-real-token": "noindex",
     "/vacancy/{open}/apply": "noindex",
+    "/alerts": "noindex", "/alerts/new": "noindex", "/alerts/code/not-a-real-token": "noindex",
+    "/alerts/confirm/not-a-real-token": "noindex", "/alerts/telegram/not-a-real-token": "noindex",
+    "/alerts/unsubscribe/not-a-real-token": "noindex",
     "/login": "noindex", "/register": "noindex", "/forgot": "noindex", "/verify/resend": "noindex",
     "/register/code": "noindex", "/forgot/code": "noindex",
     "/verify/not-a-real-token": "noindex", "/reset/not-a-real-token": "noindex",
@@ -94,6 +125,14 @@ POLICY: dict[str, str] = {
     "/cabinet": "noindex", "/cabinet/seeker": "noindex", "/cabinet/employer": "noindex",
     "/cabinet/vacancies": "noindex", "/cabinet/company": "noindex",
     "/cabinet/vacancies/{owned}/edit": "noindex", "/cabinet/vacancies/{owned}/delete": "noindex",
+    "/cabinet/resumes": "noindex", "/cabinet/resumes/new": "noindex", "/cabinet/resumes/1/edit": "noindex",
+    "/cabinet/resumes/1/delete": "noindex", "/employers/resumes": "noindex", "/employers/resumes/1": "noindex",
+    "/admin/resumes": "noindex", "/admin/resumes/1": "noindex",
+    "/admin/employers": "noindex", "/admin/employers/1": "noindex",
+    "/razmestit/kod/not-a-real-token": "noindex", "/razmestit/gotovo/{owned}": "noindex",
+    "/company/1/logo": "noindex", "/company/1/claim": "noindex",
+    "/company/1/archive": "noindex", "/company/777/archive": "noindex", "/cabinet/claims": "noindex",
+    "/admin/claims": "noindex", "/admin/claims/1": "noindex", "/admin/claims/duplicates": "noindex", "/admin/claims/empty": "noindex",
 }
 # ожидаемая разметка на индексируемых страницах: адрес -> типы JSON-LD в порядке появления
 EXPECT_LD: dict[str, list[str]] = {
@@ -102,6 +141,17 @@ EXPECT_LD: dict[str, list[str]] = {
     "/profession/" + quote("бариста"): ["ItemList", "BreadcrumbList"],
     "/district/" + quote("Ворошиловский"): ["ItemList", "BreadcrumbList"],
     "/city/" + quote("Донецк"): ["ItemList", "BreadcrumbList"],
+    "/zarplaty": ["Article", "BreadcrumbList"],
+    "/zarplaty/" + quote("официант"): ["Article", "FAQPage", "BreadcrumbList"],
+    "/podborki": ["BreadcrumbList"],
+    "/podborki/podrabotka-na-segodnya": ["ItemList", "BreadcrumbList"],
+    "/podborki/ezhednevnaya-vyplata": ["ItemList", "BreadcrumbList"],
+    "/podborki/rabota-bez-opyta": ["ItemList", "BreadcrumbList"],
+    "/podborki/udalennaya-rabota": ["ItemList", "BreadcrumbList"],
+    "/podborki/rabota-bez-opyta/" + quote("Ворошиловский"): ["ItemList", "BreadcrumbList"],
+    "/blog": ["BreadcrumbList"],
+    "/blog/kak-sostavit-rezyume": ["Article", "BreadcrumbList"],
+    "/blog/kak-otlichit-moshennikov": ["Article", "BreadcrumbList"],
     "/vacancy/{open}": ["JobPosting", "BreadcrumbList"],
     "/company/1": ["Organization", "BreadcrumbList"],
     "/employers": ["FAQPage"],
@@ -170,6 +220,7 @@ REQUIRED_LD = {
     "BreadcrumbList": ("itemListElement",),
     "ItemList": ("itemListElement",),
     "FAQPage": ("mainEntity",),
+    "Article": ("headline", "description", "datePublished", "dateModified", "author", "publisher", "mainEntityOfPage"),
     "JobPosting": ("title", "description", "datePosted", "validThrough", "hiringOrganization", "jobLocation",
                    "directApply", "identifier", "url"),
 }
@@ -191,6 +242,9 @@ def check_ld(page: Page, key: str, policy: str) -> None:
             assert all(i["item"].startswith(SITE + "/") and i["name"] for i in data["itemListElement"]), key
         if kind == "ItemList":
             assert all(i["url"].startswith(SITE + "/vacancy/") for i in data["itemListElement"]), key
+        if kind == "Article":
+            assert data["author"]["@type"] == "Organization" and data["datePublished"] <= data["dateModified"], key
+            assert data["mainEntityOfPage"].startswith(SITE + "/"), key
         if kind == "FAQPage":
             assert all(q["name"] and q["acceptedAnswer"]["text"] for q in data["mainEntity"]), key
         if kind == "JobPosting":
@@ -270,6 +324,17 @@ def site(tmp_path):
         add(profession="кассир", category="торговля", district="Калининский", pay_min=1800, pay_period="смена",
             ago=20 + i, experience="не нужен")
     add(profession="астроном", category="образование", district="Текстильщик")
+    # данные для зарплат и подборок: по пять вакансий, чтобы пройти порог в 5 штук
+    for i in range(5):
+        add(profession="официант", district="Ворошиловский", pay_min=30000 + i * 2000, pay_max=40000 + i * 2000,
+            pay_period="месяц", employment="подработка", experience="не нужен", ago=40 + i,
+            summary="Обслуживать гостей в зале ресторана на проспекте.")
+    for i in range(5):
+        add(profession="грузчик", category="склад", district="Калининский", pay_min=2500 + i * 100, pay_period="смена",
+            pay_daily=True, ago=50 + i)
+    for i in range(5):
+        add(profession="оператор", category="офис", district="Ленинский", work_format="удалённо", pay_min=25000 + i * 1000,
+            pay_max=30000 + i * 1000, pay_period="месяц", ago=60 + i)
     conn.execute("UPDATE vacancies SET origin='direct', company_id=1 WHERE id=?", (ids["open"],))
     ids["closed"] = add(profession="закрытая", status="closed")
     ids["pending"] = add(profession="на проверке")
@@ -290,9 +355,11 @@ def site(tmp_path):
             c3 = e.db()
             make_row(c3, uid, id=ids["open"])
             c3.close()
+        seed_resume(e, uid, own=(role == "job_seeker"))
         if role == "admin":
             c2 = e.db()
             c2.execute("UPDATE users SET role='admin' WHERE email=?", (email,))
+            c2.execute("INSERT INTO companies(owner_user_id, name, city) VALUES (?, 'Кофейня Зерно', 'Донецк')", (uid,))
             c2.commit()
             c2.close()
         assert login(e, email).status_code == 303
@@ -301,6 +368,22 @@ def site(tmp_path):
     env.client.__exit__(None, None, None)
     for e in clients.values():
         e.client.__exit__(None, None, None)
+
+
+def seed_resume(e, uid: int, own: bool) -> None:
+    """Резюме №1 в базе клиента: у соискателя своё, у остальных чужое, открытое всем работодателям."""
+    from rabota.resumes import rules, service
+
+    conn = e.db()
+    try:
+        owner = uid if own else make_user(e, "owner@example.test", name="Мария Петрова")
+        form = {"profession": "Бариста", "pay_min": "30000", "pay_period": "месяц", "visibility": "public", "consent": "1",
+                "skills": "кофе, касса, сервис", "about": "Работаю быстро и аккуратно.", "experience_years": "2"}
+        clean, errors = rules.validate(form)
+        assert not errors, errors
+        service.create(conn, owner, clean, NOW)
+    finally:
+        conn.close()
 
 
 def resolve(url: str, ids: dict[str, int]) -> str:
@@ -365,7 +448,10 @@ def test_every_get_route_is_covered_and_has_full_seo(site):
     assert checked >= 20, f"проверено только {checked} страниц"
     # закрытые разделы проверены вошедшими пользователями, а не только перенаправлением на вход
     for must in ("/account", "/cabinet/seeker", "/cabinet/employer", "/admin", "/admin/pulse", "/messages", "/responses",
-                 "/cabinet/vacancies", "/cabinet/company", "/cabinet/vacancies/{owned}/edit", "/cabinet/vacancies/{owned}/delete"):
+                 "/cabinet/vacancies", "/cabinet/company", "/cabinet/vacancies/{owned}/edit", "/cabinet/vacancies/{owned}/delete",
+                 "/cabinet/resumes", "/cabinet/resumes/new", "/cabinet/resumes/1/edit", "/cabinet/resumes/1/delete",
+                 "/employers/resumes", "/employers/resumes/1", "/admin/resumes", "/admin/resumes/1",
+                 "/admin/employers", "/admin/employers/1", "/razmestit/gotovo/{owned}"):
         assert must in visited, f"{must}: страница ни разу не открылась с кодом 200, SEO не проверен"
 
 
@@ -389,7 +475,7 @@ def test_error_pages_have_seo(site):
         r = env.client.get(url)
         assert r.status_code == code, key
         check_page(key, url, r, "noindex", seen)
-    r = env.client.post("/razmestit", data={"profession": "x"}, headers={"origin": "http://testserver"})
+    r = post(env, "/razmestit", {"profession": "x"}, headers={"origin": "http://testserver"})
     assert r.status_code == 422
     check_page("422", "/razmestit", r, "noindex", seen)
     r = env.client.post("/vacancies")
@@ -591,7 +677,7 @@ def test_robots_txt(site):
     env, _ = site
     text = env.client.get("/robots.txt").text
     for line in ("User-agent: *", "Disallow: /login", "Disallow: /register", "Disallow: /account",
-                 "Disallow: /cabinet", "Disallow: /admin", "Disallow: /razmestit/spasibo",
+                 "Disallow: /cabinet", "Disallow: /admin", "Disallow: /razmestit/spasibo", "Disallow: /razmestit/kod", "Disallow: /razmestit/gotovo",
                  "Disallow: /vacancy/*/complaint", "Disallow: /vacancy/*/apply",
                  f"Host: {SITE}", f"Sitemap: {SITE}/sitemap.xml"):
         assert line in text, line

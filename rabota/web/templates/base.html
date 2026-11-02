@@ -27,6 +27,10 @@
   <meta name="twitter:description" content="{{ seo.description }}">
   <meta name="twitter:image" content="{{ seo.og_image }}">
   <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Работа Донецк">
   <link rel="preload" href="/static/fonts/onest-cyrillic.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="{{ asset('tokens.css') }}">
   <link rel="stylesheet" href="{{ asset('site.css') }}">
@@ -49,6 +53,8 @@
         </a>
         <nav class="hnav" aria-label="Основное меню">
           <a href="/vacancies"{% if path.startswith('/vacanc') %} aria-current="page"{% endif %}>Вакансии</a>
+          <a href="/zarplaty"{% if path.startswith('/zarplaty') %} aria-current="page"{% endif %}>Зарплаты</a>
+          <a href="/blog"{% if path.startswith('/blog') %} aria-current="page"{% endif %}>Блог</a>
           <a href="/employers"{% if path == '/employers' %} aria-current="page"{% endif %}>Работодателям</a>
         </nav>
         <div class="hactions">
@@ -101,6 +107,9 @@
         <nav aria-label="Меню для телефона">
           <ul class="mmenu__list">
             <li><a href="/vacancies">{{ icon('briefcase') }}Вакансии</a></li>
+            <li><a href="/podborki">{{ icon('funnel') }}Подборки</a></li>
+            <li><a href="/zarplaty">{{ icon('currency-rub') }}Зарплаты</a></li>
+            <li><a href="/blog">{{ icon('file-text') }}Блог о работе</a></li>
             <li><a href="/employers">{{ icon('buildings') }}Работодателям</a></li>
             {% if user %}
             {% for item in user.menu %}<li><a href="{{ item.href }}">{{ icon(item.icon) }}{{ item.label }}</a></li>{% endfor %}
@@ -141,9 +150,13 @@
           <h2 id="f-seek">Соискателям</h2>
           <ul>
             <li><a href="/vacancies">Все вакансии</a></li>
-            <li><a href="/vacancies?side_job=1">Подработка</a></li>
-            <li><a href="/vacancies?no_experience=1">Без опыта</a></li>
-            <li><a href="/vacancies?daily=1">Выплата каждый день</a></li>
+            <li><a href="/podborki/podrabotka-na-segodnya">Подработка</a></li>
+            <li><a href="/podborki/rabota-bez-opyta">Без опыта</a></li>
+            <li><a href="/podborki/ezhednevnaya-vyplata">Выплата каждый день</a></li>
+            <li><a href="/podborki">Все подборки</a></li>
+            <li><a href="/zarplaty">Зарплаты</a></li>
+            <li><a href="/blog">Блог о работе</a></li>
+            <li><a href="/alerts">Подписки на вакансии</a></li>
             <li><a href="/register">Создать аккаунт</a></li>
           </ul>
         </nav>
@@ -162,6 +175,8 @@
             <li><a href="/about#safety">Как не попасть на обман</a></li>
             <li><a href="/about#contacts">Контакты</a></li>
             {% if contact_email %}<li><a href="mailto:{{ contact_email }}">{{ contact_email }}</a></li>{% endif %}
+            {% if tg_channel_url|default('') %}<li><a href="{{ tg_channel_url }}" rel="noopener" target="_blank">Канал в Telegram</a></li>{% endif %}
+            {% if tg_bot_url|default('') %}<li><a href="{{ tg_bot_url }}" rel="noopener" target="_blank">Бот с новыми вакансиями</a></li>{% endif %}
           </ul>
         </nav>
       </div>
@@ -180,6 +195,8 @@
   </footer>
   <div class="scrim" data-scrim hidden></div>
   <script src="{{ asset('app.js') }}" defer></script>
+  <script src="{{ asset('suggest.js') }}" defer></script>
+  <script src="{{ asset('pwa.js') }}" defer></script>
   {% include '_analytics.html' %}
 </body>
 </html>

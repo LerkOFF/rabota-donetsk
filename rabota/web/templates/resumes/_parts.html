@@ -1,0 +1,37 @@
+{% from '_macros.html' import icon %}
+
+{# Заполненность: полоса и слова. Процент всегда написан, цвет только помогает #}
+{% macro meter(percent, label='Заполнено') -%}
+<div class="rs-meter" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ percent }}" aria-label="{{ label }} на {{ percent }} процентов">
+  <span class="rs-meter__bar"><span class="rs-meter__fill" style="width: {{ percent }}%"></span></span>
+  <span class="rs-meter__text">{{ label }} на {{ percent }}%</span>
+</div>
+{%- endmacro %}
+
+{# Состояние резюме для владельца: слово и значок #}
+{% macro state(r) -%}
+{% if r.admin_hidden %}<span class="rs-state rs-state--blocked">{{ icon('shield-warning') }}Скрыто модератором</span>
+{% elif r.visibility == 'hidden' %}<span class="rs-state rs-state--hidden">{{ icon('lock-simple') }}Скрыто</span>
+{% elif r.stale %}<span class="rs-state rs-state--stale">{{ icon('hourglass') }}Давно не обновлялось</span>
+{% elif r.visibility == 'open' %}<span class="rs-state rs-state--open">{{ icon('paper-plane-tilt') }}Только по отклику</span>
+{% else %}<span class="rs-state rs-state--public">{{ icon('check-circle') }}Видно работодателям</span>{% endif %}
+{%- endmacro %}
+
+{# Строка условий: зарплата, стаж, место, формат #}
+{% macro facts(r) -%}
+<ul class="rs-facts">
+  <li class="rs-facts__pay">{{ icon('currency-rub') }}<span>{{ r.pay_text }}</span></li>
+  <li>{{ icon('briefcase') }}<span>{{ r.experience_text }}</span></li>
+  {% if r.location %}<li>{{ icon('map-pin') }}<span>{{ r.location }}</span></li>{% endif %}
+  {% if r.employment_labels or r.format_labels %}<li>{{ icon('clock') }}<span>{{ (r.employment_labels + r.format_labels) | join(', ') }}{% if r.schedule %}, {{ r.schedule }}{% endif %}</span></li>{% endif %}
+</ul>
+{%- endmacro %}
+
+{% macro skills(items, limit=0) -%}
+{% if items %}
+<ul class="rs-tags" aria-label="Навыки">
+  {% for s in (items[:limit] if limit else items) %}<li class="rs-tag">{{ s }}</li>{% endfor %}
+  {% if limit and items | length > limit %}<li class="rs-tag rs-tag--more">ещё {{ items | length - limit }}</li>{% endif %}
+</ul>
+{% endif %}
+{%- endmacro %}

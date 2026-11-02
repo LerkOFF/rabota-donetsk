@@ -1,0 +1,105 @@
+{% extends 'resumes/layout.html' %}
+{% from '_macros.html' import icon, field_error %}
+{% from 'messages/_parts.html' import crumbs, csrf, alert, info %}
+{% from 'resumes/_parts.html' import facts, skills %}
+{% block rs_body %}
+<div class="wrap cab rs-page">
+  <header class="page-head">
+    {{ crumbs([('Поиск резюме', '/employers/resumes'), (r.title, '')]) }}
+    <h1 class="h1 h1--page">{{ r.title }}</h1>
+    <p class="muted rs-card__who">{{ icon('user-circle') }}{% if opened %}{{ r.full_name }}{% else %}{{ r.display_name }}{% endif %} · обновлено {{ r.updated_label }}</p>
+    {% if r.via_application and not r.in_search %}
+    <p class="notice" role="status">{{ icon('paper-plane-tilt') }}<span>Кандидат приложил это резюме к отклику на вашу вакансию и открыл его только вам. <a href="/responses">Отклики</a></span></p>
+    {% endif %}
+  </header>
+
+  {{ info('Приглашение отправлено.' if flash == 'invited' else '') }}
+  {{ alert(error) }}
+
+  <div class="rpage rs-card">
+    <div class="rpage__main">
+      <section class="panel" aria-labelledby="rs-c-terms">
+        <h2 id="rs-c-terms">Условия</h2>
+        {{ facts(r) }}
+        {% if r.flags %}<p class="rs-flags">{% for f in r.flags %}<span class="rs-state rs-state--public">{{ icon('check') }}{{ f }}</span>{% endfor %}</p>{% endif %}
+      </section>
+
+      {% if r.places %}
+      <section class="panel" aria-labelledby="rs-c-exp">
+        <h2 id="rs-c-exp">Последние места работы</h2>
+        <ol class="rs-places">
+          {% for p in r.places %}
+          <li><strong>{{ p.role or p.place }}</strong>{% if p.role and p.place %}, {{ p.place }}{% endif %}{% if p.period %}<span class="muted"> · {{ p.period }}</span>{% endif %}</li>
+          {% endfor %}
+        </ol>
+      </section>
+      {% endif %}
+
+      {% if r.skills %}
+      <section class="panel" aria-labelledby="rs-c-skills">
+        <h2 id="rs-c-skills">Навыки</h2>
+        {{ skills(r.skills) }}
+      </section>
+      {% endif %}
+
+      {% if r.about %}
+      <section class="panel" aria-labelledby="rs-c-about">
+        <h2 id="rs-c-about">О себе</h2>
+        <p class="plain-text">{{ r.about }}</p>
+      </section>
+      {% endif %}
+    </div>
+
+    <aside class="rpage__side" aria-label="Связаться с кандидатом">
+      <section class="panel" id="contacts" aria-labelledby="rs-c-contacts">
+        <h2 id="rs-c-contacts">Контакты</h2>
+        {% if opened %}
+          {% if r.phone_pretty or r.telegram_href %}
+          <ul class="rs-contacts">
+            <li class="rs-contacts__name">{{ icon('user-circle') }}<span>{{ r.full_name }}</span></li>
+            {% if r.phone_pretty %}<li><a class="contact-box__phone" href="tel:{{ r.phone_href }}">{{ icon('phone') }}{{ r.phone_pretty }}</a></li>{% endif %}
+            {% if r.telegram_href %}<li><a class="btn btn--ghost btn--block" href="{{ r.telegram_href }}" rel="noopener nofollow" target="_blank">{{ icon('telegram-logo') }}@{{ r.contact_telegram }}</a></li>{% endif %}
+          </ul>
+          <p class="hint">Контакты открыты вами, это записано. Используйте их только для подбора на вашу вакансию.</p>
+          {% else %}
+          <p class="muted">Кандидат не оставил телефон и Telegram. Отправьте приглашение: ответ придёт в переписку на сайте.</p>
+          {% endif %}
+        {% else %}
+          <p class="muted">Телефон и Telegram скрыты, пока вы не нажмёте кнопку. Сайт учитывает каждое открытие, за сутки их можно не больше 30.</p>
+          <form method="post" action="/employers/resumes/{{ r.id }}/contact" data-busy-form>
+            {{ csrf(csrf_token) }}
+            <button class="btn btn--primary btn--block" type="submit" data-busy-text="Открываем…">{{ icon('phone') }}Показать контакты</button>
+          </form>
+        {% endif %}
+      </section>
+
+      <section class="panel" id="invite" aria-labelledby="rs-c-invite">
+        <h2 id="rs-c-invite">Пригласить</h2>
+        {% if vacancies %}
+        <form method="post" action="/employers/resumes/{{ r.id }}/invite" class="rs-invite" data-busy-form novalidate>
+          {{ csrf(csrf_token) }}
+          {{ alert(invite_error) }}
+          <div class="field">
+            <label for="rs-inv-v">На какую вакансию</label>
+            <select class="input" id="rs-inv-v" name="vacancy_id">
+              {% for v in vacancies %}<option value="{{ v.id }}"{% if invite_vacancy == v.id %} selected{% endif %}>{{ v.profession | ucfirst }}{% if v.city %}, {{ v.city }}{% endif %}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="field{% if invite_error %} field--invalid{% endif %}">
+            <label for="rs-inv-t">Сообщение</label>
+            <textarea class="input" id="rs-inv-t" name="text" rows="6" maxlength="{{ max_invite }}" data-counter="rs-inv-count">{{ invite_text }}</textarea>
+            <p class="counter" id="rs-inv-count" aria-live="off"><span data-count>{{ invite_text | length }}</span> из {{ max_invite }}</p>
+          </div>
+          <button class="btn btn--primary btn--block" type="submit" data-busy-text="Отправляем…">{{ icon('paper-plane-tilt') }}Отправить приглашение</button>
+          <p class="hint">Откроется переписка на сайте, кандидат получит уведомление. Почта кандидата вам не показывается.</p>
+        </form>
+        {% else %}
+        <p class="muted">Приглашать можно на свою опубликованную вакансию. Сейчас таких нет: разместите вакансию, и она появится в списке.</p>
+        <a class="btn btn--primary btn--block" href="/razmestit">Разместить вакансию</a>
+        {% endif %}
+      </section>
+      <p class="hint rs-privacy">{{ icon('shield-check') }}<span>Не копируйте и не передавайте резюме. <a href="/legal/employers">Правила для работодателей</a></span></p>
+    </aside>
+  </div>
+</div>
+{% endblock %}

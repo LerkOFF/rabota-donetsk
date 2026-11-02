@@ -121,9 +121,12 @@ def process_db(conn: sqlite3.Connection, *, limit: int | None = None) -> dict[st
         kept, dropped = filter_vacancies(conn, result.vacancies)  # стоп-лист: такие вакансии не публикуются
         stats["stoplisted"] += dropped
         for vac in kept:
-            save_vacancy(conn, vac)
+            save_vacancy(conn, vac, check_quality=True)
             stats["vacancies"] += 1
     stats["duplicates"] = dedupe(conn)
+    from rabota.employers_auto.jobs import attach_new
+
+    stats["employers"] = attach_new(conn)  # карточки работодателей для новых вакансий
     return stats
 
 

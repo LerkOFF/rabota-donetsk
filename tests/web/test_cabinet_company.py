@@ -105,13 +105,13 @@ def test_guest_form_is_unchanged(env):
 def test_employer_post_is_bound_to_owner_and_company(boss):
     env, uid = boss
     r = submit(env, "/razmestit", POST)
-    assert r.status_code == 303 and r.headers["location"] == "/cabinet/vacancies?done=posted"
+    assert r.status_code == 303 and r.headers["location"].startswith("/razmestit/gotovo/")
     v = env.query("SELECT * FROM vacancies")[0]
     assert v["owner_user_id"] == uid and v["origin"] == "direct" and v["moderation_status"] == "pending" and v["status"] == "hidden"
     companies = company_rows(env)
     assert len(companies) == 1 and v["company_id"] == companies[0]["id"] and companies[0]["name"] == "Кофейня Зерно"
-    listing = env.client.get(r.headers["location"]).text
-    assert "Бариста" in listing and "На проверке" in listing and "отправлена на проверку" in listing
+    listing = env.client.get("/cabinet/vacancies").text
+    assert "Бариста" in listing and "На проверке" in listing
 
 
 def test_second_post_reuses_company(boss):
@@ -137,19 +137,26 @@ def test_employer_post_errors_stay_on_form(boss):
     assert env.query("SELECT COUNT(*) AS n FROM vacancies")[0]["n"] == 0
 
 
-def test_guest_post_stays_anonymous(env):
-    from tests.accounts.harness import post
-    r = post(env, "/razmestit", POST, page="/login")
-    assert r.status_code == 303 and r.headers["location"] == "/razmestit/spasibo"
+def test_guest_post_waits_for_code_and_creates_employer(env):
+    from tests.web.postkit import Poster
+    p = Poster(env.client, env.mailer)
+    r = p.submit(POST)
+    assert r.status_code == 303 and r.headers["location"].startswith("/razmestit/kod/")
+    assert env.query("SELECT COUNT(*) AS n FROM vacancies")[0]["n"] == 0
+    final = p.confirm(p.token_of(r))
+    assert final.headers["location"].startswith("/razmestit/gotovo/")
     v = env.query("SELECT * FROM vacancies")[0]
-    assert v["owner_user_id"] is None and v["company_id"] is None and v["moderation_status"] == "pending"
-    assert company_rows(env) == []
+    assert v["owner_user_id"] and v["company_id"] and v["moderation_status"] == "pending"
+    assert len(company_rows(env)) == 1
 
 
 def test_seeker_post_stays_anonymous(env):
     login_as(env, "s@example.test", role="job_seeker", name="Мария")
-    r = submit(env, "/razmestit", POST)
-    assert r.headers["location"] == "/razmestit/spasibo"
+    r = submit(env, "/razmestit", {**POST, "account_email": "s@example.test", "consent": "1"})
+    assert r.status_code == 303 and r.headers["location"].startswith("/razmestit/kod/")
+    from tests.web.postkit import Poster
+    final = Poster(env.client, env.mailer).confirm(r.headers["location"].rsplit("/", 1)[1], email="s@example.test")
+    assert final.headers["location"] == "/razmestit/spasibo"
     assert env.query("SELECT owner_user_id FROM vacancies")[0]["owner_user_id"] is None
 
 

@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>{{ count_text | capitalize }}: {{ title }}</title>
+<style>
+  body { margin: 0; padding: 0; background: #f4f5f7; }
+  .card { background: #ffffff; color: #1b1f24; }
+  .item { border-top: 1px solid #e3e6ea; }
+  .muted { color: #5b6470; }
+  .btn { background: #2563eb; color: #ffffff !important; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #14171c !important; }
+    .card { background: #1d2127 !important; color: #eceff3 !important; }
+    .item { border-top-color: #323943 !important; }
+    .muted { color: #a3acb8 !important; }
+    .btn { background: #4f83f5 !important; }
+    a { color: #8fb4ff !important; }
+  }
+</style>
+</head>
+<body style="margin:0;padding:0;background:#f4f5f7;">
+<div style="display:none;max-height:0;overflow:hidden;opacity:0;">{{ count_text | capitalize }}: {{ title }}</div>
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f4f5f7;">
+<tr><td align="center" style="padding:24px 12px;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="card" style="max-width:560px;background:#ffffff;color:#1b1f24;border-radius:12px;font-family:-apple-system,'Segoe UI',Roboto,Arial,sans-serif;font-size:16px;line-height:1.5;">
+  <tr><td style="padding:28px 28px 12px;">
+    <p class="muted" style="margin:0 0 4px;font-size:14px;font-weight:600;letter-spacing:.02em;">{{ site_name }}</p>
+    <h1 style="margin:0 0 4px;font-size:20px;line-height:1.3;">{{ count_text | capitalize }}</h1>
+    <p class="muted" style="margin:0;font-size:15px;color:#5b6470;">{{ title }}</p>
+  </td></tr>
+  {% for c in items %}
+  <tr><td class="item" style="padding:14px 28px;border-top:1px solid #e3e6ea;">
+    <a href="{{ c.url }}" style="color:#1d4ed8;font-size:17px;font-weight:600;text-decoration:none;">{{ c.title }}</a>
+    {% if c.pay %}<div style="margin-top:2px;font-weight:600;">{{ c.pay }}</div>{% endif %}
+    {% set extra = [c.place, c.employer] | select | join(' · ') %}
+    {% if extra %}<div class="muted" style="font-size:14px;color:#5b6470;">{{ extra }}</div>{% endif %}
+  </td></tr>
+  {% endfor %}
+  <tr><td style="padding:20px 28px 8px;border-top:1px solid #e3e6ea;" class="item">
+    {% if more %}<p style="margin:0 0 12px;">И ещё {{ more }} на сайте.</p>{% endif %}
+    <a class="btn" href="{{ all_url }}" style="display:inline-block;padding:12px 22px;border-radius:10px;background:#2563eb;color:#ffffff;font-weight:600;text-decoration:none;">Все вакансии</a>
+  </td></tr>
+  <tr><td style="padding:16px 28px 24px;font-size:13px;line-height:1.5;" class="muted">
+    Вы получаете это письмо, потому что подписались на новые вакансии ({{ frequency_text }}).<br>
+    <a href="{{ unsubscribe_url }}" style="color:#2f5bd8;">Отписаться</a> · <a href="{{ manage_url }}" style="color:#2f5bd8;">Все подписки</a> · <a href="{{ site_url }}" style="color:#2f5bd8;">{{ site_name }}</a>
+  </td></tr>
+  </table>
+</td></tr>
+</table>
+</body>
+</html>

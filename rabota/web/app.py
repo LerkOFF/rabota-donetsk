@@ -22,21 +22,23 @@ from fastapi.templating import Jinja2Templates
 from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from rabota import cabinet, config, lifecycle
+from rabota import config, lifecycle
 from rabota import legal as legal_docs
-from rabota.accounts.deps import check_csrf
 from rabota.accounts.service import valid_email
 from rabota.admin import complaints as complaint_service
+from rabota.employers import freshness, logo, metrics
+from rabota.employers import pages as employer_pages
+from rabota.employers_auto import pages as auto_pages
 from rabota.models import CATEGORIES, PAY_PERIODS, WORK_FORMATS
 from rabota.ops import deep as deep_health
 from rabota.ops.indexnow import key as indexnow_key
 from rabota.ops.logs import StatusCounterMiddleware
+from rabota.web import content_routes, employer_routes
 from rabota.web import format as fmt
 from rabota.web import queries as q
 from rabota.web import seo as seolib
 from rabota.web.analytics import install_analytics
 from rabota.web.indexnow import install_indexnow
-from rabota.web.postform import form_options, validate_post
 from rabota.web.security import install_security
 from rabota.web.seo import job_posting_jsonld, website_jsonld
 
@@ -149,6 +151,8 @@ def create_app(
         phone_href=fmt.phone_href,
         telegram_href=fmt.telegram_href,
         site_url=base_url,
+        logo_url=logo.logo_url,
+        logo_error=logo.error_text,
     )
     env.filters["ucfirst"] = lambda s: (s[:1].upper() + s[1:]) if s else s
     env.filters["quote"] = lambda s: quote(str(s), safe="")
@@ -332,6 +336,7 @@ def create_app(
             indexable = q.indexable_counts(conn, seolib.MIN_INDEXABLE)
             category = facts["categories"][0][0] if facts["categories"] else ""
             related = q.related_professions(conn, category, name, seolib.MIN_INDEXABLE) if kind == "profession" else []
+            extras = content_routes.listing_extras(conn, kind, name, clock())  # зарплаты и подборки
         items = [present(v) for v in page.items]
         landing = landing_page(kind, name, page.total, facts)
         path = f"/{kind}/{name}"
@@ -344,7 +349,8 @@ def create_app(
             "heading": landing["heading"], "kind": kind, "name": name, "page": page, "items": items,
             "intro": seolib.listing_intro(landing["lead"].replace("{count}", count_active(page.total)), facts,
                                           places=landing["places"]),
-            "groups": landing_links(kind, name, facts, indexable, related),
+            "groups": landing_links(kind, name, facts, indexable, related) + extras["groups"],
+            "salary": extras["salary"],
             "list_path": _quote_path(path),
             "seo": {
                 "title": title,
@@ -372,7 +378,7 @@ def create_app(
 
     def vacancy_page_context(conn: Any, vacancy_id: int) -> dict[str, Any]:
         raw = q.get_vacancy(conn, vacancy_id)
-        if raw is None or raw["kind"] != "vacancy" or raw["status"] not in ("active", "closed", "expired"):
+        if raw is None or raw["kind"] != "vacancy" or raw["status"] not in ("active", "closed", "expired", "archived"):
             raise StarletteHTTPException(404)
         if raw["duplicate_of"]:
             main = q.get_vacancy(conn, raw["duplicate_of"])
@@ -386,7 +392,13 @@ def create_app(
         also = present_also(q.also_published_in(conn, raw["id"]))
         # на проверке или помечена подозрительной: страница открывается по ссылке, но в индекс не идёт
         hidden = bool(raw.get("suspicious")) or (raw.get("moderation_status") or "approved") != "approved"
-        return {"v": v, "closed": closed, "hidden": hidden, "similar": similar, "also": also}
+        company = q.get_company(conn, raw["company_id"]) if raw.get("company_id") else None
+        if company and company.get("blocked_at"):
+            company = None
+        stats = metrics.employer_stats(conn, int(company["id"]), clock()) if company else None
+        return {"v": v, "closed": closed, "hidden": hidden, "similar": similar, "also": also, "company": company,
+                "company_logo": logo.logo_url(company) if company else "", "stats": stats,
+                "verified_on": fmt.date_label(company.get("verified_at"), clock()) if company and company.get("verified_at") else ""}
 
     class _Redirect(Exception):
         def __init__(self, url: str):
@@ -479,93 +491,6 @@ def create_app(
         result["seo"] = {**vacancy_seo(result), "noindex": True}
         return render(request, "vacancy.html", result, 422)
 
-    # ---------------------------------------------------------------- размещение
-
-    def post_context(form: dict[str, str] | None = None, errors: dict[str, str] | None = None) -> dict[str, Any]:
-        return {
-            "form": form or {"city": "Донецк"},
-            "errors": errors or {},
-            **form_options(),
-            "form_action": "/razmestit",
-            "seo": {
-                "title": "Разместить вакансию в Донецке бесплатно",
-                "description": "Опубликуйте вакансию в Донецке и ДНР: профессия, оплата, график, телефон. "
-                               "Бесплатно, после короткой проверки, соискатели увидят её в ленте.",
-            },
-        }
-
-    def poster(request: Request) -> dict[str, Any] | None:
-        """Вошедший работодатель: его вакансии привязываются к аккаунту и компании. Гость и другие роли: None."""
-        user = getattr(request.state, "user", None)
-        if isinstance(user, Mapping) and user.get("role") == "employer":
-            return dict(user)
-        return None
-
-    def employer_defaults(request: Request, user: dict[str, Any]) -> dict[str, str]:
-        """Начальные значения формы работодателя: название, телефон и почта из карточки компании."""
-        conn = request.app.state.accounts.db()
-        try:
-            company = cabinet.get_company(conn, int(user["id"])) or {}
-        finally:
-            conn.close()
-        return {
-            "employer": company.get("name") or "",
-            "phone": company.get("phone") or user.get("phone") or "",
-            "email": company.get("contact_email") or "",
-        }
-
-    @app.get("/razmestit")
-    async def post_form(request: Request) -> Response:
-        ctx = post_context()
-        user = poster(request)
-        if user:
-            defaults = await run_in_threadpool(employer_defaults, request, user)
-            ctx["form"] = {"city": "Донецк", **{k: v for k, v in defaults.items() if v}}
-        return render(request, "post.html", ctx)
-
-    @app.post("/razmestit")
-    async def post_submit(request: Request) -> Response:
-        if not same_origin(request):
-            raise StarletteHTTPException(403, "Запрос с другого сайта")
-        form = await read_form(request)
-        if form is None:
-            raise StarletteHTTPException(413, "Слишком большой запрос")
-        if not limiter.allow("post", client_ip(request)):
-            raise StarletteHTTPException(429)
-        user = poster(request)
-        if user:  # вошедший работодатель: форма защищена токеном, как остальные формы кабинета
-            check_csrf(request, form)
-        elif form.get("website"):
-            return RedirectResponse("/razmestit/spasibo", status_code=303)
-        vacancy, cleaned, errors = validate_post(form)
-        if errors or vacancy is None:
-            ctx = post_context(cleaned, errors)
-            ctx["seo"]["noindex"] = True
-            return render(request, "post.html", ctx, 422)
-
-        def save() -> int:
-            with db() as conn:
-                if user is None:
-                    return q.add_site_vacancy(conn, vacancy, premoderate=premoderate)
-                company_id = cabinet.ensure_company(conn, user, vacancy.employer or "", vacancy.city or "")
-                company = cabinet.get_company(conn, int(user["id"])) or {}
-                vacancy.employer = vacancy.employer or company.get("name") or None
-                return q.add_site_vacancy(
-                    conn, vacancy, premoderate=premoderate, owner_user_id=int(user["id"]), company_id=company_id)
-
-        vacancy_id = await run_in_threadpool(save)
-        if user:
-            return RedirectResponse("/cabinet/vacancies?done=" + ("posted" if premoderate else "posted_live"), status_code=303)
-        target = "/razmestit/spasibo" if premoderate else f"/vacancy/{vacancy_id}"
-        return RedirectResponse(target, status_code=303)
-
-    @app.get("/razmestit/spasibo")
-    def post_thanks(request: Request) -> Response:
-        return render(request, "post_thanks.html", {"seo": {
-            "title": "Вакансия отправлена", "noindex": True,
-            "description": "Вакансия отправлена на проверку и появится в ленте, как только мы убедимся, "
-                           "что это настоящее предложение о работе."}})
-
     @app.get("/employers")
     def employers(request: Request) -> Response:
         with db() as conn:
@@ -585,21 +510,36 @@ def create_app(
     def company_page(request: Request, company_id: int) -> Response:
         with db() as conn:
             row = q.get_company(conn, company_id)
+            if row and row.get("blocked_at"):
+                raise StarletteHTTPException(404)
+            if row and row.get("merged_into"):  # карточка слита с другой: старый адрес ведёт на главную
+                return RedirectResponse(f"/company/{row['merged_into']}", status_code=301)
             vacancies_ = [present(v) for v in q.company_vacancies(conn, company_id)]
+            stats = metrics.employer_stats(conn, company_id, clock()) if row else None
+            extra = auto_pages.company_extra(conn, row) if row else {}
         company = company_stub(company_id, row)
+        auto_pages.apply_to_company(company, row, extra)
+        phones = employer_pages.contact_phones(vacancies_)
+        logo_url = logo.logo_url(row) if row else ""
         # в индексе только настоящий профиль, у которого есть открытые вакансии
-        noindex = row is None or not vacancies_
+        # автокарточка: от трёх вакансий с учётом архива или после подтверждения, остальное noindex,follow
+        noindex = row is None or not extra.get("indexable")
         about = f" {seolib.sentence(seolib.truncate(company['description'], 90))}" if company["description"] else ""
+        badge = " Проверенный работодатель." if company["verified"] else ""
         return render(request, "company.html", {
-            "company": company, "items": vacancies_,
+            "company": company, "items": vacancies_, "stats": stats, "logo_src": logo_url, "phones": phones,
+            "telegram": employer_pages.contact_telegram(vacancies_),
+            "registered": employer_pages.registered_label(company["created_at"]),
+            "verified_on": employer_pages.verified_label(company["verified_at"], clock()),
             "seo": {
                 "title": f"{company['name']}: вакансии и о компании",
                 "description": f"Работодатель {company['name']} на сайте Работа Донецк: "
                                f"{fmt.count_label(len(vacancies_), 'открытая вакансия', 'открытые вакансии', 'открытых вакансий')}."
-                               f"{about}",
+                               f"{badge}{about}",
                 "noindex": noindex,
                 "breadcrumbs": [("Главная", "/"), ("Вакансии", "/vacancies"), (company["name"], f"/company/{company_id}")],
-                "jsonld": seolib.company_jsonld(base_url, company),
+                "jsonld": auto_pages.clean_jsonld(
+                    employer_pages.company_jsonld(base_url, company, logo_url=logo_url, phones=phones), row),
             },
         })
 
@@ -647,7 +587,7 @@ def create_app(
             ("/legal", max(doc_date(d.filename) for d in legal_docs.list_documents())),
         ]
         static += [(f"/legal/{d.slug}", doc_date(d.filename)) for d in legal_docs.list_documents()]
-        return {
+        groups = {
             "static": static,
             "professions": [(f"/profession/{p.lower()}", seolib.date_of(ts, now_)) for p, ts in entries["professions"]],
             "districts": [(f"/district/{d}", seolib.date_of(ts, now_)) for d, ts in entries["districts"]]
@@ -655,6 +595,11 @@ def create_app(
             "companies": [(f"/company/{cid}", seolib.date_of(ts, now_)) for cid, ts in entries["companies"]],
             "vacancies": [(f"/vacancy/{vid}", seolib.date_of(ts, now_)) for vid, ts in entries["vacancies"]],
         }
+        with db() as conn:  # зарплаты, подборки, статьи
+            extra = content_routes.sitemap_groups(conn, latest, now_)
+        for kind, urls in extra.items():
+            groups.setdefault(kind, []).extend(urls)
+        return groups
 
     def xml_response(body: str) -> Response:
         return Response(body, media_type="application/xml")
@@ -674,8 +619,9 @@ def create_app(
 
     @app.get("/sitemap-{kind}-{number:int}.xml", include_in_schema=False)
     def sitemap_part(kind: str, number: int) -> Response:
-        parts = seolib.chunks(sitemap_groups().get(kind) or [])
-        if kind not in ("static", "professions", "districts", "companies", "vacancies") or not 1 <= number <= len(parts):
+        known = sitemap_groups()
+        parts = seolib.chunks(known.get(kind) or [])
+        if kind not in known or not 1 <= number <= len(parts):
             raise StarletteHTTPException(404)
         return xml_response(seolib.sitemap_urlset(base_url, parts[number - 1]))
 
@@ -692,6 +638,20 @@ def create_app(
     from rabota.web import cabinet_routes
 
     cabinet_routes.install(app, premoderate=premoderate)  # вакансии и компания работодателя
+    from rabota.web import claim_routes
+
+    claim_routes.install(app)  # заявка «Это моя компания», архив вакансий компании, мои заявки (раньше заглушки размещения)
+    from rabota.web import alerts_routes
+
+    alerts_routes.install(app, templates=templates)  # подписки на вакансии: почта и Telegram
+    employer_routes.install(  # /razmestit, код из письма, «Готово», логотип компании
+        app, render=render, clock=clock, limiter=limiter, client_ip=client_ip, same_origin=same_origin,
+        premoderate=premoderate, db_path=db_path)
+    from rabota.web import resume_routes
+
+    resume_routes.install(app, templates=templates)  # резюме соискателей и поиск резюме для работодателя
+    content_routes.install(  # зарплаты, подборки, блог, подсказки поиска, установка на телефон
+        app, render=render, templates=templates, db_path=db_path, site_url=base_url, clock=clock, present=present)
 
     return app
 
@@ -839,9 +799,13 @@ def company_stub(company_id: int, row: dict[str, Any] | None) -> dict[str, Any]:
         "initial": name[:1].upper(),
         "city": row.get("city") or "Донецк",
         "site": row.get("site") or "",
-        "verified": bool(row.get("verified")),
+        "verified": bool(row.get("verified_at")),
+        "verified_at": row.get("verified_at"),
+        "created_at": row.get("created_at"),
         "description": (row.get("description") or "").strip(),
         "is_stub": not row,
+        "is_auto": employer_pages.is_auto(row),
+        "claim_url": f"/company/{company_id}/claim",
     }
 
 
@@ -858,6 +822,8 @@ def present_vacancy(v: dict[str, Any], now: datetime) -> dict[str, Any]:
     out["is_site"] = v["source_type"] == "site"
     out["is_direct"] = v.get("origin") == "direct"
     out["company_id"] = v.get("company_id")
+    out["fresh"] = [c.as_dict() for c in freshness.chips(v, now)]
+    out["is_parsed"] = not (out["is_direct"] or out["is_site"])
     out["apply_url"] = f"/vacancy/{v['id']}/apply" if out["is_direct"] else ""
     exp = (v["experience"] or "").lower()
     out["no_experience"] = exp.startswith(("не нужен", "без опыт"))

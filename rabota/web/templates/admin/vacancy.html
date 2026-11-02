@@ -34,6 +34,8 @@
 {% endcall %}
 
 {% if v.moderation_note %}<p class="notice{% if v.moderation_status == 'rejected' %} notice--warn{% endif %}">{{ icon('info') }}<span>Пометка: {{ v.moderation_note }}</span></p>{% endif %}
+{% if v.automod_flags %}<p class="notice notice--warn" data-automod-flags>{{ icon('shield-warning') }}<span>Автопроверка отметила: {{ v.automod_flags | automod_labels | join('; ') }}. Проверьте вакансию внимательнее.</span></p>{% endif %}
+{% if v.company_id %}<p class="muted"><a class="link-arrow" href="/admin/employers/{{ v.company_id }}">Работодатель в админке{{ icon('arrow-right') }}</a></p>{% endif %}
 
 <div class="adm-split">
   <div class="adm-split__main" data-sortable="vacancy-main">

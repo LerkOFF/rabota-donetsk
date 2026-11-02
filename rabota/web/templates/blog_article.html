@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+{% from '_macros.html' import icon, crumbs %}
+{% from '_content_macros.html' import article_card %}
+{% block content %}
+<link rel="stylesheet" href="{{ asset('content.css') }}">
+<div class="wrap wrap--narrow">
+  <article class="article">
+    <header class="page-head">
+      {{ crumbs(seo.breadcrumbs) }}
+      <p class="article__topic">{{ a.topic }}</p>
+      <h1 class="h1 h1--page article__h1">{{ a.title }}</h1>
+      <p class="article__meta">Работа Донецк · <time datetime="{{ a.published.isoformat() }}">{{ a.published.strftime('%d.%m.%Y') }}</time>{% if a.updated != a.published %}, обновлено <time datetime="{{ a.updated.isoformat() }}">{{ a.updated.strftime('%d.%m.%Y') }}</time>{% endif %} · {{ a.minutes }}&nbsp;мин чтения</p>
+    </header>
+
+    {% if a.toc|length > 2 %}
+    <nav class="toc" aria-labelledby="toc-title">
+      <p class="toc__title" id="toc-title">Содержание</p>
+      <ol>{% for hid, label in a.toc %}<li><a href="#{{ hid }}">{{ label | safe }}</a></li>{% endfor %}</ol>
+    </nav>
+    {% endif %}
+
+    <div class="article__body">{{ a.html | safe }}</div>
+
+    {% if a.search_url %}
+    <aside class="cta" aria-label="Поиск вакансий">
+      <p class="cta__t">Готовы искать работу?</p>
+      <p class="cta__x">Свежие вакансии Донецка и ДНР с оплатой, графиком и телефоном.</p>
+      <p class="cta__a"><a class="btn btn--primary" href="{{ a.search_url }}">{{ a.search_label or 'Смотреть вакансии' }}{{ icon('arrow-right') }}</a> <a class="btn btn--ghost" href="/zarplaty">Сколько платят</a></p>
+    </aside>
+    {% endif %}
+  </article>
+
+  {% if more %}
+  <section class="section section--tight" aria-labelledby="more">
+    <h2 class="h2 section__title" id="more">Читайте также</h2>
+    <div class="acards">{% for m in more %}{{ article_card(m) }}{% endfor %}</div>
+  </section>
+  {% endif %}
+</div>
+{% endblock %}
