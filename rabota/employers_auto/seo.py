@@ -2,6 +2,7 @@
 
 Правило:
 - заблокированные и слитые карточки не индексируются никогда;
+- карточка с именем человека (ФИО, ИП на ФИО) открывается по ссылке, но в индекс не идёт никогда, даже подтверждённая;
 - автокарточка без подтверждения индексируется, только если у неё не меньше N вакансий с учётом архива
   (N - настройка `employer_index_min`, по умолчанию 3), иначе `noindex, follow`;
 - подтверждённая карточка (`verified_at`) индексируется, если у неё есть хоть одна вакансия, открытая или в архиве;
@@ -13,6 +14,7 @@ import sqlite3
 from typing import Any
 
 from rabota.admin import settings
+from rabota.employers_auto import names
 from rabota.employers_auto.archive import ARCHIVE_SQL
 from rabota.web import queries as q
 
@@ -28,6 +30,8 @@ def min_vacancies(conn: sqlite3.Connection | None) -> int:
 
 def is_indexable(company: dict[str, Any] | None, visible: int, archived: int, minimum: int = DEFAULT_MIN) -> bool:
     if not company or company.get("blocked_at") or company.get("merged_into"):
+        return False
+    if company.get("origin") == "auto" and names.looks_like_person(str(company.get("name") or "")):
         return False
     if company.get("verified_at"):
         return visible + archived >= 1

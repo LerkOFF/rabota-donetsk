@@ -6,7 +6,7 @@
     backfill(conn, dry_run)       то же по всей базе с отчётом; повторный запуск ничего не меняет
 
 Дедуп: сначала по id работодателя у источника (hh: `company.id`, Работа России: ИНН), затем по нормализованному
-названию и городу. Физлица, заглушки, профессии вместо названия и мусор карточек не получают (rabota.employers_auto.names).
+названию и городу. Заглушки, профессии вместо названия и мусор карточек не получают (rabota.employers_auto.names). Имена людей карточку получают, но в индекс не идут.
 Функции не вызывают commit: коммитит вызывающий (так работает и пробный прогон `--dry-run`).
 """
 from __future__ import annotations
@@ -143,9 +143,9 @@ def resolve(
     """Найти или завести карточку для названия работодателя. create=False: только поиск (пробный прогон)."""
     ref, ref_name = source_identity(source_type, extra)
     name_text = ref_name if (ref and ref_name and source_type == "hh") else (employer or ref_name or "")
-    decision = names.decide(name_text, profession, source_type=source_type)
+    decision = names.decide(name_text, profession, source_type=source_type, allow_person=True)
     if not decision.ok and employer and name_text != employer:
-        decision = names.decide(employer, profession, source_type=source_type)
+        decision = names.decide(employer, profession, source_type=source_type, allow_person=True)
     if not decision.ok or decision.info is None:
         return Resolution(None, False, decision.reason, (name_text or "").strip())
     info = decision.info

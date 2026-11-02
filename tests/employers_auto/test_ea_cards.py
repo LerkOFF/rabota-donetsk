@@ -7,7 +7,7 @@ import pytest
 
 from rabota import __main__ as cli
 from rabota.db import connect
-from rabota.employers_auto import cards
+from rabota.employers_auto import cards, seo
 from tests.employers_auto.kit import NOW, auto_company, raw_post, vacancy
 
 
@@ -81,7 +81,7 @@ def test_trudvsem_inn_is_reference(conn):
 
 
 @pytest.mark.parametrize("name,reason", [
-    ("Иван Иванов", "person"), ("Бариста", "profession"), ("не указано", "placeholder"), ("Аб", "short"),
+    ("Бариста", "profession"), ("не указано", "placeholder"), ("Аб", "short"),
 ])
 def test_skipped_names_leave_no_card(conn, name, reason):
     vid = vacancy(conn, name)
@@ -90,6 +90,18 @@ def test_skipped_names_leave_no_card(conn, name, reason):
     v = rows(conn, "SELECT company_id, company_state FROM vacancies WHERE id=?", vid)[0]
     assert v["company_id"] is None and v["company_state"] == f"skip:{reason}"
     assert rows(conn, "SELECT COUNT(*) FROM companies")[0][0] == 0
+
+
+@pytest.mark.parametrize("name", ["Федорченко Игорь Николаевич", "Иван Иванов", "ИП Иванов Иван Иванович"])
+def test_person_gets_a_card_that_is_never_indexed(conn, name):
+    vid = vacancy(conn, name)
+    report = cards.attach_pending(conn, now=NOW)
+    assert report.created == 1 and report.skipped["person"] == 0
+    v = rows(conn, "SELECT company_id, company_state FROM vacancies WHERE id=?", vid)[0]
+    assert v["company_id"] is not None and v["company_state"] == "linked"
+    card = cards.get(conn, v["company_id"])
+    assert seo.is_indexable(card, 50, 50) is False
+    assert seo.is_indexable({**card, "verified_at": "2026-01-01"}, 50, 50) is False
 
 
 def test_vacancy_without_employer_is_not_touched(conn):
@@ -139,13 +151,13 @@ def test_registered_company_is_not_taken_over_by_name(conn):
 def test_backfill_report_dry_run_and_idempotence(conn):
     vacancy(conn, "Кофейня Зерно")
     vacancy(conn, "Кофейня Зерно")
-    vacancy(conn, "Иван Иванов")
+    vacancy(conn, "Бариста")
     dry = cards.backfill(conn, dry_run=True, now=NOW)
-    assert dry.dry_run and dry.created == 1 and dry.linked == 1 and dry.skipped["person"] == 1
+    assert dry.dry_run and dry.created == 1 and dry.linked == 1 and dry.skipped["profession"] == 1
     assert rows(conn, "SELECT COUNT(*) FROM companies")[0][0] == 0
     assert rows(conn, "SELECT COUNT(*) FROM vacancies WHERE company_id IS NOT NULL")[0][0] == 0
     real = cards.backfill(conn, now=NOW)
-    assert (real.created, real.linked, real.skipped["person"]) == (dry.created, dry.linked, 1)
+    assert (real.created, real.linked, real.skipped["profession"]) == (dry.created, dry.linked, 1)
     again = cards.backfill(conn, now=NOW)
     assert again.scanned == 0 and again.created == 0
     assert rows(conn, "SELECT COUNT(*) FROM companies")[0][0] == 1

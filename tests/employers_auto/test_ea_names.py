@@ -54,3 +54,9 @@ def test_real_brand_passes():
 def test_city_key_and_fold():
     assert names.city_key("Донецк") == "донецк"
     assert names.fold("Ёлка") == "елка"
+
+
+def test_person_allowed_only_on_request():
+    assert names.decide("Федорченко Игорь Николаевич").reason == "person"
+    assert names.decide("Федорченко Игорь Николаевич", allow_person=True).ok
+    assert names.decide("Бариста", allow_person=True).reason == "profession"

@@ -49,6 +49,18 @@ def test_company_page_offers_claim_for_auto_card(env, cid):
     assert f"/company/{cid}/claim" in html and "Это моя компания" in html
 
 
+def test_person_card_opens_but_stays_out_of_index(env):
+    conn = env.db()
+    try:
+        pid = auto_company(conn, "Федорченко Игорь Николаевич", count=5)
+    finally:
+        conn.close()
+    r = env.client.get(f"/company/{pid}")
+    assert r.status_code == 200 and "Федорченко Игорь Николаевич" in r.text
+    assert "noindex" in robots(r.text)
+    assert f"/company/{pid}</loc>" not in env.client.get("/sitemap.xml").text
+
+
 def test_claim_button_hidden_once_owned(env, cid):
     uid = login_as(env, "boss@example.test", role="employer")
     conn = env.db()

@@ -6,7 +6,7 @@
 Правила отсева (карточку не заводим):
 - пустое имя и заглушки («без названия», «частное лицо», «работодатель», «не указан»);
 - слишком короткое имя (меньше трёх букв);
-- имя, похожее на ФИО человека, и ИП на ФИО: публичной карточкой делаем только организацию;
+- имя, похожее на ФИО человека, и ИП на ФИО: по умолчанию отсев; автокарточки (allow_person=True) их заводят, но не индексируют;
 - имя совпадает с профессией («бариста», «повар»);
 - мусор из разбора: телефон, почта, ссылка, призыв («требуется»), слишком длинная строка.
 """
@@ -192,8 +192,13 @@ def is_profession(core: str, profession: str | None = None) -> bool:
     return bool(hits) and hits[0].start <= 1 and hits[0].end >= len(core) - 1
 
 
-def decide(name: str | None, profession: str | None = None, *, source_type: str = "") -> Decision:
-    """Можно ли заводить карточку для этого названия. Всегда возвращает разбор, если он получился."""
+def decide(
+    name: str | None, profession: str | None = None, *, source_type: str = "", allow_person: bool = False,
+) -> Decision:
+    """Можно ли заводить карточку для этого названия. Всегда возвращает разбор, если он получился.
+
+    allow_person=True: имя человека (ФИО, ИП на ФИО) тоже подходит. Такая карточка открывается по ссылке из вакансии,
+    но в поисковый индекс не попадает (rabota.employers_auto.seo)."""
     text = (name or "").strip()
     if not text:
         return Decision(False, "empty")
@@ -212,7 +217,7 @@ def decide(name: str | None, profession: str | None = None, *, source_type: str 
         return Decision(False, "generic", info)
     if is_profession(info.core, profession):
         return Decision(False, "profession", info)
-    if looks_like_person(info.display):
+    if not allow_person and looks_like_person(info.display):
         return Decision(False, "person", info)
     return Decision(True, "ok", info)
 
