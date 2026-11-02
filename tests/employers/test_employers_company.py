@@ -186,6 +186,17 @@ def test_parsed_vacancy_is_honest(env):
     assert "Как отличить мошенников" in html and "Пожаловаться на вакансию" in html
 
 
+def test_employer_card_is_one_big_link_only_with_company(env):
+    uid, cid = seed_company(env)
+    vid = add_vac(env, uid, cid)
+    html = env.client.get(f"/vacancy/{vid}").text
+    assert "employer-card--link" in html and f'class="link-arrow employer-card__link" href="/company/{cid}"' in html
+    conn = env.db()
+    bare = make_row(conn, None, origin="parsed", source_type="telegram", source="@demo", moderation="approved", employer="МКД-Трейд")
+    conn.close()
+    assert "employer-card--link" not in env.client.get(f"/vacancy/{bare}").text
+
+
 def test_parsed_vacancy_card_has_source_badge_in_feed(env):
     conn = env.db()
     make_row(conn, None, origin="parsed", source_type="telegram", source="@demo", source_url="https://t.me/demo/1")

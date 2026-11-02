@@ -106,7 +106,7 @@
     </section>
     {% endif %}
 
-    <section class="panel employer-card" aria-labelledby="emp-h">
+    <section class="panel employer-card{% if v.company_id %} employer-card--link{% endif %}" aria-labelledby="emp-h">
       <h2 class="visually-hidden" id="emp-h">Работодатель</h2>
       <div class="employer-card__head">
         {{ logo(v.employer or v.source_label, company_logo, '') }}
@@ -121,7 +121,7 @@
       {% if v.is_direct and not (company and company.verified_at) %}<p class="employer-card__note">Администрация сайта пока не проверяла этого работодателя.</p>{% endif %}
       {% if not v.is_direct and not v.is_site %}<p class="employer-card__note">Работодатель не подтверждён: вакансия собрана из открытого источника.</p>{% endif %}
       {{ employer_stats(stats) }}
-      {% if v.company_id %}<a class="link-arrow" href="/company/{{ v.company_id }}">О компании и её вакансиях{{ icon('arrow-right') }}</a>{% endif %}
+      {% if v.company_id %}<a class="link-arrow employer-card__link" href="/company/{{ v.company_id }}">О компании и её вакансиях{{ icon('arrow-right') }}</a>{% endif %}
     </section>
 
     <section class="complain-box" aria-labelledby="complain-h" id="complain">

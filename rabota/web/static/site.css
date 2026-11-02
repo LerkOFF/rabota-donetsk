@@ -702,6 +702,13 @@ details.complain form { display: grid; gap: var(--sp-4); padding: var(--sp-4); }
 .verified[open] > .tag--verified { box-shadow: 0 0 0 2px var(--c-accent); }
 .verified__text { max-width: 30rem; color: var(--c-ink-2); font-size: var(--fs-sm); }
 .logo-tile--img { object-fit: contain; background: var(--c-surface); border: 1px solid var(--c-line); padding: var(--sp-1); }
+/* вся карточка работодателя кликабельна: ссылка внизу растягивается на всю площадь */
+.employer-card--link { position: relative; transition: border-color 0.15s, box-shadow 0.15s; }
+.employer-card--link:hover { border-color: var(--c-accent); box-shadow: var(--shadow-card); }
+.employer-card__link::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-card); z-index: 1; }
+.employer-card__link:focus-visible { outline: none; }
+.employer-card--link:has(.employer-card__link:focus-visible) { outline: 3px solid var(--c-focus); outline-offset: 2px; }
+.employer-card--link:hover .employer-card__link { text-decoration: underline; }
 .employer-card__note { color: var(--c-ink-2); font-size: var(--fs-sm); }
 .emp-stats { display: grid; gap: var(--sp-1); }
 .emp-stats div { display: flex; justify-content: space-between; gap: var(--sp-3); font-size: var(--fs-sm); }
