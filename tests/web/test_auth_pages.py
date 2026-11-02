@@ -115,7 +115,7 @@ def test_user_input_is_escaped(env):
 
 def test_notice_pages_have_actions(env):
     r = register(env)
-    assert 'href="/login"' in r.text and "Отправить письмо ещё раз" in r.text
+    assert 'href="/login"' in r.text and "Отправить код ещё раз" in r.text
     ok = env.client.get(link_in(env.mailer.last()))
     assert 'href="/login"' in ok.text and 'class="btn btn--primary"' in ok.text
 

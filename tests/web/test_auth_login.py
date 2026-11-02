@@ -40,7 +40,8 @@ def test_login_before_verification_is_closed_with_resend_button(env):
     r = login(env)
     assert r.status_code == 403
     assert "Почта ещё не подтверждена" in r.text
-    assert 'action="/verify/resend"' in r.text and "Отправить письмо ещё раз" in r.text
+    assert 'action="/verify/resend"' in r.text and "Отправить код ещё раз" in r.text
+    assert 'href="/register/code?email=ivan%40example.test"' in r.text
     assert session_cookie_header(r) == ""
 
 

@@ -87,6 +87,7 @@ POLICY: dict[str, str] = {
     "/responses": "noindex", "/responses/1": "noindex", "/notifications": "noindex", "/notifications/unsubscribe/not-a-real-token": "noindex",
     "/vacancy/{open}/apply": "noindex",
     "/login": "noindex", "/register": "noindex", "/forgot": "noindex", "/verify/resend": "noindex",
+    "/register/code": "noindex", "/forgot/code": "noindex",
     "/verify/not-a-real-token": "noindex", "/reset/not-a-real-token": "noindex",
     "/email/confirm/not-a-real-token": "noindex",
     "/account": "noindex", "/account/deleted": "noindex",

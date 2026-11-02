@@ -17,6 +17,12 @@ DEFAULT_LIMITS: dict[str, tuple[int, int]] = {
     "forgot_ip": (12, 3600),
     "forgot_email": (3, 3600),
     "token_ip": (30, 3600),
+    # коды из писем: отправки (ключ вида "назначение:почта"), пауза между письмами, неверные вводы
+    "code_send_ip": (20, 3600),
+    "code_send_email": (5, 3600),
+    "code_cooldown": (1, 60),
+    "code_fail_ip": (30, 3600),
+    "code_fail_email": (5, 900),
     "change_email_user": (5, 3600),
     "password_user": (10, 900),
     "delete_user": (5, 900),

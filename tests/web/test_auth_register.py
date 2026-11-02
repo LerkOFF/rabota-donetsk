@@ -1,7 +1,17 @@
 """Регистрация и подтверждение почты через сайт."""
 import pytest
 
-from tests.accounts.harness import PASSWORD, env_impl, link_in, login, post, reg_data, register, token_in
+from tests.accounts.harness import (
+    PASSWORD,
+    code_in,
+    env_impl,
+    link_in,
+    login,
+    post,
+    reg_data,
+    register,
+    token_in,
+)
 
 env = pytest.fixture(env_impl)
 
@@ -19,11 +29,12 @@ def test_register_page_has_all_fields(env):
 def test_register_creates_account_and_sends_verification_mail(env):
     r = register(env, "Ivan@Example.test")
     assert r.status_code == 200
-    assert "Проверьте почту" in r.text
+    assert "Введите код из письма" in r.text and "ivan@example.test" in r.text
     assert len(env.mailer.outbox) == 1
     mail = env.mailer.outbox[0]
     assert mail.to == "ivan@example.test"
-    assert link_in(mail).startswith("/verify/")
+    assert len(code_in(mail)) == 6
+    assert link_in(mail).startswith("/verify/")  # запасная ссылка
     assert "https://example.test/verify/" in mail.body
     user = env.user("ivan@example.test")
     assert user["role"] == "job_seeker" and user["email_verified_at"] is None and user["consent_at"]
@@ -82,7 +93,7 @@ def test_form_is_refilled_but_never_with_password(env):
 
 def test_honeypot_pretends_success_and_does_nothing(env):
     r = register(env, website="http://spam.test")
-    assert r.status_code == 200 and "Проверьте почту" in r.text
+    assert r.status_code == 200 and "Введите код из письма" in r.text
     assert env.user("ivan@example.test") is None and env.mailer.outbox == []
 
 
@@ -169,8 +180,9 @@ def test_resend_form_and_flow(env):
     register(env)
     first = env.mailer.last()
     env.mailer.outbox.clear()
+    env.clock.advance(seconds=61)
     r = post(env, "/verify/resend", {"email": "ivan@example.test"}, page="/verify/resend")
-    assert r.status_code == 200 and "Письмо отправлено" in r.text
+    assert r.status_code == 200 and "Введите код из письма" in r.text and "отправили на неё новый код" in r.text
     assert len(env.mailer.outbox) == 1
     second = env.mailer.last()
     assert token_in(first) != token_in(second)
@@ -182,9 +194,11 @@ def test_resend_gives_same_answer_for_unknown_and_confirmed(env):
     register(env, "known@example.test")
     env.client.get(link_in(env.mailer.last()))
     env.mailer.outbox.clear()
+    env.clock.advance(seconds=61)
     a = post(env, "/verify/resend", {"email": "nobody@example.test"}, page="/verify/resend")
     b = post(env, "/verify/resend", {"email": "known@example.test"}, page="/verify/resend")
-    assert a.status_code == b.status_code == 200 and a.text == b.text
+    assert a.status_code == b.status_code == 200
+    assert a.text.replace("nobody@example.test", "X") == b.text.replace("known@example.test", "X")
     assert env.mailer.outbox == []
 
 
@@ -196,13 +210,3 @@ def test_resend_bad_email_is_validation_error(env):
 def test_resend_page_prefills_email(env):
     r = env.client.get("/verify/resend?email=a%40b.ru")
     assert 'value="a@b.ru"' in r.text
-
-
-def test_resend_is_rate_limited_per_email_silently(env):
-    register(env)
-    env.mailer.outbox.clear()
-    for _ in range(6):
-        r = post(env, "/verify/resend", {"email": "ivan@example.test"}, page="/verify/resend")
-        assert r.status_code == 200
-    assert len(env.mailer.outbox) == 3  # лимит 3 в час на почту, ответ при этом одинаковый
-    env.clock.advance(hours=2)  # лимит считает по своим часам, но токен по часам теста

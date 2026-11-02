@@ -1,0 +1,41 @@
+{% extends 'auth/layout.html' %}
+{% from 'auth/_forms.html' import csrf, field, alert, info as info_box, summary %}
+{# Ввод шестизначного кода из письма: подтверждение почты при регистрации (purpose=verify) и сброс пароля (purpose=reset) #}
+{% block auth_body %}
+<div class="wrap auth">
+  <div class="auth__card">
+    <header class="auth__head">
+      <h1>{{ heading }}</h1>
+      <p>{{ lead }}</p>
+    </header>
+    {{ info_box(info) }}
+    {{ alert(warning) }}
+    {{ alert(error) }}
+    {{ summary(errors, 'k') }}
+    <form class="auth__form" method="post" action="{{ action }}" novalidate>
+      {{ csrf(csrf_token) }}
+      {% if email_locked %}
+      <input type="hidden" name="email" value="{{ email }}">
+      <p class="auth__sent">Письмо отправлено на <strong>{{ email }}</strong>. <a href="{{ change_href }}">Другой адрес</a></p>
+      {% else %}
+      {{ field('email', 'Электронная почта', type='email', value=email, error=errors.get('email', ''), autocomplete='email', inputmode='email', pid='k') }}
+      {% endif %}
+      {{ field('code', 'Код из письма', type='text', value=code_value, error=errors.get('code', ''), hint='Шесть цифр', autocomplete='one-time-code', inputmode='numeric', maxlength=12, pattern='[0-9 \\-]*', pid='k', cls='input--code') }}
+      {% if purpose == 'reset' %}
+      {{ field('password', 'Новый пароль', type='password', error=errors.get('password', ''), hint='Не короче 8 знаков. После смены вы выйдете со всех устройств.', autocomplete='new-password', maxlength=128, pid='k', toggle=True) }}
+      {{ field('password2', 'Повторите пароль', type='password', error=errors.get('password2', ''), autocomplete='new-password', maxlength=128, pid='k') }}
+      {% endif %}
+      <button class="btn btn--primary btn--lg btn--block" type="submit">{{ button }}</button>
+    </form>
+    {% if email_locked %}
+    <form class="auth__inline" method="post" action="{{ resend_action }}">
+      {{ csrf(csrf_token) }}
+      <input type="hidden" name="email" value="{{ email }}">
+      <p>Письма нет? Загляните в папку «Спам». Новый код можно запросить раз в минуту, предыдущий перестанет работать.</p>
+      <button class="btn btn--ghost" type="submit">Отправить код ещё раз</button>
+    </form>
+    {% endif %}
+    <p class="auth__alt"><a href="/login">Вернуться ко входу</a></p>
+  </div>
+</div>
+{% endblock %}

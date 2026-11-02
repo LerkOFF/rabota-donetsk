@@ -9,6 +9,7 @@
     python -m rabota worker                                                   приём данных в реальном времени
     python -m rabota make-admin <почта>                                       сделать пользователя администратором
     python -m rabota health [--json]                                          свежесть источников, код 1 при просрочке
+    python -m rabota mail-check [--send-to адрес]                             проверка почты: письмо с кодом собирается, SMTP отвечает
     python -m rabota tg-login                                                 один раз: вход в Telegram для слушателя
 """
 from __future__ import annotations
@@ -118,7 +119,7 @@ def cmd_make_admin(conn: sqlite3.Connection, email: str) -> int:
         return 1
     print(f"{email.strip().lower()}: {'аккаунт создан' if created else 'роль администратора выдана'} (id {user_id}).")
     if created:
-        print("Пароль не задан. Откройте /forgot на сайте, введите эту почту и задайте пароль по ссылке из письма.")
+        print("Пароль не задан. Откройте /forgot на сайте, введите эту почту и задайте пароль по коду из письма.")
     return 0
 
 
@@ -139,6 +140,8 @@ def main(argv: list[str] | None = None) -> int:
     health.add_argument("--json", action="store_true")
     mk = sub.add_parser("make-admin", help="сделать пользователя администратором (пароль не передаётся в аргументах)")
     mk.add_argument("email")
+    mc = sub.add_parser("mail-check", help="проверить почту: собрать письмо с кодом и проверить SMTP, ничего не отправляя")
+    mc.add_argument("--send-to", help="отправить одно проверочное письмо на этот адрес")
     sub.add_parser("tg-login", help="интерактивный вход в Telegram (телефон, код, пароль), сессия в файл")
     args = parser.parse_args(argv)
 
@@ -150,6 +153,10 @@ def main(argv: list[str] | None = None) -> int:
         from rabota.realtime.health import main as health_main
 
         return health_main(["--json"] if args.json else [])
+    if args.cmd == "mail-check":
+        from rabota.ops.mailcheck import run as mail_check
+
+        return mail_check(args.send_to)
     if args.cmd == "tg-login":
         from rabota.realtime.telegram_listener import login
 

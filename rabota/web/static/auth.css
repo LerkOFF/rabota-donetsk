@@ -53,3 +53,9 @@
 @media (min-width: 62rem) {
   .acct__grid { grid-template-columns: 1fr 1fr; }
 }
+
+/* Поле шестизначного кода: крупные цифры с разрядкой, на телефоне открывается цифровая клавиатура */
+.input--code { font-size: var(--fs-xl); font-weight: var(--fw-bold); letter-spacing: 0.4em; text-align: center; font-variant-numeric: tabular-nums; }
+.input--code::placeholder { letter-spacing: normal; }
+.auth__sent { font-size: var(--fs-sm); color: var(--c-ink-2); overflow-wrap: anywhere; }
+.auth__sent strong { color: var(--c-ink); }

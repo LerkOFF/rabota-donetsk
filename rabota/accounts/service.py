@@ -13,7 +13,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from rabota.accounts import passwords, tokens
+from rabota.accounts import codes, passwords, tokens
 from rabota.accounts.tokens import iso
 from rabota.db import connect
 
@@ -179,6 +179,48 @@ def verify_email(conn: sqlite3.Connection, raw_token: str, now: datetime) -> dic
     return get_user(conn, tok["user_id"])
 
 
+def issue_verify_code(
+    conn: sqlite3.Connection, secret: bytes, user_id: int, now: datetime, *, cooldown: bool = True
+) -> str | None:
+    """Код подтверждения почты для неподтверждённого аккаунта. None: слать нечего или слишком часто."""
+    row = conn.execute("SELECT email_verified_at, status FROM users WHERE id=?", (user_id,)).fetchone()
+    if row is None or row["email_verified_at"]:
+        return None
+    return codes.issue_code(conn, secret, user_id, "verify", now, cooldown=cooldown)
+
+
+def resend_verification_code(
+    conn: sqlite3.Connection, secret: bytes, email: str, now: datetime
+) -> tuple[dict[str, Any], str, str] | None:
+    """Новый код и запасная ссылка для неподтверждённого аккаунта: (пользователь, код, токен ссылки)."""
+    row = get_user_by_email(conn, email)
+    if row is None or row["email_verified_at"]:
+        return None
+    code = codes.issue_code(conn, secret, row["id"], "verify", now)
+    if code is None:
+        return None
+    return public_user(row), code, tokens.create_email_token(conn, row["id"], "verify", now)
+
+
+def verify_by_code(
+    conn: sqlite3.Connection, secret: bytes, email: str, code: str, now: datetime
+) -> tuple[str, dict[str, Any] | None]:
+    """Подтвердить почту кодом. Статус как у codes.check_code; для неизвестной и уже подтверждённой почты none."""
+    row = get_user_by_email(conn, email)
+    if row is None or row["email_verified_at"] or row["status"] != "active":
+        return "none", None
+    status = codes.check_code(conn, secret, row["id"], "verify", code, now)
+    if status != "ok":
+        return status, None
+    conn.execute("UPDATE users SET email_verified_at=COALESCE(email_verified_at, ?) WHERE id=?", (iso(now), row["id"]))
+    conn.execute(
+        "UPDATE email_tokens SET used_at=? WHERE user_id=? AND purpose='verify' AND used_at IS NULL",
+        (iso(now), row["id"]),
+    )
+    conn.commit()
+    return "ok", get_user(conn, row["id"])
+
+
 # ------------------------------------------------------------------ вход
 
 @dataclass
@@ -270,6 +312,7 @@ def purge_expired(conn: sqlite3.Connection, now: datetime) -> None:
     conn.execute("DELETE FROM sessions WHERE expires_at<?", (iso(now),))
     conn.commit()
     tokens.purge_expired_tokens(conn, now)
+    codes.purge_codes(conn, now)
 
 
 def purge_unverified(conn: sqlite3.Connection, now: datetime, keep: timedelta = UNVERIFIED_KEEP) -> int:
@@ -292,6 +335,7 @@ def change_password(
         "UPDATE email_tokens SET used_at=? WHERE user_id=? AND purpose='reset' AND used_at IS NULL",
         (iso(now), user_id),
     )
+    codes.burn_codes(conn, user_id, "reset", now)
     conn.commit()
     delete_user_sessions(conn, user_id, keep_session)
 
@@ -302,6 +346,35 @@ def request_reset(conn: sqlite3.Connection, email: str, now: datetime) -> tuple[
     if row is None or row["status"] != "active":
         return None
     return public_user(row), tokens.create_email_token(conn, row["id"], "reset", now)
+
+
+def request_reset_code(
+    conn: sqlite3.Connection, secret: bytes, email: str, now: datetime
+) -> tuple[dict[str, Any], str] | None:
+    """Код для сброса пароля. None для неизвестной почты, заблокированного аккаунта и слишком частых запросов."""
+    row = get_user_by_email(conn, email)
+    if row is None or row["status"] != "active":
+        return None
+    code = codes.issue_code(conn, secret, row["id"], "reset", now)
+    if code is None:
+        return None
+    return public_user(row), code
+
+
+def reset_password_by_code(
+    conn: sqlite3.Connection, secret: bytes, email: str, code: str, new_password: str, now: datetime
+) -> tuple[str, dict[str, Any] | None]:
+    """Задать новый пароль по коду. Все сессии закрываются (в том числе у того, кто сбросил пароль: заходит заново).
+    Верный код подтверждает и почту. Статус как у codes.check_code."""
+    row = get_user_by_email(conn, email)
+    if row is None or row["status"] != "active":
+        return "none", None
+    status = codes.check_code(conn, secret, row["id"], "reset", code, now)
+    if status != "ok":
+        return status, None
+    conn.execute("UPDATE users SET email_verified_at=COALESCE(email_verified_at, ?) WHERE id=?", (iso(now), row["id"]))
+    change_password(conn, row["id"], new_password, now)
+    return "ok", get_user(conn, row["id"])
 
 
 def reset_password(conn: sqlite3.Connection, raw_token: str, new_password: str, now: datetime) -> dict[str, Any] | None:

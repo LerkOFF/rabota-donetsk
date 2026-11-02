@@ -50,6 +50,13 @@ CREATE TABLE IF NOT EXISTS email_tokens (
   token_hash TEXT NOT NULL UNIQUE, purpose TEXT NOT NULL CHECK (purpose IN ('verify','reset','change')),
   new_email TEXT, expires_at TEXT NOT NULL, used_at TEXT, created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE TABLE IF NOT EXISTS email_codes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  purpose TEXT NOT NULL CHECK (purpose IN ('verify','reset')),
+  code_hash TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0,
+  expires_at TEXT NOT NULL, used_at TEXT, created_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_email_codes_user ON email_codes(user_id, purpose, created_at);
 CREATE TABLE IF NOT EXISTS sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   token_hash TEXT NOT NULL UNIQUE, ip TEXT, user_agent TEXT,

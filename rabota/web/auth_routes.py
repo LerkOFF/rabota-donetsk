@@ -4,7 +4,8 @@
     install(app, db_path=...)   # маршруты, middleware сессии, шаблоны
 
 После install в каждом запросе есть request.state.user (словарь или None) и request.state.csrf_token.
-Маршруты: /register, /login, POST /logout, /verify/<токен>, /verify/resend, /forgot, /reset/<токен>,
+Маршруты: /register, /register/code (+ /resend), /login, POST /logout, /verify/<токен>, /verify/resend, /forgot,
+/forgot/code (+ /resend), /reset/<токен>,
 /account (+ /account/profile, /account/password, /account/email, /account/delete), /email/confirm/<токен>,
 /cabinet (перенаправление по роли), /cabinet/seeker и /cabinet/employer (сводки).
 """
@@ -24,8 +25,8 @@ from starlette.concurrency import run_in_threadpool
 from starlette.exceptions import HTTPException
 
 from rabota import config
+from rabota.accounts import codes, service
 from rabota.accounts import csrf as csrf_mod
-from rabota.accounts import service
 from rabota.accounts.deps import (
     CSRF_COOKIE,
     SESSION_COOKIE,
@@ -194,15 +195,74 @@ def _bad_link(request: Request, what: str) -> Response:
 
 # ------------------------------------------------------------------ регистрация
 
-def _registered_page(request: Request, email: str, mail_failed: bool = False) -> Response:
-    """Один и тот же ответ для нового и уже занятого адреса."""
-    return notice(
-        request, "Проверьте почту",
-        [f"Мы отправили письмо на {email}. Откройте ссылку из письма, чтобы подтвердить адрес. Ссылка действует 24 часа.",
-         "Если вы уже были зарегистрированы, в письме будет подсказка, как войти."],
-        [("Ко входу", "/login", "ghost")],
-        warning=MAIL_FAIL_TEXT if mail_failed else "", resend_email=email, icon_name="envelope-simple",
-        status=200,
+BAD_CODE_TEXT = "Код не подошёл или срок его действия истёк. Проверьте цифры или запросите новый код."
+LOCK_CODE_TEXT = "Слишком много неверных попыток. Запросите новый код и введите его."
+CODE_FORMAT_TEXT = "Введите шесть цифр из письма."
+COOLDOWN_TEXT = "Новый код можно запросить через минуту."
+LIMIT_TEXT = "Вы запросили код слишком много раз. Попробуйте через час."
+
+CODE_PAGES: dict[str, dict[str, str]] = {
+    "verify": {
+        "action": "/register/code", "resend": "/register/code/resend", "change": "/register",
+        "heading": "Введите код из письма", "button": "Подтвердить почту",
+        "title": "Код подтверждения: Работа Донецк",
+        "lead": "Мы отправили шестизначный код на вашу почту. Он действует 15 минут.",
+        "sent": "Если эта почта ждёт подтверждения, мы отправили на неё новый код.",
+    },
+    "reset": {
+        "action": "/forgot/code", "resend": "/forgot/code/resend", "change": "/forgot",
+        "heading": "Код из письма и новый пароль", "button": "Сохранить новый пароль",
+        "title": "Новый пароль по коду: Работа Донецк",
+        "lead": "Если такая почта зарегистрирована, мы отправили на неё шестизначный код. Он действует 10 минут.",
+        "sent": "Если такая почта зарегистрирована, мы отправили на неё новый код.",
+    },
+}
+
+
+def _code_page(
+    request: Request, purpose: str, email: str, *, locked: bool = True, error: str = "", info: str = "",
+    warning: str = "", errors: dict[str, str] | None = None, status: int = 200,
+) -> Response:
+    """Страница ввода кода. locked: адрес известен и показан текстом (скрытое поле), иначе его можно ввести."""
+    page = CODE_PAGES[purpose]
+    return render(request, "auth/code.html", {
+        "purpose": purpose, "email": email, "email_locked": locked and valid_email(email), "errors": errors or {},
+        "error": error, "info": info, "warning": warning, "code_value": "", "action": page["action"],
+        "resend_action": page["resend"], "change_href": page["change"], "heading": page["heading"],
+        "button": page["button"], "lead": page["lead"],
+        "seo": {"title": page["title"], "description": "Ввод кода из письма на сайте Работа Донецк."},
+    }, status)
+
+
+def _send_gate(acc: Accounts, request: Request, purpose: str, email: str, *, cooldown: bool = True) -> str:
+    """Можно ли слать код: ok, cooldown (не прошла минута) или limit (исчерпан лимит в час).
+    Решает память процесса, а не база, поэтому ответ одинаков для существующей и неизвестной почты."""
+    if not acc.limiter.allow("code_send_ip", client_ip(request)):
+        raise HTTPException(429)
+    key = f"{purpose}:{email}"
+    if cooldown and acc.limiter.blocked("code_cooldown", key):
+        return "cooldown"
+    if not acc.limiter.allow("code_send_email", key):
+        return "limit"
+    acc.limiter.record("code_cooldown", key)
+    acc.limiter.reset("code_fail_email", key)  # новый код: попытки ввода считаются заново
+    return "ok"
+
+
+def _gate_messages(gate: str) -> dict[str, str]:
+    if gate == "cooldown":
+        return {"error": COOLDOWN_TEXT}
+    if gate == "limit":
+        return {"error": LIMIT_TEXT}
+    return {}
+
+
+def _registered_page(request: Request, email: str, mail_failed: bool = False, gate: str = "ok") -> Response:
+    """Один и тот же ответ для нового и уже занятого адреса: страница ввода кода."""
+    return _code_page(
+        request, "verify", email, warning=MAIL_FAIL_TEXT if mail_failed else "",
+        info=f"Мы отправили письмо на {email}. Если вы уже были зарегистрированы, в письме будет подсказка, как войти.",
+        **_gate_messages(gate),
     )
 
 
@@ -273,6 +333,9 @@ async def register_submit(request: Request) -> Response:
         }, 422)
     if not acc.limiter.allow("register_email", email):  # слишком много писем на один адрес: молча не шлём
         return _registered_page(request, email)
+    gate = _send_gate(acc, request, "verify", email, cooldown=False)
+    if gate != "ok":
+        return _registered_page(request, email, gate=gate)
 
     def work() -> bool:
         conn = acc.db()
@@ -280,10 +343,16 @@ async def register_submit(request: Request) -> Response:
             reg = service.register(
                 conn, email=email, password=password, name=name, role=role, consent=consent, now=acc.now()
             )
+            code = (
+                service.issue_verify_code(conn, acc.secret, reg.user_id, acc.now(), cooldown=False)
+                if reg.token else None
+            )
         finally:
             conn.close()
-        if reg.token:
-            mail = render_mail("verify", email, name=name, link=_link(acc, "/verify", reg.token), site_url=acc.site_url)
+        if reg.token and code:
+            mail = _verify_code_mail(acc, email, name, code, reg.token)
+        elif reg.token:  # лимит кодов в час для этого аккаунта: письмо не шлём, страница та же
+            return True
         else:
             mail = render_mail("already_registered", email, site_url=acc.site_url)
         return send_safely(acc.mailer, mail)
@@ -292,51 +361,128 @@ async def register_submit(request: Request) -> Response:
     return _registered_page(request, email, mail_failed=not sent)
 
 
-# ------------------------------------------------------------------ подтверждение почты
-
-@router.get("/verify/resend")
-def resend_form(request: Request) -> Response:
-    return render(request, "auth/email_form.html", {
-        "heading": "Отправить письмо ещё раз", "action": "/verify/resend", "button": "Отправить письмо",
-        "lead": "Укажите почту, с которой вы регистрировались. Мы пришлём новую ссылку подтверждения.",
-        "form": {"email": request.query_params.get("email", "")[:254]}, "error": "",
-        "seo": {"title": "Повторное письмо подтверждения"},
-    })
+def _verify_code_mail(acc: Accounts, email: str, name: str, code: str, token: str) -> Mail:
+    return render_mail(
+        "verify_code", email, name=name, code=code, link=_link(acc, "/verify", token), site_url=acc.site_url,
+        ttl_minutes=int(codes.CODE_TTL["verify"].total_seconds() // 60),
+    )
 
 
+def _reset_code_mail(acc: Accounts, email: str, name: str, code: str) -> Mail:
+    return render_mail(
+        "reset_code", email, name=name, code=code, site_url=acc.site_url,
+        ttl_minutes=int(codes.CODE_TTL["reset"].total_seconds() // 60),
+    )
+
+
+def _with_mail(response: Response, acc: Accounts, mail: Mail | None) -> Response:
+    """Письмо уходит после ответа: время ответа не выдаёт, была ли отправка."""
+    if mail is not None:
+        response.background = BackgroundTask(send_safely, acc.mailer, mail)
+    return response
+
+
+@router.get("/register/code")
+def code_form(request: Request) -> Response:
+    email = normalize_email(request.query_params.get("email", ""))[:254]
+    return _code_page(request, "verify", email, locked=bool(email))
+
+
+@router.post("/register/code")
+async def code_submit(request: Request) -> Response:
+    acc = _acc(request)
+    form = await read_form(request)
+    check_csrf(request, form)
+    email = normalize_email(form.get("email", ""))
+    gated = _code_gate(request, acc, "verify", email)
+    if gated is not None:
+        return gated
+    code = codes.clean_code(form.get("code", ""))
+    if code is None:
+        return _code_page(request, "verify", email, errors={"code": CODE_FORMAT_TEXT}, status=422)
+
+    def work() -> tuple[str, dict[str, Any] | None]:
+        conn = acc.db()
+        try:
+            return service.verify_by_code(conn, acc.secret, email, code, acc.now())
+        finally:
+            conn.close()
+
+    status, user = await run_in_threadpool(work)
+    if status != "ok" or user is None:
+        return _code_failed(request, acc, "verify", email, status)
+    return notice(
+        request, "Почта подтверждена",
+        [f"Спасибо, {user['name']}! Аккаунт активирован, теперь можно войти."],
+        [("Войти", "/login", "primary"), ("Смотреть вакансии", "/vacancies", "ghost")],
+    )
+
+
+def _code_gate(request: Request, acc: Accounts, purpose: str, email: str) -> Response | None:
+    """Общие проверки перед вводом кода: адрес похож на почту, не исчерпаны лимиты неверных вводов."""
+    if acc.limiter.blocked("code_fail_ip", client_ip(request)):
+        raise HTTPException(429)
+    if not valid_email(email):
+        return _code_page(
+            request, purpose, email, locked=False, errors={"email": "Проверьте адрес почты."}, status=422
+        )
+    if acc.limiter.blocked("code_fail_email", f"{purpose}:{email}"):
+        return _code_page(request, purpose, email, error=LOCK_CODE_TEXT, status=429)
+    return None
+
+
+def _code_failed(request: Request, acc: Accounts, purpose: str, email: str, status: str) -> Response:
+    """Неверный код: одинаковый ответ для всех причин и для неизвестной почты. Лимит срабатывает по почте и IP."""
+    acc.limiter.record("code_fail_ip", client_ip(request))
+    acc.limiter.record("code_fail_email", f"{purpose}:{email}")
+    locked = status == "locked" or acc.limiter.blocked("code_fail_email", f"{purpose}:{email}")
+    return _code_page(
+        request, purpose, email, error=LOCK_CODE_TEXT if locked else BAD_CODE_TEXT, status=429 if locked else 400
+    )
+
+
+@router.post("/register/code/resend")
 @router.post("/verify/resend")
 async def resend_submit(request: Request) -> Response:
     acc = _acc(request)
     form = await read_form(request)
     check_csrf(request, form)
-    if not acc.limiter.allow("resend_ip", client_ip(request)):
-        raise HTTPException(429)
     email = normalize_email(form.get("email", ""))
     if not valid_email(email):
         return render(request, "auth/email_form.html", {
-            "heading": "Отправить письмо ещё раз", "action": "/verify/resend", "button": "Отправить письмо",
-            "lead": "Укажите почту, с которой вы регистрировались. Мы пришлём новую ссылку подтверждения.",
-            "form": {"email": email}, "error": "Проверьте адрес почты.", "seo": {"title": "Повторное письмо"},
+            "heading": "Отправить код ещё раз", "action": "/verify/resend", "button": "Отправить код",
+            "lead": "Укажите почту, с которой вы регистрировались. Мы пришлём новый код.",
+            "form": {"email": email}, "error": "Проверьте адрес почты.", "seo": {"title": "Повторная отправка кода"},
         }, 422)
+    gate = _send_gate(acc, request, "verify", email)
     mail: Mail | None = None
-    if acc.limiter.allow("resend_email", email):
+    if gate == "ok":
         def work() -> Mail | None:
             conn = acc.db()
             try:
-                found = service.resend_verification(conn, email, acc.now())
+                found = service.resend_verification_code(conn, acc.secret, email, acc.now())
             finally:
                 conn.close()
             if found is None:
                 return None
-            user, token = found
-            return render_mail("verify", email, name=user["name"], link=_link(acc, "/verify", token), site_url=acc.site_url)
+            user, code, token = found
+            return _verify_code_mail(acc, email, user["name"], code, token)
 
         mail = await run_in_threadpool(work)
-    return notice(
-        request, "Письмо отправлено",
-        ["Если эта почта ждёт подтверждения, мы отправили на неё новую ссылку. Проверьте и папку со спамом."],
-        [("Ко входу", "/login", "ghost")], icon_name="envelope-simple", mail=mail,
+    page = _code_page(
+        request, "verify", email, info=CODE_PAGES["verify"]["sent"] if gate == "ok" else "", **_gate_messages(gate)
     )
+    return _with_mail(page, acc, mail)
+
+
+@router.get("/verify/resend")
+def resend_form(request: Request) -> Response:
+    return render(request, "auth/email_form.html", {
+        "heading": "Отправить код ещё раз", "action": "/verify/resend", "button": "Отправить код",
+        "lead": "Укажите почту, с которой вы регистрировались. Мы пришлём новый шестизначный код.",
+        "form": {"email": request.query_params.get("email", "")[:254]}, "error": "",
+        "seo": {"title": "Повторная отправка кода"},
+    })
 
 
 @router.get("/verify/{token}")
@@ -419,7 +565,7 @@ async def login_submit(request: Request) -> Response:
     if res.status == "unverified":
         return _login_page(
             request, email=email, nxt=nxt, unverified=True, status=403,
-            error="Почта ещё не подтверждена. Откройте ссылку из письма, и вход заработает.",
+            error="Почта ещё не подтверждена. Введите код из письма, и вход заработает.",
         )
     acc.limiter.reset("login_email", email)
     response = _redirect(nxt or "/cabinet")
@@ -454,12 +600,14 @@ async def logout(request: Request) -> Response:
 
 # ------------------------------------------------------------------ сброс пароля
 
+FORGOT_LEAD = "Укажите почту аккаунта. Мы пришлём шестизначный код, по которому можно задать новый пароль."
+
+
 @router.get("/forgot")
 def forgot_form(request: Request) -> Response:
     return render(request, "auth/email_form.html", {
-        "heading": "Сброс пароля", "action": "/forgot", "button": "Отправить ссылку",
-        "lead": "Укажите почту аккаунта. Мы пришлём ссылку, по которой можно задать новый пароль.",
-        "form": {}, "error": "", "seo": {"title": "Сброс пароля: Работа Донецк"},
+        "heading": "Сброс пароля", "action": "/forgot", "button": "Отправить код",
+        "lead": FORGOT_LEAD, "form": {}, "error": "", "seo": {"title": "Сброс пароля: Работа Донецк"},
     })
 
 
@@ -473,28 +621,90 @@ async def forgot_submit(request: Request) -> Response:
     email = normalize_email(form.get("email", ""))
     if not valid_email(email):
         return render(request, "auth/email_form.html", {
-            "heading": "Сброс пароля", "action": "/forgot", "button": "Отправить ссылку",
-            "lead": "Укажите почту аккаунта. Мы пришлём ссылку, по которой можно задать новый пароль.",
-            "form": {"email": email}, "error": "Проверьте адрес почты.", "seo": {"title": "Сброс пароля"},
+            "heading": "Сброс пароля", "action": "/forgot", "button": "Отправить код",
+            "lead": FORGOT_LEAD, "form": {"email": email}, "error": "Проверьте адрес почты.",
+            "seo": {"title": "Сброс пароля"},
         }, 422)
+    return await _send_reset_code(request, acc, email, cooldown=False)
+
+
+async def _send_reset_code(request: Request, acc: Accounts, email: str, *, cooldown: bool) -> Response:
+    gate = _send_gate(acc, request, "reset", email, cooldown=cooldown)
     mail: Mail | None = None
-    if acc.limiter.allow("forgot_email", email):
+    if gate == "ok":
         def work() -> Mail | None:
             conn = acc.db()
             try:
-                found = service.request_reset(conn, email, acc.now())
+                found = service.request_reset_code(conn, acc.secret, email, acc.now())
             finally:
                 conn.close()
             if found is None:
                 return None
-            user, token = found
-            return render_mail("reset", email, name=user["name"], link=_link(acc, "/reset", token), site_url=acc.site_url)
+            user, code = found
+            return _reset_code_mail(acc, email, user["name"], code)
 
         mail = await run_in_threadpool(work)
+    page = _code_page(
+        request, "reset", email, info=CODE_PAGES["reset"]["sent"] if gate == "ok" and cooldown else "",
+        **_gate_messages(gate),
+    )
+    return _with_mail(page, acc, mail)
+
+
+@router.post("/forgot/code/resend")
+async def forgot_resend(request: Request) -> Response:
+    acc = _acc(request)
+    form = await read_form(request)
+    check_csrf(request, form)
+    email = normalize_email(form.get("email", ""))
+    if not valid_email(email):
+        return _code_page(request, "reset", email, locked=False, errors={"email": "Проверьте адрес почты."}, status=422)
+    return await _send_reset_code(request, acc, email, cooldown=True)
+
+
+@router.get("/forgot/code")
+def forgot_code_form(request: Request) -> Response:
+    email = normalize_email(request.query_params.get("email", ""))[:254]
+    return _code_page(request, "reset", email, locked=bool(email))
+
+
+@router.post("/forgot/code")
+async def forgot_code_submit(request: Request) -> Response:
+    acc = _acc(request)
+    form = await read_form(request)
+    check_csrf(request, form)
+    email = normalize_email(form.get("email", ""))
+    gated = _code_gate(request, acc, "reset", email)
+    if gated is not None:
+        return gated
+    code = codes.clean_code(form.get("code", ""))
+    password, password2 = form.get("password", ""), form.get("password2", "")
+    errors: dict[str, str] = {}
+    if code is None:
+        errors["code"] = CODE_FORMAT_TEXT
+    problem = service.passwords.validate_password(password, email)
+    if problem:
+        errors["password"] = problem
+    elif password != password2:
+        errors["password2"] = "Пароли не совпадают."
+    if errors or code is None:  # ошибки ввода не тратят попытки кода
+        return _code_page(request, "reset", email, errors=errors, status=422)
+
+    def work() -> tuple[str, dict[str, Any] | None]:
+        conn = acc.db()
+        try:
+            return service.reset_password_by_code(conn, acc.secret, email, code, password, acc.now())
+        finally:
+            conn.close()
+
+    status, user = await run_in_threadpool(work)
+    if status != "ok" or user is None:
+        return _code_failed(request, acc, "reset", email, status)
+    acc.limiter.reset("code_fail_email", f"reset:{email}")
+    mail = render_mail("password_changed", user["email"], name=user["name"], site_url=acc.site_url)
     return notice(
-        request, "Проверьте почту",
-        ["Если такая почта зарегистрирована, мы отправили на неё ссылку для сброса пароля. Она действует 1 час."],
-        [("Ко входу", "/login", "ghost")], icon_name="envelope-simple", mail=mail,
+        request, "Пароль изменён", ["Войдите с новым паролем. На всех остальных устройствах вход закрыт."],
+        [("Войти", "/login", "primary")], mail=mail,
     )
 
 

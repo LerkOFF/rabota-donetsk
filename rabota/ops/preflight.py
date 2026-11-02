@@ -70,7 +70,8 @@ def check(env: Mapping[str, str]) -> list[Problem]:
         sender = val("SMTP_FROM")
         if not sender or sender.endswith(("@example.ru", "@localhost", "@example.com")):
             err("SMTP_FROM", "не задан или заглушка")
-        if not val("SMTP_USER") or not val("SMTP_PASSWORD"):
+        local_relay = val("SMTP_HOST") in ("127.0.0.1", "localhost", "::1")
+        if (not val("SMTP_USER") or not val("SMTP_PASSWORD")) and not local_relay:
             warn("SMTP_USER", "логин или пароль SMTP пусты: нужно, если почтовый сервис требует вход")
         if val("SMTP_SECURITY").lower() not in ("", "starttls", "ssl", "none"):
             err("SMTP_SECURITY", "допустимо starttls, ssl или none")

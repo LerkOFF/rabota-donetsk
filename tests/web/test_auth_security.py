@@ -266,9 +266,13 @@ def test_enumeration_register_login_reset_resend(env):
     assert login(env, "known@example.test", "wrong-password-1").text.replace("known@", "u@") == \
         login(env, "unknown@example.test", "wrong-password-1").text.replace("unknown@", "u@")
     # сброс и повтор письма
-    assert post(env, "/forgot", {"email": "known@example.test"}).text == post(env, "/forgot", {"email": "unknown@example.test"}).text
-    assert post(env, "/verify/resend", {"email": "known@example.test"}, page="/verify/resend").text == \
-        post(env, "/verify/resend", {"email": "unknown@example.test"}, page="/verify/resend").text
+    def same(path, page):
+        known = post(env, path, {"email": "known@example.test"}, page=page).text
+        unknown = post(env, path, {"email": "unknown@example.test"}, page=page).text
+        assert known.replace("known@example.test", "X") == unknown.replace("unknown@example.test", "X")
+
+    same("/forgot", "/forgot")
+    same("/verify/resend", "/verify/resend")
 
 
 def test_wrong_password_takes_similar_work_for_unknown_email(env, monkeypatch):

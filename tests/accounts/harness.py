@@ -13,6 +13,7 @@ from fastapi.testclient import TestClient
 from rabota.accounts import service
 from rabota.accounts.deps import Accounts
 from rabota.accounts.mailer import Mail, MemoryMailer
+from rabota.accounts.ratelimit import RateLimiter
 from rabota.web.app import create_app
 
 START = datetime(2026, 10, 29, 12, 0, tzinfo=UTC)
@@ -65,7 +66,9 @@ def build_env(tmp_path: Path, *, https: bool = False, rate_limits: dict | None =
     mail = mailer or MemoryMailer()
     clock = Clock()
     app = create_app(db_path, site_url=SITE, auth_options={
-        "mailer": mail, "secret": SECRET, "clock": clock, "rate_limits": rate_limits, "cabinet_stubs": cabinet_stubs})
+        "mailer": mail, "secret": SECRET, "clock": clock, "cabinet_stubs": cabinet_stubs,
+        # лимиты идут по тем же управляемым часам, что и сроки кодов
+        "limiter": RateLimiter(rate_limits, clock=lambda: (clock.current - START).total_seconds())})
     acc = app.state.accounts
     client = TestClient(app, base_url="https://testserver" if https else "http://testserver")
     return Env(app, client, mail, clock, db_path, acc)
@@ -142,3 +145,16 @@ def login_as(env: Env, email: str = "ivan@example.test", *, role: str = "job_see
     r = login(env, email)
     assert r.status_code == 303, r.text
     return uid
+
+
+def code_in(mail: Mail | None) -> str:
+    """Шестизначный код из письма."""
+    assert mail is not None, "письма нет"
+    m = re.search(r"(?<!\d)(\d{6})(?!\d)", mail.body)
+    assert m, mail.body
+    return m.group(1)
+
+
+def wrong_code(real: str) -> str:
+    """Шестизначный код, который точно не равен настоящему."""
+    return f"{(int(real) + 1) % 10**6:06d}"

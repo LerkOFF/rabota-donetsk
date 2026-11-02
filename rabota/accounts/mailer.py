@@ -2,7 +2,8 @@
 
 FileMailer пишет письма в data/outbox/ как .eml (по умолчанию, ссылки подтверждения читаются локально),
 SmtpMailer отправляет по SMTP, MemoryMailer хранит письма в списке для тестов. Выбор по MAIL_BACKEND (file|smtp).
-Тексты писем лежат в templates/email/*.txt, по-русски, обычным текстом.
+Тексты писем лежат в templates/email/<вид>.txt (обычный текст) и, если есть, <вид>.html (вторая часть
+multipart/alternative), по-русски. Адреса с кириллическим доменом уходят в punycode (IDNA).
 """
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.message import EmailMessage
-from email.utils import formataddr, make_msgid
+from email.utils import format_datetime, formataddr, make_msgid
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined
@@ -28,7 +29,11 @@ log = logging.getLogger(__name__)
 EMAIL_TEMPLATES_DIR = Path(__file__).resolve().parent.parent / "web" / "templates" / "email"
 SITE_NAME = "Работа Донецк"
 
+# В темах кодовых писем {code}: код видно в списке писем и в уведомлении на телефоне
 SUBJECTS = {
+    "mail_test": "Проверка почты сайта Работа Донецк",
+    "verify_code": "Код {code} для регистрации на сайте Работа Донецк",
+    "reset_code": "Код {code} для сброса пароля на сайте Работа Донецк",
     "verify": "Подтвердите почту на сайте Работа Донецк",
     "already_registered": "Вы уже зарегистрированы на сайте Работа Донецк",
     "reset": "Сброс пароля на сайте Работа Донецк",
@@ -47,6 +52,7 @@ class Mail:
     to: str
     subject: str
     body: str
+    html: str = ""
 
 
 class Mailer:
@@ -129,17 +135,47 @@ def default_sender() -> str:
     return config.get("SMTP_FROM") or "noreply@localhost"
 
 
+def ascii_address(address: str) -> str:
+    """Адрес с кириллическим доменом в punycode: SMTP без SMTPUTF8 и почтовики принимают только ASCII.
+    Локальная часть остаётся как есть. Адрес с некорректным доменом возвращается без изменений."""
+    local, sep, domain = address.rpartition("@")
+    if not sep:
+        return address
+    try:
+        domain = domain.encode("idna").decode("ascii")
+    except UnicodeError:
+        return address
+    return f"{local}@{domain}"
+
+
+def _domain_of(address: str) -> str:
+    domain = ascii_address(address).rpartition("@")[2]
+    return domain if domain and "." in domain else "localhost.localdomain"
+
+
 def build_message(mail: Mail, sender: str, readable: bool = False) -> EmailMessage:
-    """readable=True: тело письма как есть в UTF-8 (8bit), файл .eml читается в любом редакторе."""
-    if any(ch in mail.to for ch in "\r\n"):
-        raise MailError("недопустимый адрес получателя")
+    """Письмо для отправки. readable=True: тело как есть в UTF-8 (8bit), файл .eml читается в любом редакторе.
+
+    Заголовки: From с именем сайта, Date, Message-ID на домене отправителя, Auto-Submitted и
+    X-Auto-Response-Suppress (автоответчики на служебные письма не отвечают). Reply-To и List-Unsubscribe не нужны:
+    письма служебные, по запросу самого человека."""
+    if any(ch in mail.to for ch in "\r\n") or any(ch in sender for ch in "\r\n"):
+        raise MailError("недопустимый адрес")
+    sender_addr = ascii_address(sender)
     msg = EmailMessage()
     msg["Subject"] = mail.subject
-    msg["From"] = sender if "<" in sender else formataddr((SITE_NAME, sender))
-    msg["To"] = mail.to
-    msg["Date"] = datetime.now(UTC).strftime("%a, %d %b %Y %H:%M:%S +0000")
-    msg["Message-ID"] = make_msgid(domain="rabota.local")
-    msg.set_content(mail.body, charset="utf-8", cte="8bit" if readable else "base64")
+    msg["From"] = sender_addr if "<" in sender_addr else formataddr((SITE_NAME, sender_addr))
+    msg["To"] = ascii_address(mail.to)
+    msg["Date"] = format_datetime(datetime.now(UTC))
+    bare = sender_addr.rpartition("<")[2].rstrip(">").strip()
+    msg["Message-ID"] = make_msgid(domain=_domain_of(bare))
+    msg["Auto-Submitted"] = "auto-generated"
+    msg["X-Auto-Response-Suppress"] = "All"
+    msg["Content-Language"] = "ru"
+    cte = "8bit" if readable else "base64"
+    msg.set_content(mail.body, charset="utf-8", cte=cte)
+    if mail.html:
+        msg.add_alternative(mail.html, subtype="html", charset="utf-8", cte=cte)
     return msg
 
 
@@ -173,10 +209,20 @@ _env = Environment(
 )
 
 
+_html_env = Environment(
+    loader=FileSystemLoader(str(EMAIL_TEMPLATES_DIR)), autoescape=True, undefined=StrictUndefined,
+    keep_trailing_newline=True, trim_blocks=True, lstrip_blocks=True,
+)
+
+
 def render_mail(kind: str, to: str, **context: object) -> Mail:
-    """Собрать письмо по шаблону templates/email/<kind>.txt. В context нужен site_url."""
+    """Собрать письмо по шаблону templates/email/<kind>.txt (и <kind>.html, если есть). В context нужен site_url."""
     body = _env.get_template(f"{kind}.txt").render(site_name=SITE_NAME, **context)
-    return Mail(to=to, subject=SUBJECTS[kind], body=body)
+    html = ""
+    if (EMAIL_TEMPLATES_DIR / f"{kind}.html").exists():
+        html = _html_env.get_template(f"{kind}.html").render(site_name=SITE_NAME, **context)
+    subject = SUBJECTS[kind].format(**{k: v for k, v in context.items() if k == "code"})
+    return Mail(to=to, subject=subject, body=body, html=html)
 
 
 def send_safely(mailer: Mailer, mail: Mail) -> bool:
