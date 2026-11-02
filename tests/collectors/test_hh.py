@@ -166,3 +166,58 @@ def test_areas_deduplicated():
 
 def test_zero_limit():
     assert hh.fetch(limit=0) == []
+
+
+# ------------------------------------------------------------ полное описание со страницы вакансии
+
+def _search_item(vid: int = 134290618) -> dict:
+    return {
+        "vacancyId": vid, "name": "Оператор call-центра", "company": {"visibleName": "ZebraCall"},
+        "area": {"name": "Донецк"}, "workExperience": "noExperience", "publicationTime": {"@timestamp": 1793600000},
+        "snippet": {"req": "У тебя есть ноутбук/компьютер и наушники с микрофоном. Есть wifi или проводной интернет."},
+    }
+
+
+def test_description_to_text_keeps_heading_with_its_list():
+    text = hh.description_to_text("<p><strong>Чего мы ждем от тебя?</strong></p><ul><li>Один</li><li>Два</li></ul><p>Конец</p>")
+    assert text == "Чего мы ждем от тебя?\n- Один\n- Два\n\nКонец"
+
+
+def test_fetch_description_reads_full_text_from_vacancy_page():
+    with respx.mock:
+        respx.get("https://hh.ru/vacancy/134290618").mock(return_value=httpx.Response(200, text=read("vacancy.html")))
+        text = hh.fetch_description(httpx.Client(), "134290618")
+    assert "Тихое место" in text and "Грамотная речь" in text
+
+
+def test_fetch_description_survives_block():
+    with respx.mock:
+        respx.get("https://hh.ru/vacancy/1").mock(return_value=httpx.Response(403))
+        assert hh.fetch_description(httpx.Client(), "1") is None
+
+
+def test_full_description_gives_all_requirements():
+    from rabota.pipeline.run import process
+
+    with respx.mock:
+        respx.get("https://hh.ru/vacancy/134290618").mock(return_value=httpx.Response(200, text=read("vacancy.html")))
+        description = hh.fetch_description(httpx.Client(), "134290618")
+    vacancies = process(hh.to_raw_post(_search_item(), description))
+    assert len(vacancies) == 1
+    req = vacancies[0].requirements
+    for part in ("ноутбук", "wifi", "Тихое место", "Грамотная речь"):
+        assert part in req, req
+
+
+@respx.mock
+def test_fetch_requests_page_only_for_unknown_vacancies(monkeypatch):
+    page = read("search.html")
+    vacancies, _ = hh.parse_search(page)
+    first, second = (str(v["vacancyId"]) for v in vacancies[:2])
+    respx.get(SEARCH).mock(return_value=httpx.Response(200, text=page))
+    detail = respx.get(url__regex=r"https://hh\.ru/vacancy/\d+").mock(return_value=httpx.Response(200, text=read("vacancy.html")))
+    posts = hh.fetch(limit=2, detail=True, known={first})
+    assert detail.call_count == 1
+    by_id = {p.external_id: p for p in posts}
+    assert "Тихое место" in by_id[second].text
+    assert "Тихое место" not in by_id[first].text

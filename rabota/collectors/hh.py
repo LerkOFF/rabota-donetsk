@@ -3,8 +3,10 @@
 Анонимный API api.hh.ru отвергает запросы, регистрация приложения недоступна, поэтому берём
 обычную страницу поиска https://hh.ru/search/vacancy?area=2134&order_by=publication_time. Страница
 отдаёт список вакансий встроенным JSON в теге <template id="HH-Lux-InitialState">. С параметром
-enable_snippets=true в нём есть короткие фрагменты текста (требования, обязанности, условия).
-Полный текст вакансии не запрашиваем, чтобы не нагружать сайт.
+enable_snippets=true в нём есть короткие фрагменты текста, но они обрезаны (в требованиях остаётся
+пара предложений из нескольких пунктов). Поэтому для каждой новой вакансии один раз запрашиваем её
+страницу и берём полное описание; уже известные вакансии не запрашиваем, между запросами пауза.
+Отключить: HH_DETAIL=0.
 
 Ограничения:
 - если hh.ru отдаёт капчу, проверку на робота, 403 или 429, капчу не обходим: fetch пишет
@@ -25,6 +27,7 @@ from typing import Any
 
 import httpx
 
+from rabota import config
 from rabota.config import USER_AGENT
 from rabota.models import RawPost
 
@@ -168,7 +171,49 @@ def _salary_text(v: dict[str, Any]) -> str:
     return s
 
 
-def build_text(v: dict[str, Any]) -> str:
+_BLOCK_END = re.compile(r"</(?:p|div|h[1-6]|ul|ol)>", re.IGNORECASE)
+_TAG = re.compile(r"<[^>]+>")
+
+
+def description_to_text(markup: str) -> str:
+    """Описание вакансии из HTML hh.ru в простой текст: заголовок строкой, пункты списка с "- ", разделы через пустую строку."""
+    text = re.sub(r"(?i)<li[^>]*>", "\n- ", markup)
+    text = re.sub(r"(?i)<br\s*/?>", "\n", text)
+    text = _BLOCK_END.sub("\n\n", text)
+    text = html.unescape(_TAG.sub("", text)).replace("\xa0", " ")
+    text = "\n".join(re.sub(r"[ \t]+", " ", ln).strip() for ln in text.split("\n"))
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    return re.sub(r"([?:])\n\n(?=- )", r"\1\n", text)  # заголовок и его список без пустой строки между ними
+
+
+def fetch_description(client: httpx.Client, vacancy_id: str) -> str | None:
+    """Полное описание со страницы вакансии. При блокировке или сбое None: остаёмся на фрагментах из выдачи."""
+    try:
+        resp = client.get(f"https://hh.ru/vacancy/{vacancy_id}")
+        if resp.status_code != 200:
+            return None
+        state = extract_state(resp.text)
+        markup = state["vacancyView"]["vacancyFull"]["vacancy"]["description"]
+    except (httpx.HTTPError, BlockedError, KeyError, TypeError):
+        return None
+    return description_to_text(markup) if isinstance(markup, str) and markup.strip() else None
+
+
+def known_ids() -> set[str]:
+    """Номера вакансий hh, которые уже есть в базе: их страницы повторно не запрашиваем."""
+    try:
+        from rabota.db import connect
+
+        conn = connect()
+        try:
+            return {r[0] for r in conn.execute("SELECT external_id FROM raw_posts WHERE source_type = 'hh'")}
+        finally:
+            conn.close()
+    except Exception:  # noqa: BLE001 - без базы просто запросим страницы всех
+        return set()
+
+
+def build_text(v: dict[str, Any], description: str | None = None) -> str:
     lines = [str(v.get("name") or "").strip()]
 
     def add(label: str, value: Any) -> None:
@@ -193,11 +238,16 @@ def build_text(v: dict[str, Any]) -> str:
     add("Часов в смене", ", ".join(hours))
     add("Формат работы", ", ".join(WORK_FORMATS.get(x, x) for x in _values(v, "workFormats")))
     for key, label in SNIPPET_LABELS:
+        if description and key != "skill":
+            continue  # полное описание ниже заменяет обрезанные фрагменты
         add(label, re.sub(r"\s+", " ", snippet.get(key) or "").strip())
+    if description:
+        lines.append("")
+        lines.append(description)
     return "\n".join(lines)
 
 
-def to_raw_post(v: dict[str, Any]) -> RawPost:
+def to_raw_post(v: dict[str, Any], description: str | None = None) -> RawPost:
     vid = str(v["vacancyId"])
     extra = {k: val for k, val in v.items() if k not in _DROP_KEYS}
     return RawPost(
@@ -205,7 +255,7 @@ def to_raw_post(v: dict[str, Any]) -> RawPost:
         source="hh.ru",
         external_id=vid,
         url=f"https://hh.ru/vacancy/{vid}",
-        text=build_text(v),
+        text=build_text(v, description),
         published_at=_ts_iso(v.get("publicationTime")) or _ts_iso(v.get("creationTime")),
         image_urls=[],
         extra=extra,
@@ -234,7 +284,8 @@ def _fetch_area(client: httpx.Client, area: int, limit: int) -> list[dict[str, A
 
 
 def fetch(limit: int = 10, client: httpx.Client | None = None,
-          areas: tuple[int, ...] = DEFAULT_AREAS) -> list[RawPost]:
+          areas: tuple[int, ...] = DEFAULT_AREAS, detail: bool | None = None,
+          known: set[str] | None = None) -> list[RawPost]:
     """До limit свежих вакансий по каждой области из areas (по умолчанию вся ДНР).
 
     При блокировке или сбое пишет предупреждение в лог и возвращает то, что успело собраться
@@ -248,6 +299,9 @@ def fetch(limit: int = 10, client: httpx.Client | None = None,
             timeout=TIMEOUT, follow_redirects=True,
             headers={"User-Agent": USER_AGENT, "Accept-Language": "ru-RU,ru;q=0.9"},
         )
+    if detail is None:
+        detail = config.flag("HH_DETAIL", True)
+    seen = (known if known is not None else known_ids()) if detail else set()
     posts: dict[str, RawPost] = {}
     try:
         for i, area in enumerate(areas):
@@ -262,8 +316,16 @@ def fetch(limit: int = 10, client: httpx.Client | None = None,
                 log.warning("hh: область %s, ошибка сети: %s", area, exc)
                 continue
             for v in found[:limit]:
-                if v.get("vacancyId") is not None:
-                    posts.setdefault(str(v["vacancyId"]), to_raw_post(v))
+                if v.get("vacancyId") is None:
+                    continue
+                vid = str(v["vacancyId"])
+                if vid in posts:
+                    continue
+                description = None
+                if detail and vid not in seen:
+                    time.sleep(PAUSE_SECONDS)
+                    description = fetch_description(client, vid)
+                posts[vid] = to_raw_post(v, description)
     finally:
         if own:
             client.close()

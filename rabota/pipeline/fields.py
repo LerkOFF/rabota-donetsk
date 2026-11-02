@@ -299,7 +299,10 @@ def parse_employer(text: str) -> str | None:
     return None
 
 
-_SECTION_START = re.compile(r"(?im)^\W*(?:требования(?:\s+к\s+\w+)?|мы\s+ищем|что\s+нужно|от\s+вас|от\s+тебя|кого\s+ищем)\s*:?\s*$")
+_SECTION_START = re.compile(
+    r"(?im)^\W*(?:требования(?:\s+к\s+\w+)?|мы\s+ищем|что\s+нужно|от\s+вас|от\s+тебя|кого\s+ищем"
+    r"|(?:что|чего)\s+мы\s+(?:ждём|ждем|ожидаем)(?:\s+от\s+(?:вас|тебя|кандидата))?|мы\s+ждём\s+от\s+(?:вас|тебя)"
+    r"|мы\s+ждем\s+от\s+(?:вас|тебя)|от\s+кандидата|ожидаем\s+от\s+(?:вас|тебя|кандидата))\s*[:?]?\s*$")
 _REQ_INLINE = re.compile(r"(?i)^\W*требования\s*:\s*(\S.+)$")
 _SECTION_STOP = re.compile(r"(?im)^\W*(?:мы\s+предлагаем|условия|обязанности|что\s+(?:мы\s+)?предлагаем|от\s+нас|контакты|график|оплата)\b")
 _REQ_KEYWORDS = (
@@ -333,8 +336,8 @@ def parse_requirements(text: str) -> str | None:
                 break
             item = re.sub(r"^[-*\s]+", "", line).strip().rstrip(";.,")
             if item:
-                items.append(item[:80])
-            if len(items) >= 5:
+                items.append(item[:120])
+            if len(items) >= 8:
                 break
     if items:
         return "; ".join(items)
