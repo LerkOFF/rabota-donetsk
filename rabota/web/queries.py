@@ -24,7 +24,19 @@ MAX_QUERY_LEN = 80
 
 # последняя проверка срока жизни прямо в запросе: вакансия без публикаций дольше TTL не показывается,
 # даже если фоновая команда expire давно не запускалась
+
+def city_scope_sql(cities: Sequence[str]) -> str:
+    """Условие выдачи по городу: города из списка и вакансии без города. Пустой список: без ограничения."""
+    if not cities:
+        return "1"
+    quoted = ", ".join("'" + c.replace("'", "''") + "'" for c in cities)
+    return f"(city IS NULL OR city = '' OR city IN ({quoted}))"
+
+
+CITY_SCOPE_SQL = city_scope_sql(config.SERVICE_CITIES)
+
 VISIBLE_SQL = (
+    f"{CITY_SCOPE_SQL} AND "
     "kind = 'vacancy' AND status = 'active' AND duplicate_of IS NULL AND suspicious = 0 AND moderation_status = 'approved' "
     f"AND (COALESCE(last_seen_at, published_at) IS NULL "
     f"OR COALESCE(last_seen_at, published_at) >= strftime('%Y-%m-%dT%H:%M:%S', 'now', '-{int(config.VACANCY_TTL_DAYS)} days'))"

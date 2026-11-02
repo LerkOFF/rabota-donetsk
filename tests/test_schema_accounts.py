@@ -39,3 +39,15 @@ def test_pending_vacancy_is_not_visible():
     c.execute("INSERT INTO vacancies(profession, kind, status) VALUES ('б','vacancy','active')")
     names = [r[0] for r in c.execute(f"SELECT profession FROM vacancies WHERE {queries.VISIBLE_SQL}")]
     assert names == ["б"]
+
+
+def test_only_service_cities_are_visible():
+    from rabota.web import queries
+
+    c = connect(":memory:")
+    for name, city in (("а", "Донецк"), ("б", "Мариуполь"), ("в", None), ("г", ""), ("д", "Макеевка")):
+        c.execute("INSERT INTO vacancies(profession, city, kind, status) VALUES (?, ?, 'vacancy', 'active')", (name, city))
+    names = sorted(r[0] for r in c.execute(f"SELECT profession FROM vacancies WHERE {queries.city_scope_sql(['Донецк'])}"))
+    assert names == ["а", "в", "г"]
+    assert queries.city_scope_sql([]) == "1"
+    assert queries.VISIBLE_SQL.startswith(queries.CITY_SCOPE_SQL)

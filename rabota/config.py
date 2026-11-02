@@ -20,6 +20,9 @@ USER_AGENT = get("HTTP_USER_AGENT", "Mozilla/5.0 (compatible; RabotaDonetskBot/0
 
 # Сколько дней вакансия живёт на сайте с последней публикации. Повторная публикация обнуляет отсчёт.
 VACANCY_TTL_DAYS = int(get("VACANCY_TTL_DAYS", "21"))
+# Города, вакансии которых показываются на сайте (через запятую). Вакансии без города тоже показываются.
+# Остальные города ДНР сборщики разбирают и хранят, но в выдачу они не попадают.
+SERVICE_CITIES = tuple(c.strip() for c in get("SERVICE_CITIES", "Донецк").split(",") if c.strip())
 # Сколько дней истёкшая вакансия лежит скрытой в базе до физического удаления.
 EXPIRED_KEEP_DAYS = int(get("EXPIRED_KEEP_DAYS", "30"))
 
