@@ -130,3 +130,14 @@ def test_download_retries_once_after_network_error():
     route = respx.get(URL).mock(side_effect=[httpx.ConnectError("reset"), httpx.Response(200, content=data)])
     assert download_image(URL) == data
     assert route.call_count == 2
+
+
+def test_telegram_cdn_goes_through_proxy_and_others_do_not(monkeypatch):
+    from rabota.vision import images
+
+    monkeypatch.setenv("TELEGRAM_PROXY", "socks5://u:p@proxy.example:1080")
+    assert images._proxy_for("https://cdn4.cdn-telegram.org/file/x.jpg") == "socks5://u:p@proxy.example:1080"
+    assert images._proxy_for("https://cdn4.telesco.pe/file/x.jpg") == "socks5://u:p@proxy.example:1080"
+    assert images._proxy_for("https://vk.com/img.jpg") is None
+    monkeypatch.setenv("TELEGRAM_PROXY", "")
+    assert images._proxy_for("https://cdn4.telesco.pe/file/x.jpg") is None

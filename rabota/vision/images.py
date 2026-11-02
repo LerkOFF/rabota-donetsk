@@ -34,6 +34,17 @@ class ImageError(Exception):
     """Картинку не удалось скачать или прочитать."""
 
 
+TELEGRAM_HOSTS = ("telesco.pe", "telegram.org", "t.me", "cdn-telegram.org")
+
+
+def _proxy_for(url: str) -> str | None:
+    """Фото каналов лежат на CDN Telegram, который с сервера в РФ не открывается: идём через TELEGRAM_PROXY."""
+    host = (urlparse(url).hostname or "").lower()
+    if any(host == h or host.endswith("." + h) for h in TELEGRAM_HOSTS):
+        return config.telegram_proxy() or None
+    return None
+
+
 def download_image(
     url: str,
     *,
@@ -51,7 +62,9 @@ def download_image(
     if not url.lower().startswith(("http://", "https://")):
         raise ImageError(f"не http-адрес: {url[:80]}")
     own = client is None
-    http = client or httpx.Client(timeout=timeout, follow_redirects=True, headers={"User-Agent": USER_AGENT})
+    http = client or httpx.Client(
+        timeout=timeout, follow_redirects=True, headers={"User-Agent": USER_AGENT}, proxy=_proxy_for(url),
+    )
     try:
         for attempt in range(1, DOWNLOAD_ATTEMPTS + 1):
             try:
