@@ -41,7 +41,7 @@ def test_index_lists_all_documents(legal_client):
 def test_each_document_page_renders(legal_client, slug):
     r = legal_client.get(f"/legal/{slug}")
     assert r.status_code == 200
-    assert "Черновик, требует проверки юристом" in r.text
+    assert "Черновик" not in r.text and "проверки юристом" not in r.text
     assert f'<link rel="canonical" href="https://example.test/legal/{slug}">' in r.text
     assert 'aria-label="Содержание"' in r.text
     assert 'aria-current="page"' in r.text

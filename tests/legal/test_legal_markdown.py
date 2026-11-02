@@ -33,8 +33,8 @@ def test_id_prefix_is_applied():
 
 
 def test_quote_becomes_notice():
-    r = render_markdown("> **Черновик, требует проверки юристом.**\n", {})
-    assert '<p class="notice notice--warn"><span><strong>Черновик, требует проверки юристом.</strong></span></p>' in r.html
+    r = render_markdown("> **Важно.**\n", {})
+    assert '<p class="notice notice--warn"><span><strong>Важно.</strong></span></p>' in r.html
 
 
 def test_html_is_escaped():

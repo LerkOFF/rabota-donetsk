@@ -6,7 +6,7 @@ import pytest
 
 from rabota import legal
 
-SLUGS = ["privacy", "terms", "employers", "consent", "dissemination", "cookies", "requests", "sources"]
+SLUGS = ["privacy", "terms", "employers", "consent", "cookies", "requests", "sources"]
 VARS = {
     "operator_name": "Тестов Тест", "operator_status": "самозанятый", "operator_inn": "000000000000",
     "operator_email": "legal@example.test", "operator_address": "Тестовая улица, 1",
@@ -31,12 +31,15 @@ def test_document_loads_and_renders(slug):
 
 
 @pytest.mark.parametrize("slug", SLUGS)
-def test_document_starts_with_draft_note(slug):
-    lines = [ln for ln in legal.source_text(slug).splitlines() if ln.strip()]
+def test_document_has_title_and_no_draft_or_resume_notes(slug):
+    text = legal.source_text(slug)
+    lines = [ln for ln in text.splitlines() if ln.strip()]
     assert lines[0].startswith("# ")
-    assert "Черновик, требует проверки юристом" in lines[1]
-    r = legal.render_document(slug, VARS)
-    assert r.html.startswith('<p class="notice notice--warn">')
+    assert "Редакция от" in lines[1]
+    low = text.lower()
+    assert "черновик" not in low and "проверки юристом" not in low
+    assert "резюме" not in low and "избранн" not in low  # этих возможностей на сайте нет
+    assert 'class="notice' not in legal.render_document(slug, VARS).html
 
 
 @pytest.mark.parametrize("slug", SLUGS)
@@ -91,7 +94,7 @@ def test_legal_module_and_routes_have_no_forbidden_words():
 
 def test_checklist_exists_and_says_it_is_not_legal_advice():
     text = (legal.LEGAL_DIR / "CHECKLIST.md").read_text(encoding="utf-8")
-    assert "не юридическая консультация" in text.lower() or "не заменяют юридическую консультацию" in text.lower()
+    assert "не юридическая консультация" in text.lower() or "не заменяет юридическую консультацию" in text.lower()
     assert "Роскомнадзор" in text
 
 
