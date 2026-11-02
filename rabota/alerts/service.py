@@ -396,6 +396,16 @@ def bind_telegram(conn: sqlite3.Connection, code: str, chat_id: int, now: dateti
     return "ok", activate(conn, row["id"], now)
 
 
+def adopt_telegram(conn: sqlite3.Connection, user_id: int, chat_id: int) -> int:
+    """Подписки в Telegram, созданные без входа в личном чате этого человека, переходят его аккаунту."""
+    cur = conn.execute(
+        "UPDATE alert_subscriptions SET user_id = ?, email = '' WHERE user_id IS NULL AND channel = 'telegram'"
+        " AND tg_chat_id = ? AND status != 'unsubscribed'", (user_id, chat_id),
+    )
+    conn.commit()
+    return cur.rowcount
+
+
 def subs_for_chat(conn: sqlite3.Connection, chat_id: int) -> list[sqlite3.Row]:
     return conn.execute(  # type: ignore[no-any-return]
         "SELECT * FROM alert_subscriptions WHERE tg_chat_id = ? AND channel = 'telegram' AND status IN ('active', 'paused')"

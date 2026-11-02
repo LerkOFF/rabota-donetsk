@@ -371,26 +371,29 @@ def tg_env(tmp_path, monkeypatch):
         yield e
 
 
-def test_guest_subscribes_via_telegram(tg_env):
+def test_guest_telegram_choice_sends_to_login_and_back(tg_env):
     env = tg_env
-    assert 'value="telegram"' in env.client.get("/alerts/new?" + QS).text
     r = post(env, "/alerts/new", {**FIELDS, "channel": "telegram", "frequency": "instant"}, page="/alerts/new?" + QS)
-    assert r.status_code == 303 and r.headers["location"].startswith("/alerts/telegram/")
-    row = subs(env)[0]
-    assert row["channel"] == "telegram" and row["status"] == "pending" and not env.mailer.outbox
-    page = env.client.get(r.headers["location"])
-    code = re.search(r"https://t\.me/test_bot\?start=([A-Za-z0-9_-]+)", page.text).group(1)
-    assert page.status_code == 200 and "Открыть Telegram" in page.text and "noindex" in page.headers["x-robots-tag"]
+    assert r.status_code == 303 and r.headers["location"].startswith("/login?next=%2Falerts%2Fnew%3F")
+    assert not subs(env)  # без входа ничего не создаётся
+
+
+def test_telegram_subscription_made_before_login_moves_to_the_account_on_binding(tg_env):
+    env = tg_env
     conn = env.db()
-    status, _ = service.bind_telegram(conn, code, 777, env.clock())
+    row, code = service.subscribe_telegram(conn, None, {"q": "бариста"}, now=env.clock())
+    assert service.bind_telegram(conn, code, 777, env.clock())[0] == "ok"
+    uid = make_user(env, "anna@example.test")
+    assert service.adopt_telegram(conn, uid, 777) == 1
+    assert service.get(conn, row["id"])["user_id"] == uid
+    assert service.adopt_telegram(conn, uid, 777) == 0
     conn.close()
-    assert status == "ok"
-    assert "Telegram подключён" in env.client.get(r.headers["location"]).text
 
 
 def test_telegram_page_without_code_offers_a_new_link(tg_env):
     env = tg_env
-    r = post(env, "/alerts/new", {**FIELDS, "channel": "telegram"}, page="/alerts/new?" + QS)
+    logged_in(env)
+    r = post(env, "/alerts/new", {**FIELDS, "pick": "1", "channel_telegram": "1"}, page="/alerts/new?" + QS)
     bare = r.headers["location"].split("?")[0]
     page = env.client.get(bare)
     assert "устарела" in page.text and "Получить новую ссылку" in page.text
@@ -455,14 +458,6 @@ def test_add_email_to_telegram_only_subscription_from_the_list(tg_env):
     assert r.status_code == 303 and r.headers["location"] == "/alerts?m=mail_added"
     assert {s["channel"] for s in subs(env)} == {"email", "telegram"}
     assert "Ещё и на почту" not in env.client.get("/alerts").text
-
-
-def test_guest_telegram_requests_are_limited_by_ip(tmp_path, monkeypatch):
-    monkeypatch.setenv("TG_BOT_TOKEN", "123456:test-token")
-    e = build_env(tmp_path, rate_limits={"alert_tg_ip": (2, 3600)})
-    with e.client:
-        codes = [post(e, "/alerts/new", {"q": f"п{i}", "channel": "telegram"}, page="/alerts/new?q=x").status_code for i in range(4)]
-        assert codes == [303, 303, 429, 429]
 
 
 # ------------------------------------------------------------------ админка

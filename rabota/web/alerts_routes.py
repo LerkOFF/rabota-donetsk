@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from typing import Any
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.responses import RedirectResponse, Response
@@ -27,7 +27,6 @@ router = APIRouter()
 LIMITS: dict[str, tuple[int, int]] = {
     "alert_new_ip": (12, 3600),
     "alert_new_email": (3, 3600),
-    "alert_tg_ip": (10, 3600),
     "alert_code_ip": (30, 3600),
     "alert_unsub_ip": (60, 3600),
     "alert_user": (60, 3600),
@@ -217,8 +216,8 @@ async def new_submit(request: Request) -> Response:
         if channel == "telegram":
             if not _tg_open(conn):
                 raise service.AlertError("channel", "Подписка через Telegram сейчас недоступна. Выберите почту.")
-            if user is None and not acc.limiter.allow("alert_tg_ip", ip):
-                raise HTTPException(429)
+            if user is None:
+                return "login", None, None  # подписку в Telegram ведём из аккаунта
             row, code = service.subscribe_telegram(conn, user, data, frequency=frequency, now=now)
             return "telegram", row, code
         service.check_options(channel, frequency)
@@ -241,6 +240,9 @@ async def new_submit(request: Request) -> Response:
     except service.AlertError as exc:
         errors[exc.code if exc.code in ("email", "consent", "channel", "frequency") else "form"] = exc.text
         return page()
+    if kind == "login":
+        back = "/alerts/new?" + urlencode(alert_fields(data))
+        return _redirect("/login?next=" + quote(back, safe=""))
     if kind == "telegram":
         ref = service.make_token(row["id"], "ref", acc.secret)
         return _redirect(f"/alerts/telegram/{ref}" + (f"?c={extra}" if extra else ""))

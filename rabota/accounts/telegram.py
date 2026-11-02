@@ -22,6 +22,7 @@ from typing import Any
 
 from rabota.accounts import service
 from rabota.accounts.tokens import iso
+from rabota.alerts import service as alerts_service
 
 LINK_PREFIX = "link_"
 LOGIN_PREFIX = "login_"
@@ -132,6 +133,7 @@ def bind_by_code(
     except sqlite3.IntegrityError:  # гонка: этот Telegram успели привязать к другому аккаунту
         conn.rollback()
         return "taken", user
+    alerts_service.adopt_telegram(conn, int(user["id"]), tg_user_id)  # подписки, оформленные до входа, теперь в аккаунте
     return "ok", service.get_user(conn, user["id"])
 
 
