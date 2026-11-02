@@ -14,6 +14,7 @@ from rabota.pipeline.dictionaries import (
     ABBREVIATIONS,
     CONTEXT_CATEGORY_LEMMAS,
     DNR_CITIES,
+    HIRING_RE,
     norm,
     profession_category,
 )
@@ -33,7 +34,7 @@ from rabota.pipeline.fields import (
 from rabota.pipeline.homoglyphs import fix_homoglyphs
 from rabota.pipeline.pay import Pay, monthly_estimate, parse_pay
 from rabota.pipeline.split import Segment
-from rabota.pipeline.titles import pick_profession
+from rabota.pipeline.titles import clean_title_phrase, pick_profession
 
 _META_LABEL = re.compile(
     r"^(?:город|формат|занятость|график(?:\s+работы)?|зарплата|заработная\s+плата|оплата|адрес|телефон|тел|связь|контакт\w*|"
@@ -89,13 +90,42 @@ def _pick(*values: Any) -> Any:
     return None
 
 
-def infer_category(lemma: str, known: bool, full_text: str) -> str:
+def infer_category(lemma: str, known: bool, full_text: str, *, structured: bool = False) -> str:
+    """Отрасль: из словаря, иначе по названию и описанию без раздела условий.
+
+    structured: у источника своё чёткое название вакансии (hh.ru), по льготам из условий отрасль не угадываем.
+    Для текстов из каналов, если по названию и описанию ничего нет, смотрим и условия: там иногда единственная подсказка.
+    """
     category = profession_category(lemma) if known else "другое"
     if category == "другое" or lemma in CONTEXT_CATEGORY_LEMMAS:
-        ctx = detect_context_category(full_text)
+        first = next((ln for ln in full_text.split("\n") if ln.strip()), "")
+        ctx = detect_context_category(first) or detect_context_category(full_text)
+        if not ctx and not structured:
+            ctx = detect_context_category(full_text, with_conditions=True)
         if ctx:
             category = ctx
     return category if category in CATEGORIES else "другое"
+
+
+def hh_work_formats(extra: dict[str, Any] | None) -> list[str] | None:
+    """Форматы работы из структуры hh.ru (ON_SITE, REMOTE, HYBRID, FIELD_WORK). None, если у источника такого поля нет."""
+    if not extra or "workFormats" not in extra:
+        return None
+    out: list[str] = []
+    for block in extra.get("workFormats") or []:
+        if isinstance(block, dict):
+            out.extend(str(x) for x in block.get("workFormatsElement", []))
+    return out
+
+
+def _fallback_profession(raw: RawPost, full: str) -> tuple[str, bool, bool]:
+    """Должность, которой нет в словаре и которую не нашли в тексте: (лемма, из словаря, слишком общая)."""
+    if raw.source_type == "hh":
+        # у hh.ru есть собственное название вакансии: оно точнее любого угадывания по тексту
+        phrase = clean_title_phrase(str((raw.extra or {}).get("name") or ""))
+        if re.search(r"[а-яёa-z]{3}", phrase) and not HIRING_RE.search(norm(phrase)):
+            return phrase, False, False
+    return ("работник" if re.search(r"работник", norm(full)) else "сотрудник"), False, True
 
 
 def normalize_segment(
@@ -114,10 +144,10 @@ def normalize_segment(
         choice = pick_profession(own)
         if choice is None:
             choice = pick_profession(full) if full != own else None
-        if choice is None:
-            lemma, known, generic = ("работник" if re.search(r"работник", norm(full)) else "сотрудник"), False, True
-        else:
+        if choice is not None:
             lemma, known, generic = choice.lemma, choice.known, choice.generic
+        else:
+            lemma, known, generic = _fallback_profession(raw, full)
 
     schedule = _pick(parse_schedule(own), parse_schedule(common))
     pay = parse_pay(own, schedule)
@@ -127,8 +157,9 @@ def normalize_segment(
             pay = Pay(pay_daily=pay.pay_daily)
     city = _pick(parse_city(own), parse_city(common), parse_city(post_text or full))
     district = _pick(parse_district(own), parse_district(common), parse_district(post_text or full))
-    category = infer_category(lemma, known, full)
-    work_format = parse_work_format(full, category)
+    category = infer_category(lemma, known, full, structured=raw.source_type == "hh")
+    formats = hh_work_formats(raw.extra)
+    work_format = parse_work_format(full, category, allow_remote=not formats or "REMOTE" in formats)
     employment = parse_employment(full, schedule)
     experience = _pick(parse_experience(own), parse_experience(common))
     age_min = _pick(parse_age_min(own), parse_age_min(common))
@@ -304,9 +335,9 @@ def apply_structured(vac: Vacancy, extra: dict[str, Any]) -> Vacancy:
     emp_text = " ".join(_flatten_strings(emp)) if emp else ""
     both = norm(sched_text + " " + emp_text)
     if both.strip():
-        if re.search(r"удален|дистанц", both):
+        if re.search(r"удален|дистанц|remote", both):
             vac.work_format = "удалённо"
-        elif re.search(r"вахт", both):
+        elif re.search(r"вахт|flyinfly", both):
             vac.work_format = "вахта"
         if re.search(r"частичн|подработ|времен|стажиров|проектн", both):
             vac.employment = "подработка"
@@ -319,6 +350,9 @@ def apply_structured(vac: Vacancy, extra: dict[str, Any]) -> Vacancy:
             vac.schedule = parsed
         elif re.search(r"гибк|свободн", both):
             vac.schedule = "свободный"
+    formats = hh_work_formats(extra)
+    if formats == ["REMOTE"]:
+        vac.work_format = "удалённо"
     exp = find_extra(extra, "experience")
     if exp is not None and not isinstance(exp, bool):
         exp_text = " ".join(_flatten_strings(exp)) if not isinstance(exp, int | float) else ""

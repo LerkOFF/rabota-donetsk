@@ -222,29 +222,54 @@ def parse_employment(text: str, schedule: str | None = None) -> str | None:
     return None
 
 
-def detect_context_category(text: str) -> str | None:
-    low = norm(text)
+# Раздел с условиями и льготами: слова из него ("медицинский осмотр", "дистанционные курсы", "кафе") не говорят об отрасли
+_CONDITIONS_CUT = re.compile(
+    r"(?im)^\W*(?:условия|мы\s+предлагаем|что\s+(?:мы\s+)?предлагаем|предлагаем|мы\s+гарантируем|бонусы|преимущества|"
+    r"соц\.?\s*пакет|льготы)\b"
+)
+
+
+def without_conditions(text: str) -> str:
+    """Текст до раздела "Условия" / "Мы предлагаем"; если раздел с самого начала, текст целиком."""
+    m = _CONDITIONS_CUT.search(text)
+    return text[: m.start()] if m and m.start() > 0 else text
+
+
+def detect_context_category(text: str, *, with_conditions: bool = False) -> str | None:
+    """Отрасль по общим признакам. Раздел с условиями не читаем, если не просили (with_conditions)."""
+    low = norm(text if with_conditions else without_conditions(text))
     for category, rx in CONTEXT_CATEGORY_RULES:
         if re.search(rx, low):
             return category
     return None
 
 
-def parse_work_format(text: str, category: str | None = None) -> str | None:
+def parse_work_format(text: str, category: str | None = None, *, allow_remote: bool = True) -> str | None:
+    """Формат работы. Явная строка "Формат работы: ..." важнее случайных слов в описании.
+
+    allow_remote=False: источник структурно сказал, что работа не удалённая (hh.ru), слова об удалёнке в тексте игнорируем.
+    """
     low = norm(text)
-    if re.search(r"удален\w+|на\s+дому|из\s+дома|дистанционн|онлайн-работ|работа\s+онлайн|формат\s*:[^\n]*удален", low):
-        return "удалённо"
-    if re.search(r"вахт", low):
-        return "вахта"
-    explicit = re.search(r"формат\s*:\s*([^\n]+)", low)
+    on_site = not allow_remote
+    explicit = re.search(r"формат(?:\s+работы)?\s*:\s*([^\n]+)", low)
     if explicit:
         val = explicit.group(1)
-        if "разъезд" in val or "выездн" in val:
-            return "выезд"
-        if "удален" in val:
+        if allow_remote and re.search(r"удален|дистанц|на\s+дому|из\s+дома", val):
             return "удалённо"
         if "вахт" in val:
             return "вахта"
+        if "разъезд" in val or "выездн" in val:
+            return "выезд"
+        if re.search(r"на\s+месте|в\s+офисе|офис|на\s+объект|в\s+заведени|очно|гибрид", val):
+            on_site = True
+    if not on_site and re.search(
+        r"удален\w+|на\s+дому|из\s+дома|дистанционн\w*(?!\w)(?!\s+(?:курс|обучен|программ|семинар|тренинг|лекци|образован))"
+        r"|онлайн-работ|работа\s+онлайн",
+        low,
+    ):
+        return "удалённо"
+    if re.search(r"вахт", low):
+        return "вахта"
     if re.search(r"разъездн|выездн|развоз\s+(?:товар|продукт|лви|напитк)|по\s+торговым\s+точкам|курьер|торговы\w+\s+представител|экспедитор|доставк\w+\s+товар", low):
         return "выезд"
     mapping = {

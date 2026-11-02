@@ -5,6 +5,7 @@ import re
 from dataclasses import dataclass
 
 from rabota.pipeline.dictionaries import (
+    CITY_PATTERNS,
     GENERIC_LEMMAS,
     HIRING_RE,
     VACANCY_STRUCTURE_RE,
@@ -15,6 +16,9 @@ from rabota.pipeline.dictionaries import (
 )
 
 _SECTION_CUT = re.compile(r"(?im)^\W*(?:обязанности|требования|условия|мы\s+предлагаем|что\s+предлагаем)\b")
+
+# служебные строки карточки ("Адрес: улица Проходчиков", "Работодатель: Пекарня"): там не должность
+_META_LINE = re.compile(r"^\W*(?:работодатель|адрес|город|район|зарплата|опыт\s+работы|занятость|график|часов\s+в\s+смене)\s*:", re.IGNORECASE)
 
 _GENERIC_STOP = {
     "сотрудники", "сотрудник", "работники", "работник", "люди", "человек", "специалисты", "срочно", "помощь", "персонал",
@@ -28,12 +32,41 @@ _TRIGGER = re.compile(
 _CUT_WORDS = {"в", "на", "для", "со", "с", "к", "от", "из", "и", "или", "у", "при", "за"}
 
 
+_GEO_PAREN = re.compile(r"\([^)]*(?:\bг\.|\bг\s|город|республик|област|\bкрай|днр|лнр|\bрф\b)[^)]*\)", re.IGNORECASE)
+_GRADE = re.compile(r"\b\d+(?:-?(?:го|й|ый))?\s*[-]?\s*разряд\w*", re.IGNORECASE)
+_TAIL_CITY = re.compile(r"\s+(?:" + "|".join(CITY_PATTERNS.values()) + r")\s*$", re.IGNORECASE)
+_TAIL_CAPITAL_AFTER_COMMA = re.compile(r",\s*(?:г\.?\s*)?[А-ЯЁ][а-яё]+(?:[ -][А-ЯЁ][а-яё]+)?\s*$")
+_TAIL_IN_CITY = re.compile(r"\s+в\s+[А-ЯЁ][а-яё]+(?:[ -][А-ЯЁ][а-яё]+)?\s*$")
+_TAIL_LATIN_ABBR = re.compile(r"\s*/\s*[A-Za-z]{2,6}\s*$")
+_TAIL_GOROD = re.compile(r",?\s*г\.\s*[А-ЯЁа-яё\- ]+$")
+
+
+def clean_title_phrase(title: str) -> str:
+    """Название вакансии как должность: без города в скобках и после запятой, без разряда ("Проходчик 5 разряда (г. Воркута)" -> "проходчик")."""
+    t = re.sub(r"\s+", " ", title).strip()
+    t = _GEO_PAREN.sub("", t)
+    t = _GRADE.sub("", t)
+    for _ in range(2):
+        t = _TAIL_GOROD.sub("", t)
+        t = _TAIL_CAPITAL_AFTER_COMMA.sub("", t)
+        t = _TAIL_IN_CITY.sub("", t)
+    t = _TAIL_CITY.sub("", t)
+    t = _TAIL_LATIN_ABBR.sub("", t)
+    t = re.sub(r"\s+", " ", t).strip(" ,;:/-")
+    return t.lower()[:80]
+
+
 @dataclass
 class TitleChoice:
     lemma: str
     category: str
     generic: bool = False   # слово из словаря слишком общее ("менеджер")
     known: bool = True      # из словаря, а не вытащено шаблоном
+
+
+def _scrub_meta(region: str) -> str:
+    """Служебные строки карточки остаются на своих местах (чтобы не сдвигать окно поиска), но их текст не читаем."""
+    return "\n".join("" if _META_LINE.match(ln) else ln for ln in region.split("\n"))
 
 
 def _first_good(hits: list[ProfessionHit]) -> ProfessionHit | None:
@@ -112,7 +145,7 @@ def pick_profession(text: str) -> TitleChoice | None:
     regions.append(body[:1500])
     generic_hit: ProfessionHit | None = None
     generic_region = ""
-    for region in regions:
+    for region in map(_scrub_meta, regions):
         hits = find_professions(region)
         good = _first_good(hits)
         if good:
@@ -125,6 +158,6 @@ def pick_profession(text: str) -> TitleChoice | None:
             return TitleChoice(extended, "другое", generic=False, known=False)
         return TitleChoice(generic_hit.lemma, profession_category(generic_hit.lemma), generic=True)
     phrase = generic_title(text)
-    if phrase:
-        return TitleChoice(phrase, "другое", generic=False, known=False)
+    if phrase and not HIRING_RE.search(norm(phrase)):  # "требуются сотрудники на базу" - объявление, а не должность
+        return TitleChoice(clean_title_phrase(phrase) or phrase, "другое", generic=False, known=False)
     return None
