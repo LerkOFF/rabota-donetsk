@@ -267,6 +267,62 @@ def test_add_telegram_to_existing_email_subscription(conn):
     assert service.add_telegram_to(conn, user(conn, "z@example.test"), row["id"], NOW) is None
 
 
+def _both(conn, me, frequency="daily"):
+    mail, _ = service.subscribe_user(conn, me, SEARCH, frequency=frequency, now=NOW)
+    tg, code = service.add_telegram_to(conn, me, mail["id"], NOW)
+    return mail, tg, code
+
+
+def test_email_and_telegram_are_one_subscription(conn):
+    me = user(conn)
+    mail, tg, _ = _both(conn, me)
+    groups = service.list_groups(conn, me)
+    assert len(groups) == 1 and [r["channel"] for r in groups[0]] == ["email", "telegram"]
+    assert service.count_for_user(conn, me) == 1
+    assert [r["id"] for r in service.siblings(conn, me, tg)] == [mail["id"], tg["id"]]
+
+
+def test_second_channel_does_not_hit_the_subscription_limit(conn):
+    me = user(conn)
+    conn.execute("INSERT INTO settings(key, value, updated_at) VALUES ('alerts_max_per_user', '1', 'x')")
+    conn.commit()
+    _both(conn, me)  # одна подписка с двумя каналами умещается в лимит 1
+    with pytest.raises(service.AlertError):
+        service.subscribe_user(conn, me, {"q": "другой поиск"}, now=NOW)
+
+
+def test_pause_resume_frequency_delete_act_on_every_channel(conn):
+    me = user(conn)
+    mail, tg, code = _both(conn, me)
+    service.bind_telegram(conn, code, 55, NOW)
+    assert service.pause(conn, me, mail["id"])
+    assert {r["status"] for r in service.siblings(conn, me, mail)} == {"paused"}
+    assert service.resume(conn, me, tg["id"], NOW)
+    assert {r["status"] for r in service.siblings(conn, me, mail)} == {"active"}
+    assert service.set_frequency(conn, me, mail["id"], "instant")
+    assert {r["frequency"] for r in service.siblings(conn, me, mail)} == {"instant"}
+    assert service.delete(conn, me, tg["id"])
+    assert service.list_for_user(conn, me) == []
+
+
+def test_resume_skips_telegram_without_a_chat(conn):
+    me = user(conn)
+    mail, _tg, _ = _both(conn, me)
+    service.pause(conn, me, mail["id"])
+    service.resume(conn, me, mail["id"], NOW)
+    rows = {r["channel"]: r for r in service.siblings(conn, me, mail)}
+    assert rows["email"]["status"] == "active" and rows["telegram"]["status"] == "pending"
+
+
+def test_add_email_to_telegram_only_subscription(conn):
+    me = user(conn)
+    tg, _ = service.subscribe_telegram(conn, me, SEARCH, frequency="instant", now=NOW)
+    mail = service.add_email_to(conn, me, tg["id"], NOW)
+    assert mail["channel"] == "email" and mail["status"] == "active" and mail["frequency"] == "instant"
+    assert len(service.list_groups(conn, me)) == 1
+    assert service.add_email_to(conn, user(conn, "z@example.test"), tg["id"], NOW) is None
+
+
 # ------------------------------------------------------------------ отписка, чистка, цифры
 
 def test_unsubscribe_is_repeatable_and_keeps_the_row(conn):

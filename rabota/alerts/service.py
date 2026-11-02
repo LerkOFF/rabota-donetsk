@@ -135,12 +135,31 @@ def parse_token(token: str, purpose: str, secret: bytes) -> int | None:
 
 def count_for_user(conn: sqlite3.Connection, user: Mapping[str, Any]) -> int:
     sql, args = _own_sql(user)
-    return int(conn.execute(f"SELECT COUNT(*) FROM alert_subscriptions WHERE {sql} AND status != 'unsubscribed'", args).fetchone()[0])
+    return int(conn.execute(
+        f"SELECT COUNT(DISTINCT filters_key) FROM alert_subscriptions WHERE {sql} AND status != 'unsubscribed'", args
+    ).fetchone()[0])
 
 
 def list_for_user(conn: sqlite3.Connection, user: Mapping[str, Any]) -> list[sqlite3.Row]:
     sql, args = _own_sql(user)
     return conn.execute(f"SELECT * FROM alert_subscriptions WHERE {sql} ORDER BY id DESC", args).fetchall()  # type: ignore[no-any-return]
+
+
+def siblings(conn: sqlite3.Connection, user: Mapping[str, Any], row: sqlite3.Row) -> list[sqlite3.Row]:
+    """Все каналы одной подписки: строки владельца с тем же поиском (почта первой)."""
+    sql, args = _own_sql(user)
+    return conn.execute(  # type: ignore[no-any-return]
+        f"SELECT * FROM alert_subscriptions WHERE {sql} AND filters_key = ?"
+        " ORDER BY CASE channel WHEN 'email' THEN 0 ELSE 1 END, id", (*args, row["filters_key"]),
+    ).fetchall()
+
+
+def list_groups(conn: sqlite3.Connection, user: Mapping[str, Any]) -> list[list[sqlite3.Row]]:
+    """Подписки для кабинета: один поиск с почтой и Telegram это одна подписка. Новые сверху, внутри почта первой."""
+    groups: dict[str, list[sqlite3.Row]] = {}
+    for row in list_for_user(conn, user):
+        groups.setdefault(row["filters_key"], []).append(row)
+    return [sorted(legs, key=lambda r: (r["channel"] != "email", r["id"])) for legs in groups.values()]
 
 
 def get_owned(conn: sqlite3.Connection, user: Mapping[str, Any], sub_id: int) -> sqlite3.Row | None:
@@ -176,7 +195,10 @@ def subscribe_user(
         if existing["status"] in ("paused", "unsubscribed") and (channel == "email" or existing["tg_chat_id"]):
             existing = _reactivate(conn, existing, now)
         return existing, False
-    if count_for_user(conn, user) >= int(conf.setting(conn, "alerts_max_per_user")):
+    has_search = conn.execute(
+        f"SELECT 1 FROM alert_subscriptions WHERE {sql} AND filters_key = ? AND status != 'unsubscribed' LIMIT 1", (*args, key)
+    ).fetchone()
+    if not has_search and count_for_user(conn, user) >= int(conf.setting(conn, "alerts_max_per_user")):
         raise AlertError("limit", f"Можно держать не больше {conf.setting(conn, 'alerts_max_per_user')} подписок. "
                                   "Удалите ненужную в разделе «Подписки на вакансии».")
     status = "active" if channel == "email" else "pending"
@@ -408,12 +430,14 @@ def unsubscribe(conn: sqlite3.Connection, sub_id: int, now: datetime) -> sqlite3
 
 
 def pause(conn: sqlite3.Connection, user: Mapping[str, Any], sub_id: int) -> bool:
+    """Пауза всей подписки: и почта, и Telegram."""
     row = get_owned(conn, user, sub_id)
     if row is None:
         return False
-    if row["status"] == "active":
-        conn.execute("UPDATE alert_subscriptions SET status = 'paused' WHERE id = ?", (sub_id,))
-        conn.commit()
+    for leg in siblings(conn, user, row):
+        if leg["status"] == "active":
+            conn.execute("UPDATE alert_subscriptions SET status = 'paused' WHERE id = ?", (leg["id"],))
+    conn.commit()
     return True
 
 
@@ -421,17 +445,20 @@ def resume(conn: sqlite3.Connection, user: Mapping[str, Any], sub_id: int, now: 
     row = get_owned(conn, user, sub_id)
     if row is None:
         return False
-    if row["channel"] == "telegram" and not row["tg_chat_id"]:
-        return True  # ждёт привязки чата, включать нечего
-    if row["status"] in ("paused", "unsubscribed"):
-        _reactivate(conn, row, now)
+    for leg in siblings(conn, user, row):
+        if leg["channel"] == "telegram" and not leg["tg_chat_id"]:
+            continue  # ждёт привязки чата, включать нечего
+        if leg["status"] in ("paused", "unsubscribed"):
+            _reactivate(conn, leg, now)
     return True
 
 
 def delete(conn: sqlite3.Connection, user: Mapping[str, Any], sub_id: int) -> bool:
-    if get_owned(conn, user, sub_id) is None:
+    """Удалить подписку целиком, со всеми каналами."""
+    row = get_owned(conn, user, sub_id)
+    if row is None:
         return False
-    conn.execute("DELETE FROM alert_subscriptions WHERE id = ?", (sub_id,))
+    conn.executemany("DELETE FROM alert_subscriptions WHERE id = ?", [(leg["id"],) for leg in siblings(conn, user, row)])
     conn.commit()
     return True
 
@@ -439,9 +466,12 @@ def delete(conn: sqlite3.Connection, user: Mapping[str, Any], sub_id: int) -> bo
 def set_frequency(conn: sqlite3.Connection, user: Mapping[str, Any], sub_id: int, frequency: str) -> bool:
     if frequency not in FREQUENCIES:
         raise AlertError("frequency", "Выберите, как часто присылать: сразу или раз в день.")
-    if get_owned(conn, user, sub_id) is None:
+    row = get_owned(conn, user, sub_id)
+    if row is None:
         return False
-    conn.execute("UPDATE alert_subscriptions SET frequency = ? WHERE id = ?", (frequency, sub_id))
+    conn.executemany(
+        "UPDATE alert_subscriptions SET frequency = ? WHERE id = ?", [(frequency, leg["id"]) for leg in siblings(conn, user, row)]
+    )
     conn.commit()
     return True
 
@@ -454,6 +484,17 @@ def add_telegram_to(
     if row is None:
         return None
     return subscribe_telegram(conn, user, filters_of(row), frequency=row["frequency"], now=now)
+
+
+def add_email_to(
+    conn: sqlite3.Connection, user: Mapping[str, Any], sub_id: int, now: datetime
+) -> sqlite3.Row | None:
+    """Та же подписка и на почту аккаунта: второй канал того же поиска (отключённый включается заново)."""
+    row = get_owned(conn, user, sub_id)
+    if row is None:
+        return None
+    mail, _ = subscribe_user(conn, user, filters_of(row), channel="email", frequency=row["frequency"], now=now)
+    return mail
 
 
 # ------------------------------------------------------------------ чистка и данные

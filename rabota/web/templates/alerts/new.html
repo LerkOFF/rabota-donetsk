@@ -35,11 +35,27 @@
       {{ csrf(csrf_token) }}
       {% for name, value in fields %}<input type="hidden" name="{{ name }}" value="{{ value }}">{% endfor %}
 
+      {% if me %}
+      <fieldset class="role-pick">
+        <legend>Куда присылать</legend>
+        <input type="hidden" name="pick" value="1">
+        <label class="role-pick__item">
+          <input type="checkbox" name="channel_email" value="1"{% if want_mail %} checked{% endif %}>
+          <span><span class="role-pick__title">На почту</span><span class="role-pick__text">На адрес вашего аккаунта</span></span>
+        </label>
+        {% if tg_enabled %}
+        <label class="role-pick__item">
+          <input type="checkbox" name="channel_telegram" value="1"{% if want_tg %} checked{% endif %}>
+          <span><span class="role-pick__title">В Telegram</span><span class="role-pick__text">Откроем бота, подключится по нажатию Start. Можно выбрать оба канала: это одна подписка</span></span>
+        </label>
+        {% endif %}
+      </fieldset>
+      {% else %}
       <fieldset class="role-pick">
         <legend>Куда присылать</legend>
         <label class="role-pick__item">
           <input type="radio" name="channel" value="email"{% if channel == 'email' %} checked{% endif %}>
-          <span><span class="role-pick__title">На почту</span><span class="role-pick__text">{% if me %}На адрес вашего аккаунта{% else %}Подтвердим адрес кодом из письма{% endif %}</span></span>
+          <span><span class="role-pick__title">На почту</span><span class="role-pick__text">Подтвердим адрес кодом из письма</span></span>
         </label>
         {% if tg_enabled %}
         <label class="role-pick__item">
@@ -48,6 +64,7 @@
         </label>
         {% endif %}
       </fieldset>
+      {% endif %}
 
       {% if not me %}
       {{ field('email', 'Почта (для письма)', 'email', email, errors.email, 'Нужна, если выбрали почту. Для Telegram можно оставить пустой.', 'email', 254, 'email', 'f', False) }}

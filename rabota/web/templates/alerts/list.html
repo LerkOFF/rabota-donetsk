@@ -30,22 +30,27 @@
       <div class="sub__main">
         <h2 class="sub__title">{{ s.title | ucfirst }}</h2>
         <p class="sub__meta">
-          <span class="chip">{% if s.channel == 'telegram' %}{{ icon('telegram-logo') }}Telegram{% else %}{{ icon('envelope-simple') }}Почта{% endif %}</span>
-          <span class="chip chip--status-{{ s.status }}">{{ s.status_label }}</span>
+          {% for ch in s.channels %}
+          <span class="sub__ch">
+          <span class="chip chip--channel">{% if ch.channel == 'telegram' %}{{ icon('telegram-logo') }}Telegram{% else %}{{ icon('envelope-simple') }}Почта{% endif %}</span>
+          <span class="chip chip--status-{{ ch.status }}">{% if ch.waiting_chat and ch.status != 'unsubscribed' %}ждёт подключения{% else %}{{ ch.status_label }}{% endif %}</span>
+          </span>
+          {% endfor %}
           <span class="muted">{{ s.frequency_label }}{% if s.sent_count %}, отправок: {{ s.sent_count }}{% endif %}</span>
         </p>
-        {% if s.last_error and s.status == 'paused' %}<p class="error">{{ icon('warning') }}<span>Подписку остановили после неудачных отправок. Включите её снова, когда адрес заработает.</span></p>{% endif %}
-        {% if s.waiting_chat %}
+        {% if s.paused_by_errors %}<p class="error">{{ icon('warning') }}<span>Подписку остановили после неудачных отправок. Включите её снова, когда адрес заработает.</span></p>{% endif %}
+        {% if s.waiting %}
         <p class="hint">Ждёт подключения чата в Telegram.</p>
         {% endif %}
       </div>
       <div class="sub__actions">
         <a class="btn btn--ghost btn--sm" href="{{ s.url }}">Вакансии</a>
-        {% if s.waiting_chat %}
-        <form method="post" action="/alerts/telegram/{{ s.ref }}">{{ csrf(csrf_token) }}<button class="btn btn--primary btn--sm" type="submit">{{ icon('telegram-logo') }}Подключить</button></form>
-        {% elif s.status == 'active' %}
+        {% if s.waiting %}
+        <form method="post" action="/alerts/telegram/{{ s.waiting.ref }}">{{ csrf(csrf_token) }}<button class="btn btn--primary btn--sm" type="submit">{{ icon('telegram-logo') }}Подключить</button></form>
+        {% endif %}
+        {% if s.status == 'active' %}
         <form method="post" action="/alerts/{{ s.id }}/pause">{{ csrf(csrf_token) }}<button class="btn btn--ghost btn--sm" type="submit">Пауза</button></form>
-        {% else %}
+        {% elif s.status in ('paused', 'unsubscribed') %}
         <form method="post" action="/alerts/{{ s.id }}/resume">{{ csrf(csrf_token) }}<button class="btn btn--soft btn--sm" type="submit">Включить</button></form>
         {% endif %}
         <form method="post" action="/alerts/{{ s.id }}/frequency" class="sub__freq">
@@ -57,7 +62,10 @@
           </select>
           <button class="btn btn--ghost btn--sm" type="submit">Сохранить</button>
         </form>
-        {% if tg_enabled and s.channel == 'email' %}
+        {% if mail_enabled and not s.has_email %}
+        <form method="post" action="/alerts/{{ s.id }}/email">{{ csrf(csrf_token) }}<button class="btn btn--ghost btn--sm" type="submit">{{ icon('envelope-simple') }}Ещё и на почту</button></form>
+        {% endif %}
+        {% if tg_enabled and not s.has_telegram %}
         <form method="post" action="/alerts/{{ s.id }}/telegram">{{ csrf(csrf_token) }}<button class="btn btn--ghost btn--sm" type="submit">{{ icon('telegram-logo') }}Ещё и в Telegram</button></form>
         {% endif %}
         <form method="post" action="/alerts/{{ s.id }}/delete">{{ csrf(csrf_token) }}<button class="btn btn--danger btn--sm" type="submit" aria-label="Удалить подписку {{ s.title }}">{{ icon('trash') }}Удалить</button></form>

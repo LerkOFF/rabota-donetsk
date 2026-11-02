@@ -411,6 +411,52 @@ def test_logged_in_user_adds_telegram_to_email_subscription(tg_env):
     assert "Ждёт подключения" in env.client.get("/alerts").text
 
 
+def test_email_and_telegram_show_as_one_subscription_card(tg_env):
+    env = tg_env
+    logged_in(env)
+    post(env, "/alerts/new", {**FIELDS, "channel": "email", "frequency": "instant"}, page="/alerts/new?" + QS)
+    post(env, f"/alerts/{subs(env)[0]['id']}/telegram", {}, page="/alerts")
+    page = env.client.get("/alerts").text
+    assert page.count('class="sub__title"') == 1 and "Подписок: 1 из" in page
+    assert "Почта" in page and "Telegram" in page and "ждёт подключения" in page
+    assert "Ещё и в Telegram" not in page and "Ещё и на почту" not in page
+    sid = subs(env)[0]["id"]
+    assert post(env, f"/alerts/{sid}/pause", {}, page="/alerts").status_code == 303
+    assert post(env, f"/alerts/{sid}/frequency", {"frequency": "daily"}, page="/alerts").status_code == 303
+    assert {r["frequency"] for r in subs(env)} == {"daily"}
+    assert post(env, f"/alerts/{sid}/delete", {}, page="/alerts").status_code == 303 and subs(env) == []
+
+
+def test_logged_in_user_picks_both_channels_in_one_form(tg_env):
+    env = tg_env
+    logged_in(env)
+    form = env.client.get("/alerts/new?" + QS).text
+    assert 'name="channel_email"' in form and 'name="channel_telegram"' in form
+    r = post(env, "/alerts/new", {**FIELDS, "pick": "1", "channel_email": "1", "channel_telegram": "1", "frequency": "daily"},
+             page="/alerts/new?" + QS)
+    assert r.status_code == 303 and r.headers["location"].startswith("/alerts/telegram/")
+    assert [(s["channel"], s["status"]) for s in subs(env)] == [("email", "active"), ("telegram", "pending")]
+    assert env.client.get("/alerts").text.count('class="sub__title"') == 1
+
+
+def test_form_without_any_channel_is_refused(tg_env):
+    env = tg_env
+    logged_in(env)
+    r = post(env, "/alerts/new", {**FIELDS, "pick": "1", "frequency": "daily"}, page="/alerts/new?" + QS)
+    assert r.status_code == 422 and "Отметьте, куда присылать" in r.text and not subs(env)
+
+
+def test_add_email_to_telegram_only_subscription_from_the_list(tg_env):
+    env = tg_env
+    logged_in(env)
+    post(env, "/alerts/new", {**FIELDS, "pick": "1", "channel_telegram": "1", "frequency": "daily"}, page="/alerts/new?" + QS)
+    assert "Ещё и на почту" in env.client.get("/alerts").text
+    r = post(env, f"/alerts/{subs(env)[0]['id']}/email", {}, page="/alerts")
+    assert r.status_code == 303 and r.headers["location"] == "/alerts?m=mail_added"
+    assert {s["channel"] for s in subs(env)} == {"email", "telegram"}
+    assert "Ещё и на почту" not in env.client.get("/alerts").text
+
+
 def test_guest_telegram_requests_are_limited_by_ip(tmp_path, monkeypatch):
     monkeypatch.setenv("TG_BOT_TOKEN", "123456:test-token")
     e = build_env(tmp_path, rate_limits={"alert_tg_ip": (2, 3600)})

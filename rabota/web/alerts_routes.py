@@ -39,6 +39,7 @@ FLASH = {
     "resumed": "Подписка снова включена. Придут только вакансии, которые появятся с этого момента.",
     "deleted": "Подписка удалена.",
     "freq": "Частота изменена.",
+    "mail_added": "Почта добавлена: вакансии по этому поиску будут приходить и на почту.",
 }
 
 
@@ -107,6 +108,32 @@ def _row_view(row: Any, cfg: conf.TelegramConfig, secret: bytes = b"") -> dict[s
     }
 
 
+_LEG_STATUS_ORDER = ("active", "paused", "pending", "unsubscribed")
+
+
+def _group_view(legs: list[Any], cfg: conf.TelegramConfig, secret: bytes) -> dict[str, Any]:
+    """Одна подписка кабинета: поиск и его каналы (почта, Telegram). Действия идут по главной строке и действуют на все каналы."""
+    head = legs[0]
+    views = [_row_view(r, cfg, secret) for r in legs]
+    by_channel: dict[str, dict[str, Any]] = {}
+    for v in views:
+        by_channel.setdefault(v["channel"], v)
+    statuses = {v["status"] for v in views}
+    status = next(st for st in _LEG_STATUS_ORDER if st in statuses)
+    live = [v for v in by_channel.values() if v["status"] != "unsubscribed"]
+    telegram = by_channel.get("telegram")
+    return {
+        **views[0], "id": head["id"], "status": status, "status_label": service.STATUS_LABELS[status],
+        "sent_count": sum(v["sent_count"] for v in views),
+        "channels": [by_channel[c] for c in service.CHANNELS if c in by_channel],
+        "has_email": "email" in by_channel and by_channel["email"]["status"] != "unsubscribed",
+        "has_telegram": telegram is not None and telegram["status"] != "unsubscribed",
+        "waiting": telegram if telegram is not None and telegram["waiting_chat"] and telegram["status"] != "unsubscribed" else None,
+        "paused_by_errors": any(v["last_error"] and v["status"] == "paused" for v in views),
+        "live": bool(live),
+    }
+
+
 def _filters_from(form: Any) -> dict[str, Any]:
     return filters.normalize({k: form.get(k) for k in filters.FILTER_KEYS if form.get(k) not in (None, "")})
 
@@ -119,6 +146,8 @@ def _new_context(request: Request, conn: Any, data: dict[str, Any], form: dict[s
         "results_url": filters.vacancies_url("", data), "tg_enabled": _tg_open(conn),
         "mail_enabled": bool(conf.setting(conn, "alerts_email_enabled")),
         "channel": form.get("channel") if form.get("channel") in service.CHANNELS else "email",
+        "want_mail": form.get("channel_email") == "1" if form.get("pick") == "1" else True,
+        "want_tg": form.get("channel_telegram") == "1",
         "frequency": form.get("frequency") if form.get("frequency") in service.FREQUENCIES else "daily",
         "email": form.get("email", ""), "consent": form.get("consent") == "1", "errors": errors or {},
         "frequency_labels": service.FREQUENCY_LABELS,
@@ -151,6 +180,10 @@ async def new_submit(request: Request) -> Response:
     user = get_current_user(request)
     now = acc.now()
     channel, frequency = form.get("channel", "email"), form.get("frequency", "daily")
+    if user is not None and form.get("pick") == "1":
+        # вошедший отмечает каналы флажками: можно оба в одной подписке
+        want_mail, want_tg = form.get("channel_email") == "1", form.get("channel_telegram") == "1"
+        channel = "both" if want_mail and want_tg else "telegram" if want_tg else "email" if want_mail else "none"
     errors: dict[str, str] = {}
 
     def page(status: int = 422) -> Response:
@@ -170,6 +203,17 @@ async def new_submit(request: Request) -> Response:
         raise HTTPException(429)
 
     def work(conn: Any) -> Any:
+        if channel == "none":
+            raise service.AlertError("channel", "Отметьте, куда присылать вакансии: на почту или в Telegram.")
+        if channel == "both" and user is not None:
+            service.check_options("email", frequency)
+            if not _tg_open(conn):
+                raise service.AlertError("channel", "Подписка через Telegram сейчас недоступна. Выберите почту.")
+            if not conf.setting(conn, "alerts_email_enabled"):
+                raise service.AlertError("channel", "Подписки по почте временно отключены. Попробуйте позже или выберите Telegram.")
+            service.subscribe_user(conn, user, data, channel="email", frequency=frequency, now=now)
+            row, code = service.subscribe_telegram(conn, user, data, frequency=frequency, now=now)
+            return "telegram", row, code
         if channel == "telegram":
             if not _tg_open(conn):
                 raise service.AlertError("channel", "Подписка через Telegram сейчас недоступна. Выберите почту.")
@@ -386,14 +430,15 @@ async def alerts_list(request: Request) -> Response:
                      "Подписки на вакансии", "Подписки на новые вакансии: список, пауза и удаление. Войдите в аккаунт, чтобы управлять ими.")
 
     def work(conn: Any) -> Any:
-        rows = service.list_for_user(conn, user)
-        return [_row_view(r, cfg, acc.secret) for r in rows], int(conf.setting(conn, "alerts_max_per_user")), _tg_open(conn)
+        groups = service.list_groups(conn, user)
+        return ([_group_view(g, cfg, acc.secret) for g in groups], int(conf.setting(conn, "alerts_max_per_user")),
+                _tg_open(conn), bool(conf.setting(conn, "alerts_email_enabled")))
 
-    items, limit, tg_enabled = await _db(acc, work)
+    items, limit, tg_enabled, mail_enabled = await _db(acc, work)
     key = request.query_params.get("m", "")
     return _view(request, "list.html", {
         "guest": False, "items": items, "flash": FLASH.get(key, ""), "limit": limit, "tg_enabled": tg_enabled,
-        "active_count": sum(1 for i in items if i["status"] != "unsubscribed"),
+        "mail_enabled": mail_enabled, "active_count": sum(1 for i in items if i["status"] != "unsubscribed"),
     }, "Подписки на вакансии", "Ваши подписки на новые вакансии: частота, пауза, подключение Telegram и удаление.")
 
 
@@ -482,6 +527,30 @@ async def add_telegram(request: Request, sub_id: str) -> Response:
     row, code = result
     ref = service.make_token(row["id"], "ref", acc.secret)
     return _redirect(f"/alerts/telegram/{ref}" + (f"?c={code}" if code else ""))
+
+
+@router.post("/alerts/{sub_id}/email")
+async def add_email(request: Request, sub_id: str) -> Response:
+    acc = _acc(request)
+
+    def work(conn: Any, user: dict[str, Any], number: int, form: dict[str, str]) -> Any:
+        if not conf.setting(conn, "alerts_email_enabled"):
+            return "off"
+        try:
+            return service.add_email_to(conn, user, number, acc.now())
+        except service.AlertError as exc:
+            return exc
+
+    result = await _owned_action(request, sub_id, work)
+    if isinstance(result, Response):
+        return result
+    if result == "off":
+        raise HTTPException(409, "Подписки по почте временно отключены.")
+    if isinstance(result, service.AlertError):
+        raise HTTPException(422, result.text)
+    if result is None:
+        raise HTTPException(404)
+    return _redirect("/alerts?m=mail_added")
 
 
 # ------------------------------------------------------------------ подключение
