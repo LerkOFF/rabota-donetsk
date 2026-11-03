@@ -21,6 +21,7 @@ from typing import Any
 
 from rabota.admin import audit, stoplist
 from rabota.admin.common import iso, now_utc
+from rabota.employers import notify
 
 REJECT = "reject"
 REVIEW = "review"
@@ -219,4 +220,5 @@ def moderate_new(
         conn.commit()
         return result
     apply(conn, vacancy_id, result, now)
+    notify.moderation_pending(conn, vacancy_id, "new")  # только если вакансия осталась ждать решения
     return result

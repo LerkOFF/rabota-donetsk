@@ -402,6 +402,10 @@ def update_vacancy(
     sets = ", ".join(f"{k} = ?" for k in values)
     conn.execute(f"UPDATE vacancies SET {sets} WHERE id = ? AND owner_user_id = ?", [*values.values(), vacancy_id, owner_id])
     conn.commit()
+    if outcome in ("review", "resubmitted"):
+        from rabota.employers import notify  # поздний импорт: employers.posting сам импортирует cabinet
+
+        notify.moderation_pending(conn, vacancy_id, "edit" if outcome == "review" else "resubmit")
     return outcome
 
 

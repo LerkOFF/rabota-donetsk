@@ -107,6 +107,7 @@
 | `LOG_FILE` | файл журнала, который админка показывает в разделе «Система» (только чтение; пусто: источник не показывается) | нет |
 | `HEALTH_TOKEN` | токен для подробностей `/healthz/deep` | рекомендуется |
 | `ALERT_TG_BOT_TOKEN`, `ALERT_TG_CHAT_ID` | уведомления о сбоях в Telegram-бот; без них выключено | нет |
+| `MODERATION_TG_CHAT_ID`, `MODERATION_TG_BOT_TOKEN` | личное сообщение в Telegram, когда вакансия работодателя пришла на модерацию (новая или после правки); без `MODERATION_TG_CHAT_ID` выключено, токен по умолчанию `ALERT_TG_BOT_TOKEN`, затем `TG_BOT_TOKEN`; получатель должен нажать Start у бота | нет |
 | `BACKUP_DIR`, `BACKUP_KEEP_DAYS`, `BACKUP_GPG_RECIPIENT`, `BACKUP_RSYNC_TARGET` | резервные копии | нет |
 | `METRIKA_ID`, `METRIKA_WEBVISOR` | Яндекс Метрика | нет |
 | `WEBMASTER_VERIFY_FILE` | имя файла подтверждения Яндекс Вебмастера, например `yandex_0123abcd.html` | нет |
