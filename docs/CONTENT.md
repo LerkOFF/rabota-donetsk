@@ -74,7 +74,7 @@ search: /vacancies | Смотреть      # кнопка к поиску вак
 ## Установка на телефон (PWA)
 
 - `manifest.webmanifest`: имя «Работа Донецк», короткое имя «Работа», `display: standalone`, `start_url: /?source=pwa`, цвета темы, значки 192 и 512 (`any`) и 512 (`maskable`), быстрые действия (вакансии, подработка, зарплаты). Генерируется в `rabota/web/pwa.py`.
-- Значки: `rabota/web/static/icons/`. Пересоздать из знака сайта: `.venv/bin/python scripts/make_pwa_icons.py` (Pillow, без внешних сервисов). Если меняется `favicon.svg`, контуры в скрипте нужно обновить вручную.
+- Значки: `rabota/web/static/icons/`. Пересоздать из знака сайта: `.venv/bin/python scripts/make_pwa_icons.py` (Pillow, без внешних сервисов). Тот же скрипт рисует `favicon.ico`, `favicon-48.png` и `favicon-120.png`; картинку для ссылок `og.png` рисует `scripts/make_og.py`. Если меняется `favicon.svg`, контуры в обоих скриптах нужно обновить вручную (подробнее в `docs/SEO.md`).
 - `meta theme-color` для светлой (`#f6f8fc`) и тёмной (`#0f172a`) темы стоит в `base.html`, там же `apple-touch-icon`.
 - Service worker `/sw.js` отдаётся с корня (иначе он не управлял бы всем сайтом) с `Cache-Control: no-cache`; версия кэша меняется при правке файлов оболочки. Шаблон: `rabota/web/templates/sw.js`.
   - Кэшируется только оболочка: стили, скрипты, шрифт, значки и страница `/offline`. Файлы из `/static/` отдаются из кэша и обновляются в фоне.

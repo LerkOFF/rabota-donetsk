@@ -79,7 +79,7 @@ EXTRA = {
                    "/vacancies?sort=pay", "/vacancies?city=" + quote("Донецк"), "/vacancies?q=" + quote("яяяя")],
 }
 # маршруты не для поисковиков и не HTML: пропускаются
-NOT_HTML_PREFIXES = ("/robots.txt", "/sitemap", "/favicon.ico", "/healthz", "/suggest", "/manifest.webmanifest", "/sw.js")
+NOT_HTML_PREFIXES = ("/robots.txt", "/sitemap", "/favicon.ico", "/apple-touch-icon", "/healthz", "/suggest", "/manifest.webmanifest", "/sw.js")
 
 
 def is_not_html(template: str) -> bool:
@@ -754,3 +754,21 @@ def test_app_without_data_still_has_valid_home(tmp_path):
         page = Page(r.text)
         assert ld_types(page) == ["WebSite", "Organization"]
         assert locs(c.get("/sitemap.xml").text)
+
+
+def test_vacancy_title_names_employer_with_owner_but_not_unclaimed_card(site):
+    env, _ = site
+    conn = open_conn(env.db_path)
+    page = Page(env.client.get(f"/vacancy/{env.ids['open']}").text)
+    name = conn.execute("SELECT name FROM companies WHERE id=1").fetchone()[0]
+    assert name not in page.title  # с длинной вилкой оплаты имя не помещается в 60 знаков, заголовок остаётся прежним
+    conn.execute("UPDATE vacancies SET pay_max=NULL WHERE id=?", (env.ids["open"],))
+    conn.commit()
+    page = Page(env.client.get(f"/vacancy/{env.ids['open']}").text)
+    assert f", {name}, " in page.title and len(page.title) <= 60 + len(" | Работа Донецк")
+    assert f"Работодатель: {name}." in page.metas["description"]
+    conn.execute("UPDATE companies SET owner_user_id=NULL WHERE id=1")
+    conn.commit()
+    conn.close()
+    page = Page(env.client.get(f"/vacancy/{env.ids['open']}").text)
+    assert name not in page.title

@@ -255,7 +255,7 @@ def organization_jsonld(site_url: str, email: str = "") -> dict[str, Any]:
         "@id": site_url + "/#organization",
         "name": SITE_NAME,
         "url": site_url + "/",
-        "logo": site_url + "/static/favicon.svg",
+        "logo": site_url + "/static/icons/icon-512.png",  # Google не принимает svg в logo
         "description": "Вакансии Донецка и ДНР: от работодателей на сайте и из открытых источников.",
         "areaServed": {"@type": "AdministrativeArea", "name": "Донецк, Донецкая Народная Республика"},
     }

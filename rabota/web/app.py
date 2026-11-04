@@ -410,11 +410,18 @@ def create_app(
         where = v["location"] or "Донецк"
         pay_text = v["pay"]["text"]
         # самый подробный заголовок, который помещается в 60 знаков; иначе без района, иначе только профессия
-        heads = [f"{v['profession_title']}, {where}: {pay_text}",
-                 f"{v['profession_title']}, {v['city'] or 'Донецк'}: {pay_text}",
-                 f"{v['profession_title']}: {pay_text}"]
+        # работодателя в заголовок берём только у карточки с владельцем (он сам завёл компанию на сайте): у собранных
+        # из открытых источников название может оказаться именем человека, а такая карточка в индекс не идёт
+        company = ctx.get("company")
+        employer = " ".join(str(company["name"] or "").split()) if company and company.get("owner_user_id") else ""
+        heads = ([f"{v['profession_title']}, {employer}, {v['city'] or 'Донецк'}: {pay_text}"] if employer else []) + [
+            f"{v['profession_title']}, {where}: {pay_text}",
+            f"{v['profession_title']}, {v['city'] or 'Донецк'}: {pay_text}",
+            f"{v['profession_title']}: {pay_text}"]
         title = next((h for h in heads if len(h) <= seolib.TITLE_LIMIT), heads[-1])
         desc = f"{v['profession_title']}, {where}. {pay_text if not v['pay']['known'] else 'Оплата: ' + pay_text}."
+        if employer:
+            desc += f" Работодатель: {employer}."
         if v["schedule"]:
             desc += f" График {v['schedule']}."
         if v["summary"]:
@@ -555,9 +562,23 @@ def create_app(
     def robots() -> PlainTextResponse:
         return PlainTextResponse(seolib.robots_txt(base_url))
 
-    @app.get("/favicon.ico", include_in_schema=False)
-    def favicon() -> RedirectResponse:
-        return RedirectResponse("/static/favicon.svg", status_code=301)
+    def icon_file(name: str, media_type: str) -> Response:
+        """Значок по адресу в корне сайта: поисковики и Safari ходят за ними сами, без ссылки в <head>."""
+        path = STATIC_DIR / "icons" / name
+        try:
+            body = path.read_bytes()
+        except OSError:
+            raise StarletteHTTPException(404) from None
+        return Response(body, media_type=media_type, headers={"Cache-Control": "public, max-age=86400"})
+
+    @app.api_route("/favicon.ico", methods=["GET", "HEAD"], include_in_schema=False)
+    def favicon() -> Response:
+        return icon_file("favicon.ico", "image/x-icon")
+
+    @app.api_route("/apple-touch-icon.png", methods=["GET", "HEAD"], include_in_schema=False)
+    @app.api_route("/apple-touch-icon-precomposed.png", methods=["GET", "HEAD"], include_in_schema=False)
+    def apple_touch_icon() -> Response:
+        return icon_file("apple-touch-icon.png", "image/png")
 
     def sitemap_groups() -> dict[str, list[tuple[str, str]]]:
         """Адреса карты сайта по видам: (путь, lastmod). Только страницы, которые открыты для индекса."""

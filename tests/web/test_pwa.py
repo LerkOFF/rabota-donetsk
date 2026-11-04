@@ -211,3 +211,28 @@ def test_pwa_files_have_no_inline_style_or_script_needs():
 def test_robots_hides_helper_endpoints(client):
     text = client.get("/robots.txt").text
     assert "Disallow: /suggest" in text and "Disallow: /offline" in text
+
+
+def test_favicon_ico_has_three_sizes_and_root_touch_icons_are_served(client):
+    ico = Image.open(STATIC / "icons" / "favicon.ico")
+    assert ico.info["sizes"] == {(16, 16), (32, 32), (48, 48)}
+    for path in ("/apple-touch-icon.png", "/apple-touch-icon-precomposed.png"):
+        r = client.get(path)
+        assert r.status_code == 200 and r.headers["content-type"] == "image/png", path
+        assert Image.open(__import__("io").BytesIO(r.content)).size == (180, 180)
+
+
+def test_pages_declare_raster_and_vector_favicons(client):
+    html = client.get("/about").text
+    assert '<link rel="icon" href="/favicon.ico" sizes="48x48">' in html
+    assert 'href="/static/favicon.svg" type="image/svg+xml"' in html
+    assert 'href="/static/icons/favicon-120.png" type="image/png" sizes="120x120"' in html
+    assert Image.open(STATIC / "icons" / "favicon-120.png").size == (120, 120)
+    assert Image.open(STATIC / "icons" / "favicon-48.png").size == (48, 48)
+
+
+def test_organization_logo_is_a_raster_square_not_svg(client):
+    ld = seolib.organization_jsonld("https://example.test")
+    assert ld["logo"].endswith(".png") and "svg" not in ld["logo"]
+    w, h = Image.open(STATIC / ld["logo"].removeprefix("https://example.test/static/")).size
+    assert w == h and w >= 112

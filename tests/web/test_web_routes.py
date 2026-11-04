@@ -601,7 +601,10 @@ def test_robots_and_favicon(client):
     r = client.get("/robots.txt")
     assert r.status_code == 200 and "Sitemap: https://example.test/sitemap.xml" in r.text
     assert "Disallow: /vacancy/*/complaint" in r.text
-    assert client.get("/favicon.ico", follow_redirects=False).status_code == 301
+    ico = client.get("/favicon.ico", follow_redirects=False)  # не редирект: Яндекс и Google ходят за ним в корень
+    assert ico.status_code == 200 and ico.headers["content-type"] == "image/x-icon"
+    assert ico.content[:4] == b"\x00\x00\x01\x00" and "max-age" in ico.headers["cache-control"]
+    assert client.head("/favicon.ico").status_code == 200 and client.head("/apple-touch-icon.png").status_code == 200
 
 
 def test_sitemap(client, add):
