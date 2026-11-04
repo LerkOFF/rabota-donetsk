@@ -105,6 +105,9 @@ def check(env: Mapping[str, str]) -> list[Problem]:
     verify = val("WEBMASTER_VERIFY_FILE")
     if verify and not re.match(VERIFY_NAME, verify):
         err("WEBMASTER_VERIFY_FILE", "ожидается имя файла вида yandex_0123abcd.html")
+    google = val("GOOGLE_VERIFY_FILE")
+    if google and not re.match(r"^google[0-9a-f]{8,40}\.html$", google):
+        err("GOOGLE_VERIFY_FILE", "ожидается имя файла вида google0123abcd0123abcd.html")
 
     if bool(val("ALERT_TG_BOT_TOKEN")) != bool(val("ALERT_TG_CHAT_ID")):
         err("ALERT_TG_BOT_TOKEN", "для уведомлений нужны и токен бота, и ALERT_TG_CHAT_ID")

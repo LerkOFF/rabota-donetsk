@@ -4,6 +4,7 @@
     METRIKA_WEBVISOR         1 (по умолчанию) или 0: запись сессий; на страницах входа и кабинета выключена всегда
     WEBMASTER_VERIFY_FILE    имя файла подтверждения из Вебмастера, например yandex_0123abcd.html
     WEBMASTER_VERIFY_BODY    полное содержимое файла, если оно отличается от стандартного
+    GOOGLE_VERIFY_FILE       имя файла подтверждения из Google Search Console, например google0123abcd.html
 
 Код счётчика загружается скриптом consent.js только после согласия посетителя (см. шаблон _analytics.html).
 Сам шаблон читает настройки из request.app.state.analytics.
@@ -20,6 +21,7 @@ from fastapi.responses import HTMLResponse
 from rabota import config
 
 VERIFY_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]{0,78}\.html$")
+GOOGLE_RE = re.compile(r"^google[0-9a-f]{8,40}\.html$")
 
 YANDEX_BODY = (
     "<html>\n    <head>\n        <meta http-equiv=\"Content-Type\" content=\"text/html; charset=UTF-8\">\n"
@@ -33,6 +35,7 @@ class Analytics:
     webvisor: bool = True
     verify_name: str = ""
     verify_body: str = ""
+    google_name: str = ""
 
     @property
     def enabled(self) -> bool:
@@ -54,12 +57,14 @@ def from_env(env: Mapping[str, str] | None = None) -> Analytics:
     name = val("WEBMASTER_VERIFY_FILE")
     if not VERIFY_RE.match(name):
         name = ""
+    google = val("GOOGLE_VERIFY_FILE")
     raw_visor = val("METRIKA_WEBVISOR").lower()
     return Analytics(
         metrika_id=mid if mid.isdigit() else "",
         webvisor=raw_visor not in {"0", "false", "no", "off"},
         verify_name=name,
         verify_body=verify_body_for(name, val("WEBMASTER_VERIFY_BODY")) if name else "",
+        google_name=google if GOOGLE_RE.match(google) else "",
     )
 
 
@@ -72,5 +77,12 @@ def install_analytics(app: FastAPI, settings: Analytics | None = None) -> Analyt
         @app.get("/" + settings.verify_name, include_in_schema=False)
         def webmaster_verification() -> HTMLResponse:
             return HTMLResponse(body, headers={"Cache-Control": "no-cache", "X-Robots-Tag": "noindex"})
+
+    if settings.google_name:
+        google_body = f"google-site-verification: {settings.google_name}"
+
+        @app.get("/" + settings.google_name, include_in_schema=False)
+        def google_verification() -> HTMLResponse:
+            return HTMLResponse(google_body, headers={"Cache-Control": "no-cache", "X-Robots-Tag": "noindex"})
 
     return settings

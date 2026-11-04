@@ -15,7 +15,7 @@ STATIC = Path(__file__).resolve().parents[2] / "rabota" / "web" / "static"
 @pytest.fixture
 def make_client(tmp_path, monkeypatch):
     def build(**env):
-        for name in ("METRIKA_ID", "METRIKA_WEBVISOR", "WEBMASTER_VERIFY_FILE", "WEBMASTER_VERIFY_BODY"):
+        for name in ("METRIKA_ID", "METRIKA_WEBVISOR", "WEBMASTER_VERIFY_FILE", "WEBMASTER_VERIFY_BODY", "GOOGLE_VERIFY_FILE"):
             monkeypatch.delenv(name, raising=False)
         for k, v in env.items():
             monkeypatch.setenv(k, v)
@@ -88,6 +88,16 @@ def test_webmaster_verification_file(make_client):
     assert r.status_code == 200 and "Verification: 0123abcd" in r.text
     assert r.headers["content-type"].startswith("text/html")
     assert make_client().get("/yandex_0123abcd.html").status_code == 404
+
+
+def test_google_verification_file(make_client):
+    c = make_client(GOOGLE_VERIFY_FILE="google5ec1ef48ddc743eb.html")
+    r = c.get("/google5ec1ef48ddc743eb.html")
+    assert r.status_code == 200 and r.text == "google-site-verification: google5ec1ef48ddc743eb.html"
+    assert r.headers["x-robots-tag"] == "noindex"
+    assert make_client().get("/google5ec1ef48ddc743eb.html").status_code == 404
+    for bad in ("../x.html", "google.html", "yandex_0123abcd.html", "google0123abcd.php"):
+        assert analytics.from_env({"GOOGLE_VERIFY_FILE": bad}).google_name == ""
 
 
 def test_webmaster_custom_body_and_bad_names(make_client):

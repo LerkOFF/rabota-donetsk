@@ -111,6 +111,7 @@
 | `BACKUP_DIR`, `BACKUP_KEEP_DAYS`, `BACKUP_GPG_RECIPIENT`, `BACKUP_RSYNC_TARGET` | резервные копии | нет |
 | `METRIKA_ID`, `METRIKA_WEBVISOR` | Яндекс Метрика | нет |
 | `WEBMASTER_VERIFY_FILE` | имя файла подтверждения Яндекс Вебмастера, например `yandex_0123abcd.html` | нет |
+| `GOOGLE_VERIFY_FILE` | имя файла подтверждения Google Search Console, например `google0123abcd0123abcd.html` (содержимое сайт отдаёт сам) | нет |
 | `INDEXNOW_KEY`, `INDEXNOW_STATE_PATH` | ключ IndexNow и файл состояния отправки | нет |
 | `SERVICE_CITIES` | города, вакансии которых видны на сайте, через запятую | Донецк |
 | `WEBMASTER_VERIFY_FILE`, `WEBMASTER_VERIFY_BODY` | файл подтверждения Вебмастера | нет |
