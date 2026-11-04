@@ -328,7 +328,8 @@ def vacancy_context(conn: sqlite3.Connection, request: Request, vacancy_id: int)
             "employments": [(e, fmt.EMPLOYMENT_LABELS[e]) for e in EMPLOYMENTS],
             "periods": [(p, fmt.PERIOD_LABELS[p]) for p in PAY_PERIODS],
         },
-        "errors": {}, "error": "", "notify": moderation.notify_address(conn, vacancy_id),
+        "errors": {}, "error": "", "edit_open": request.query_params.get("edit") == "1",
+        "notify": moderation.notify_address(conn, vacancy_id),
         "ttl_days": config.VACANCY_TTL_DAYS,
         **admin_vacancies.card_extras(conn, v, st.clock()),
     }

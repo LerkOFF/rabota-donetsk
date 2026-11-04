@@ -132,7 +132,7 @@
     {% endif %}
 
     <section class="panel" aria-labelledby="h-edit" data-key="edit" draggable="true">
-      <details class="adm-details"{% if errors %} open{% endif %}>
+      <details class="adm-details"{% if errors or edit_open %} open{% endif %}>
         <summary id="h-edit">{{ icon('file-text') }}Править поля</summary>
         <form class="adm-form" method="post" action="/admin/vacancies/{{ v.id }}/edit" novalidate>
           {{ csrf() }}

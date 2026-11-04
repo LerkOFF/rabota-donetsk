@@ -488,6 +488,17 @@ details.complain > summary {
 }
 details.complain[open] > summary { border-bottom: 1px solid var(--c-line); border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
 details.complain form { display: grid; gap: var(--sp-4); padding: var(--sp-4); }
+/* быстрая правка для администратора: круглая кнопка над страницей вакансии, ведёт в админку */
+.admin-fab {
+  position: fixed; top: 6rem; right: var(--sp-3); z-index: var(--z-bar); display: grid; place-items: center; width: 3rem; height: 3rem;
+  border-radius: 50%; background: var(--c-accent); color: var(--c-on-accent); border: 1px solid var(--c-line-strong); box-shadow: var(--shadow-lift);
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+.admin-fab .icon { width: 1.35rem; height: 1.35rem; }
+.admin-fab:hover { background: var(--c-accent-hover); }
+.admin-fab:active { transform: translateY(1px); }
+.admin-fab:focus-visible { outline: 3px solid var(--c-accent-soft); outline-offset: 3px; }
+@media (min-width: 1100px) { .admin-fab { top: 11rem; right: var(--sp-6); } }
 .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
 
 .also-list { display: grid; gap: 0; }

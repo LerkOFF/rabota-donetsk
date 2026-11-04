@@ -161,4 +161,8 @@
 {% if not closed and (v.phone or v.telegram or v.apply_url or (v.original_url and not v.is_site)) %}
 <div class="action-bar">{{ actions(v) }}</div>
 {% endif %}
+
+{% if user and user.role == 'admin' and user.verified %}
+<a class="admin-fab" href="/admin/vacancies/{{ v.id }}?edit=1#h-edit" target="_blank" rel="noopener" title="Редактировать вакансию" aria-label="Редактировать вакансию" data-admin-edit>{{ icon('pencil-simple') }}</a>
+{% endif %}
 {% endblock %}
