@@ -22,6 +22,8 @@ _SECTION_HDR = re.compile(
 )
 _SEPARATOR = re.compile(r"^\s*(?:,|/|;|\bи\b|\bили\b|\bтакже\b)\s*(?:также\s+)?$")
 _LEAD_JUNK = re.compile(r"^[\s:\-]*")
+# составные должности, найденные при разборе пунктов: название -> отрасль по словарю (или None)
+_COMPOUND: dict[str, str | None] = {}
 
 
 @dataclass
@@ -33,6 +35,8 @@ class Segment:
     profession: str | None = None   # должность из списка, если её дал сам разбор
     title: str = ""                 # строка-заголовок пункта
     lemmas_in_line: list[str] = field(default_factory=list)
+    known: bool = True              # должность из словаря; False у составных ("специалист по отгрузке", "кондитер-пекарь")
+    category: str | None = None     # отрасль по словарю, если известна (у составных должностей)
 
     @property
     def full(self) -> str:
@@ -46,6 +50,35 @@ def _split_marker(line: str) -> tuple[str, bool]:
     return line.strip(), False
 
 
+_QUALIFIER_CUT = re.compile(r"[(\[,;/:.!?]")
+_QUALIFIED = re.compile(r"^(?:по|на|отдела)\s+[а-яё]", re.IGNORECASE)
+
+
+def _compound(head: str, hits: list) -> tuple[str, str | None] | None:
+    """Составная должность пункта: ("специалист по отгрузке", None) или ("кондитер-пекарь", "общепит").
+
+    Нужна, чтобы пункты "специалист по отгрузке" и "специалист на пироги и пирожки" не слипались в одно
+    "специалист", а "кондитер пекарь" не терялся за уже найденным "кондитер".
+    """
+    first = hits[0]
+    rest = head[first.end:]
+    if first.lemma in GENERIC_LEMMAS and _QUALIFIED.match(rest.lstrip()):
+        tail = _QUALIFIER_CUT.split(rest, maxsplit=1)[0]
+        words = tail.split()[:5]
+        if len(words) >= 2:
+            return f"{first.matched.lower()} {' '.join(words)}".lower(), None
+    if (
+        len(hits) > 1
+        and hits[1].start - first.end <= 1
+        and hits[1].lemma != first.lemma
+        and first.lemma not in GENERIC_LEMMAS
+        and hits[1].lemma not in GENERIC_LEMMAS
+    ):
+        cat = first.category if first.category != "другое" else None
+        return f"{first.lemma}-{hits[1].lemma}", cat
+    return None
+
+
 def _line_items(head: str) -> list[str]:
     """Должности в начале строки-пункта: "Слесарей/электриков" даёт слесарь и электрик."""
     if not head or len(head) > 110 or len(head.split()) > 14:
@@ -53,6 +86,10 @@ def _line_items(head: str) -> list[str]:
     hits = find_professions(head)
     if not hits or hits[0].start > 0:
         return []
+    compound = _compound(head, hits)
+    if compound:
+        _COMPOUND[compound[0]] = compound[1]
+        return [compound[0]]
     lemmas = [hits[0].lemma]
     prev_end = hits[0].end
     for h in hits[1:]:
@@ -62,6 +99,14 @@ def _line_items(head: str) -> list[str]:
         else:
             break
     return lemmas
+
+
+def _segment(text: str, common: str, profession: str, title: str, lemmas: list[str]) -> Segment:
+    """Сегмент одной вакансии; составная должность помечается как не из словаря, отрасль берётся от первого слова."""
+    if profession in _COMPOUND:
+        return Segment(text=text, common=common, profession=profession, title=title, lemmas_in_line=lemmas,
+                       known=False, category=_COMPOUND[profession])
+    return Segment(text=text, common=common, profession=profession, title=title, lemmas_in_line=lemmas)
 
 
 def _blank(line: str) -> bool:
@@ -179,7 +224,7 @@ def _paragraph_segments(lines: list[str]) -> list[Segment]:
             if lm in seen:
                 continue
             seen.add(lm)
-            segments.append(Segment(text="\n".join(par), common=common, profession=lm, title=par[0].strip("- "), lemmas_in_line=list(lms)))
+            segments.append(_segment("\n".join(par), common, lm, par[0].strip("- "), list(lms)))
     return segments
 
 
@@ -243,7 +288,7 @@ def _segments_from_starts(lines: list[str], starts: list[_Start], header: str | 
             if lemma in seen:
                 continue
             seen.add(lemma)
-            segments.append(Segment(text=own, common=common, profession=lemma, title=s.head, lemmas_in_line=list(s.lemmas)))
+            segments.append(_segment(own, common, lemma, s.head, list(s.lemmas)))
     if header and header not in seen:
         header_line = next((ln for ln in lines[: starts[0].idx] if HIRING_RE.search(norm(ln))), "")
         segments.insert(0, Segment(text=header_line.strip(), common=common, profession=header, title=header_line.strip()))

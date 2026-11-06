@@ -139,7 +139,7 @@ def normalize_segment(
     own = seg.text
     common = seg.common
     full = seg.full or own
-    lemma, known, generic = seg.profession, True, False
+    lemma, known, generic = seg.profession, seg.known, False
     if lemma is None:
         choice = pick_profession(own)
         if choice is None:
@@ -158,6 +158,8 @@ def normalize_segment(
     city = _pick(parse_city(own), parse_city(common), parse_city(post_text or full))
     district = _pick(parse_district(own), parse_district(common), parse_district(post_text or full))
     category = infer_category(lemma, known, full, structured=raw.source_type == "hh")
+    if category == "другое" and seg.category in CATEGORIES:
+        category = seg.category
     formats = hh_work_formats(raw.extra)
     work_format = parse_work_format(full, category, allow_remote=not formats or "REMOTE" in formats)
     employment = parse_employment(full, schedule)

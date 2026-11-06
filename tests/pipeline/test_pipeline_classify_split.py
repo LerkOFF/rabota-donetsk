@@ -157,3 +157,38 @@ def test_one_pay_for_the_whole_list_is_shared():
 def test_analyze_keeps_cleaned_text_and_kind():
     a = analyze(raw("🔥 Требуется повар #работа"))
     assert a.kind == "vacancy" and "🔥" not in a.cleaned
+
+
+CAKE_FACTORY_POST = """Вакансии в кондитерскую фабрик .
+
+Ищем в нашу дружную команду:
+•пекаря
+•кондитера
+•продавец-консультант
+•специалист по отгрузке
+•кондитер пекарь (булочки и хлеб)
+•специалист на пироги и пирожки
+
+Официальное трудоустройство, комфортный график, полная занятость, достойная зп, отличная команда!
+Дополнительные вопросы и отклик можно оставить в сообщениях группы vk.ru/cakefabriq или по номеру телефона 8 (922) 707-11-13
+Мы ждём именно тебя!🤍"""
+
+
+def test_post_with_generic_titles_gives_every_vacancy():
+    """Пункты "специалист по ..." не слипаются в одно "специалист", "кондитер пекарь" не теряется за "кондитер"."""
+    post = raw(CAKE_FACTORY_POST, external_id="31264", published_at="2026-11-06T06:20:00+00:00")
+    vacancies = process(post)
+    assert [v.profession for v in vacancies] == [
+        "пекарь", "кондитер", "продавец", "специалист по отгрузке", "кондитер-пекарь", "специалист на пироги и пирожки",
+    ]
+    assert len({v.dedupe_key for v in vacancies}) == 6
+    # все привязаны к одному посту и к его телефону
+    assert {(v.source, v.external_id, v.source_url) for v in vacancies} == {("src", "31264", "https://example.com/1")}
+    assert all(v.contacts.get("phones") for v in vacancies)
+    assert all(v.category != "другое" for v in vacancies)
+
+
+def test_split_keeps_qualified_generic_items_apart():
+    segments = split_post(clean_text("Требуются:\n- специалист по отгрузке\n- специалист по складу\n- специалист на пироги и пирожки"))
+    assert [s.profession for s in segments] == ["специалист по отгрузке", "специалист по складу", "специалист на пироги и пирожки"]
+    assert len({s.profession for s in segments}) == len(segments)
